@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+/*
+ * TOKENS DE TEMA — ponto único para alinhar ao design system da Akross Atende.
+ * Os valores abaixo são PROVISÓRIOS (paleta corporativa neutra): substitua pelos tokens
+ * oficiais da Akross Atende (cores, raio, tipografia) sem tocar nos componentes.
+ */
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  --color-primaria-50: #eef4ff;
+  --color-primaria-100: #dbe6fe;
+  --color-primaria-200: #bfd3fe;
+  --color-primaria-500: #2f6fed;
+  --color-primaria-600: #1f57d6;
+  --color-primaria-700: #1745ad;
+  --color-primaria-800: #0b3d91;
+  --color-primaria-900: #0a2c66;
+
+  --color-superficie: #ffffff;
+  --color-fundo: #f4f6fa;
+  --color-borda: #e3e7ee;
+  --color-borda-forte: #cdd4df;
+  --color-texto: #1f2733;
+  --color-texto-suave: #5b6472;
+  --color-texto-fraco: #8a93a3;
+
+  --color-sucesso-50: #ecfdf3;
+  --color-sucesso-600: #12805c;
+  --color-alerta-50: #fff8eb;
+  --color-alerta-600: #b25e09;
+  --color-acao-50: #fff1e8;
+  --color-acao-600: #c2410c;
+  --color-critico-50: #fef1f1;
+  --color-critico-600: #c0262d;
+  --color-info-50: #eef6ff;
+  --color-info-600: #1d64c2;
+
+  --radius-cartao: 10px;
+  --shadow-cartao: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-fundo);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Números tabulares para leitura de valores em tabelas extensas. */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
