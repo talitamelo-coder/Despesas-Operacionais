@@ -17,7 +17,7 @@ export type MapaOrigens = Partial<Record<string, OrigemDado>>;
 
 // ---------------------------------------------------------------- Cadastros
 
-export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico";
+export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "Solicitante";
 
 export interface Usuario {
   id: string;
@@ -27,7 +27,21 @@ export interface Usuario {
   cargo?: string;
   /** Diretores dão ciência (ou aprovam em exceção). */
   diretor?: boolean;
+  area?: string;
+  /** Empresas (filiais) que o usuário pode acessar. Vazio = todas. */
+  empresasIds?: string[];
+  /** Só o hash da senha é guardado (PBKDF2-SHA256 com salt). Nunca sai da camada de dados. */
+  credencial?: Credencial;
+  /** Indicador público de que há senha definida (a credencial em si não é exposta). */
+  temSenha?: boolean;
   ativo: boolean;
+}
+
+export interface Credencial {
+  algoritmo: "PBKDF2-SHA256";
+  iteracoes: number;
+  salt: string; // base64
+  hash: string; // base64
 }
 
 export interface Empresa {

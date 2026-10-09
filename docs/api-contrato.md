@@ -15,7 +15,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | Método | Caminho | Método da interface | Observações |
 |---|---|---|---|
 | GET | `/usuarios` | `listarUsuarios` | |
-| PUT | `/usuarios/{id\|novo}` | `salvarUsuario` | Admin |
+| PUT | `/usuarios/{id\|novo}` | `salvarUsuario` | Admin. Corpo pode trazer `senha` (só no cadastro/redefinição); a resposta nunca devolve senha nem hash |
 | GET | `/empresas` · PUT `/empresas/{id\|novo}` | `listarEmpresas` · `salvarEmpresa` | |
 | GET | `/fornecedores` | `listarFornecedores` | Espelho do sistema atual |
 | POST | `/fornecedores/potenciais` | `criarFornecedorPotencial` | Pré-cadastro durante cotação |

@@ -155,3 +155,21 @@ describe("uso com dados reais", () => {
     await expect(api.importarBackup("{}", "u-admin")).rejects.toThrow();
   });
 });
+
+describe("cadastro de usuário", () => {
+  it("cadastra com senha só em hash e não expõe a credencial", async () => {
+    const u = await api.salvarUsuario({ id: "", nome: "Ana Souza", email: "Ana@Empresa.com.br", perfil: "Solicitante", area: "Comercial", empresasIds: ["e-hold"], ativo: true }, "u-admin", "senha123");
+    expect(u.email).toBe("ana@empresa.com.br");
+    expect(u.temSenha).toBe(true);
+    expect(u.credencial).toBeUndefined();
+    const lista = await api.listarUsuarios();
+    expect(lista.every((x) => x.credencial === undefined)).toBe(true);
+    const aud = await api.listarAuditoria(u.id);
+    expect(JSON.stringify(aud)).not.toContain("senha123");
+    // Edição sem senha mantém a atual; e-mail duplicado é recusado.
+    const editado = await api.salvarUsuario({ ...u, area: "Marketing" }, "u-admin");
+    expect(editado.temSenha).toBe(true);
+    await expect(api.salvarUsuario({ id: "", nome: "Outra", email: "ana@empresa.com.br", perfil: "Gestor", area: "Comercial", ativo: true }, "u-admin", "123456")).rejects.toThrow();
+    await expect(api.salvarUsuario({ id: "", nome: "Sem senha", email: "x@y.com", perfil: "Gestor", area: "Comercial", ativo: true }, "u-admin")).rejects.toThrow();
+  });
+});

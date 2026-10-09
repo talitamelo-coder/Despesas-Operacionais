@@ -4,6 +4,8 @@ import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { FornecedorForm } from "@/components/dominio/FornecedorForm";
+import { UsuarioForm } from "@/components/dominio/UsuarioForm";
+import { validarUsuario } from "@/domain/rules/usuario";
 import { fornecedorMascarado, validarFornecedor } from "@/domain/rules/fornecedor";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -17,7 +19,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { CAMPOS_IMPORTACAO, chaveDuplicidade, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
-import type { Configuracao, Empresa, Fornecedor, Perfil, TipoContrato, Usuario } from "@/domain/types";
+import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados } from "@/services";
 
 const ABAS = [
@@ -270,48 +272,61 @@ function Fornecedores() {
   );
 }
 
-const PERFIS: Perfil[] = ["Administrador", "Suprimentos", "Gestor", "Juridico"];
-
 function Usuarios() {
-  const { cad, usuario, executar } = useApp();
+  const { cad, usuario, executar, nomeEmpresa } = useApp();
   const [edit, setEdit] = useState<Usuario>();
+  const [senha, setSenha] = useState("");
+  const [tentou, setTentou] = useState(false);
+  const abrir = (u: Usuario) => (setEdit(structuredClone(u)), setSenha(""), setTentou(false));
+  const erros = edit
+    ? validarUsuario(edit, senha, {
+        novo: !edit.id,
+        emailsExistentes: cad.usuarios.filter((x) => x.id !== edit.id).map((x) => x.email.trim().toLowerCase()),
+      })
+    : {};
+  const salvar = async () => {
+    setTentou(true);
+    if (Object.keys(erros).length) return;
+    if (await executar(() => api.salvarUsuario(edit!, usuario.id, senha || undefined), edit!.id ? "Usuário atualizado." : "Usuário cadastrado.")) {
+      setEdit(undefined);
+      setSenha("");
+    }
+  };
   return (
     <Card>
-      <CardHeader titulo="Usuários" subtitulo="Saving e baseline só podem ser alterados por Suprimentos ou Administrador" acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => setEdit({ id: "", nome: "", email: "", perfil: "Gestor", ativo: true })}>Novo usuário</Button>} />
+      <CardHeader
+        titulo="Usuários"
+        subtitulo="Saving e baseline só podem ser alterados por Suprimentos ou Administrador"
+        acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => abrir({ id: "", nome: "", email: "", perfil: "Solicitante", empresasIds: [], ativo: true })}>Novo usuário</Button>}
+      />
       <Tabela<Usuario>
         linhas={cad.usuarios}
         chave={(u) => u.id}
-        onLinha={setEdit}
+        onLinha={abrir}
         colunas={[
-          { id: "n", titulo: "Nome", render: (u) => u.nome },
-          { id: "e", titulo: "E-mail", render: (u) => <span className="text-texto-suave">{u.email}</span> },
-          { id: "c", titulo: "Cargo", render: (u) => u.cargo ?? "—" },
+          { id: "n", titulo: "Nome", render: (u) => <span>{u.nome}{u.diretor && <span className="ml-2 text-xs text-texto-suave">Diretor</span>}</span> },
+          { id: "e", titulo: "E-mail", render: (u) => <span className="text-texto-suave">{u.email || <span className="text-alerta-600">a completar</span>}</span> },
           { id: "p", titulo: "Perfil", render: (u) => <Badge tom="primario">{ROTULO_PERFIL[u.perfil]}</Badge> },
-          { id: "d", titulo: "Diretor", render: (u) => (u.diretor ? "Sim" : "—") },
+          { id: "ar", titulo: "Área", render: (u) => u.area ?? <span className="text-alerta-600">a completar</span> },
+          { id: "f", titulo: "Filiais", render: (u) => <span className="text-xs">{u.empresasIds?.length ? u.empresasIds.map(nomeEmpresa).join(", ") : "Todas"}</span> },
+          { id: "s", titulo: "Senha", render: (u) => (u.temSenha ? <Badge tom="sucesso">Definida</Badge> : <Badge tom="alerta">Não definida</Badge>) },
           { id: "a", titulo: "Situação", render: (u) => <Badge tom={u.ativo ? "sucesso" : "neutro"}>{u.ativo ? "Ativo" : "Inativo"}</Badge> },
         ]}
       />
       <Modal
         aberto={Boolean(edit)}
         titulo={edit?.id ? "Editar usuário" : "Novo usuário"}
+        largura="lg"
         onFechar={() => setEdit(undefined)}
         rodape={
           <>
+            {tentou && Object.keys(erros).length > 0 && <span className="mr-auto self-center text-xs text-critico-600">Corrija os campos destacados.</span>}
             <Button variante="secundario" onClick={() => setEdit(undefined)}>Cancelar</Button>
-            <Button disabled={!edit?.nome || !edit?.email} onClick={async () => (await executar(() => api.salvarUsuario(edit!, usuario.id), "Usuário salvo.")) && setEdit(undefined)}>Salvar</Button>
+            <Button onClick={salvar}>{edit?.id ? "Salvar" : "Cadastrar Usuário"}</Button>
           </>
         }
       >
-        {edit && (
-          <div className="grid grid-cols-2 gap-4">
-            <Input rotulo="Nome" obrigatorio className="col-span-2" value={edit.nome} onChange={(e) => setEdit({ ...edit, nome: e.target.value })} />
-            <Input rotulo="E-mail" obrigatorio className="col-span-2" type="email" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} />
-            <Input rotulo="Cargo" value={edit.cargo ?? ""} onChange={(e) => setEdit({ ...edit, cargo: e.target.value })} />
-            <Select rotulo="Perfil" vazio={false} value={edit.perfil} onChange={(e) => setEdit({ ...edit, perfil: e.target.value as Perfil })} opcoes={PERFIS.map((p) => ({ valor: p, rotulo: ROTULO_PERFIL[p] }))} />
-            <Toggle rotulo="Diretor (ciência/aprovação em exceção)" checked={Boolean(edit.diretor)} onChange={(v) => setEdit({ ...edit, diretor: v })} />
-            <Toggle rotulo="Ativo" checked={edit.ativo} onChange={(v) => setEdit({ ...edit, ativo: v })} />
-          </div>
-        )}
+        {edit && <UsuarioForm u={edit} onChange={setEdit} senha={senha} onSenha={setSenha} erros={tentou ? erros : {}} />}
       </Modal>
     </Card>
   );

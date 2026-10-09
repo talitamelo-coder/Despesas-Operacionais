@@ -3,6 +3,7 @@ import { gerarCodigo } from "@/domain/codigos";
 import { aprovacoesPadrao } from "@/domain/rules/fluxo";
 import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
+import { AREAS_PADRAO } from "@/domain/rules/usuario";
 import type {
   Configuracao,
   Contrato,
@@ -64,17 +65,17 @@ function cnpjFicticio(base8: string, filial = "0001"): string {
 }
 
 const USUARIOS: Usuario[] = [
-  { id: "u-admin", nome: "Marina Lopes", email: "marina.lopes@empresa.exemplo", perfil: "Administrador", cargo: "Administradora do sistema", ativo: true },
-  { id: "u-sup1", nome: "Rafael Costa", email: "rafael.costa@empresa.exemplo", perfil: "Suprimentos", cargo: "Analista de Suprimentos Sr.", ativo: true },
-  { id: "u-sup2", nome: "Juliana Prado", email: "juliana.prado@empresa.exemplo", perfil: "Suprimentos", cargo: "Analista de Suprimentos", ativo: true },
-  { id: "u-sup3", nome: "Diego Martins", email: "diego.martins@empresa.exemplo", perfil: "Suprimentos", cargo: "Coordenador de Suprimentos", ativo: true },
-  { id: "u-ges1", nome: "Carlos Mendes", email: "carlos.mendes@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de TI", ativo: true },
-  { id: "u-ges2", nome: "Fernanda Rocha", email: "fernanda.rocha@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Operações", ativo: true },
-  { id: "u-ges3", nome: "Paulo Sérgio Lima", email: "paulo.lima@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Facilities", ativo: true },
-  { id: "u-ges4", nome: "Beatriz Nunes", email: "beatriz.nunes@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Marketing", ativo: true },
-  { id: "u-dir1", nome: "Roberto Almeida", email: "roberto.almeida@empresa.exemplo", perfil: "Gestor", cargo: "Diretor de Operações", diretor: true, ativo: true },
-  { id: "u-dir2", nome: "Helena Vasconcelos", email: "helena.vasconcelos@empresa.exemplo", perfil: "Gestor", cargo: "Diretora Administrativo-Financeira", diretor: true, ativo: true },
-  { id: "u-jur1", nome: "Luciana Ferraz", email: "luciana.ferraz@empresa.exemplo", perfil: "Juridico", cargo: "Advogada Corporativa", ativo: true },
+  { id: "u-admin", area: "Tecnologia", nome: "Marina Lopes", email: "marina.lopes@empresa.exemplo", perfil: "Administrador", cargo: "Administradora do sistema", ativo: true },
+  { id: "u-sup1", area: "Suprimentos", nome: "Rafael Costa", email: "rafael.costa@empresa.exemplo", perfil: "Suprimentos", cargo: "Analista de Suprimentos Sr.", ativo: true },
+  { id: "u-sup2", area: "Suprimentos", nome: "Juliana Prado", email: "juliana.prado@empresa.exemplo", perfil: "Suprimentos", cargo: "Analista de Suprimentos", ativo: true },
+  { id: "u-sup3", area: "Suprimentos", nome: "Diego Martins", email: "diego.martins@empresa.exemplo", perfil: "Suprimentos", cargo: "Coordenador de Suprimentos", ativo: true },
+  { id: "u-ges1", area: "Tecnologia", nome: "Carlos Mendes", email: "carlos.mendes@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de TI", ativo: true },
+  { id: "u-ges2", area: "Operações", nome: "Fernanda Rocha", email: "fernanda.rocha@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Operações", ativo: true },
+  { id: "u-ges3", area: "Facilities", nome: "Paulo Sérgio Lima", email: "paulo.lima@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Facilities", ativo: true },
+  { id: "u-ges4", area: "Marketing", nome: "Beatriz Nunes", email: "beatriz.nunes@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Marketing", ativo: true },
+  { id: "u-dir1", area: "Operações", nome: "Roberto Almeida", email: "roberto.almeida@empresa.exemplo", perfil: "Gestor", cargo: "Diretor de Operações", diretor: true, ativo: true },
+  { id: "u-dir2", area: "Financeiro", nome: "Helena Vasconcelos", email: "helena.vasconcelos@empresa.exemplo", perfil: "Gestor", cargo: "Diretora Administrativo-Financeira", diretor: true, ativo: true },
+  { id: "u-jur1", area: "Jurídico", nome: "Luciana Ferraz", email: "luciana.ferraz@empresa.exemplo", perfil: "Juridico", cargo: "Advogada Corporativa", ativo: true },
 ];
 
 const EMPRESAS: Empresa[] = [
@@ -763,6 +764,7 @@ export function criarEstadoInicial(): EstadoDados {
         "Motivos de substituição": ["Desempenho/SLA", "Preço acima do mercado", "Descontinuidade do fornecedor", "Mudança de tecnologia", "Outro"],
         "Motivos de encerramento": ["Serviço não necessário", "Substituído", "Rescisão por inadimplemento", "Outro"],
         Projetos: ["Transformação Digital", "Expansão Nordeste", "Eficiência Operacional"],
+        Áreas: AREAS_PADRAO,
       },
     },
   };

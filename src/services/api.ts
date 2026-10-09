@@ -116,7 +116,8 @@ export interface ResultadoImportacao {
 export interface ContratosApi {
   // Cadastros e configuração
   listarUsuarios(): Promise<Usuario[]>;
-  salvarUsuario(u: Usuario, porId: string): Promise<Usuario>;
+  /** senha: obrigatória no cadastro; na edição, vazia mantém a atual. Só o hash é guardado. */
+  salvarUsuario(u: Usuario, porId: string, senha?: string): Promise<Usuario>;
   listarEmpresas(): Promise<Empresa[]>;
   salvarEmpresa(e: Empresa, porId: string): Promise<Empresa>;
   listarFornecedores(): Promise<Fornecedor[]>;

@@ -28,6 +28,8 @@ const MATRIZ: Record<Perfil, Permissao[]> = {
   Suprimentos: ["editar_processo", "validar_demanda", "editar_saving", "aprovar", "gerir_documentos", "importar_planilha", "visualizar"],
   Gestor: ["aprovar", "avaliar_renovacao", "gerir_documentos", "visualizar"],
   Juridico: ["emitir_parecer", "gerir_documentos", "visualizar"],
+  // Solicitante (área requisitante): acompanha contratos e processos, sem editar.
+  Solicitante: ["visualizar"],
 };
 
 export function pode(perfil: Perfil, permissao: Permissao): boolean {
@@ -39,4 +41,5 @@ export const ROTULO_PERFIL: Record<Perfil, string> = {
   Suprimentos: "Suprimentos",
   Gestor: "Gestor",
   Juridico: "Jurídico/Consulta",
+  Solicitante: "Solicitante",
 };

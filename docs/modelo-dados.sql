@@ -11,12 +11,18 @@ CREATE TABLE usuarios (
   external_id   VARCHAR(64)  NULL COMMENT 'ID no SSO/Akross Atende',
   nome          VARCHAR(150) NOT NULL,
   email         VARCHAR(190) NOT NULL UNIQUE,
-  perfil        ENUM('Administrador','Suprimentos','Gestor','Juridico') NOT NULL,
+  perfil        ENUM('Administrador','Suprimentos','Gestor','Juridico','Solicitante') NOT NULL,
   cargo         VARCHAR(120) NULL,
+  area          VARCHAR(80)  NULL,
   diretor       BOOLEAN      NOT NULL DEFAULT FALSE,
+  -- Somente hash (PBKDF2/Argon2) — nunca a senha. Com SSO da Akross Atende, pode ficar nulo.
+  senha_hash    VARCHAR(255) NULL,
   ativo         BOOLEAN      NOT NULL DEFAULT TRUE,
   criado_em     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Filiais com acesso (sem linhas = acesso a todas). Criada após empresas.
+-- CREATE TABLE usuarios_empresas (usuario_id CHAR(36), empresa_id CHAR(36), PRIMARY KEY (usuario_id, empresa_id));
 
 CREATE TABLE empresas (
   id      CHAR(36)     PRIMARY KEY,

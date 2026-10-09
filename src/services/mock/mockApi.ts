@@ -7,6 +7,7 @@ import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
+import { gerarCredencial, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
@@ -232,21 +233,33 @@ function gerarContrato(p: ProcessoContratacao, porId: string): Contrato {
 export const mockApi: ContratosApi = {
   // ---------------------------------------------------------------- Cadastros
   async listarUsuarios() {
-    return clone(estado.usuarios);
+    return estado.usuarios.map((u) => usuarioPublico(clone(u)));
   },
-  async salvarUsuario(u, porId) {
+  async salvarUsuario(entrada, porId, senha) {
     exigir(porId, "administrar");
-    const i = estado.usuarios.findIndex((x) => x.id === u.id);
+    const i = estado.usuarios.findIndex((x) => x.id === entrada.id);
+    const email = entrada.email.trim().toLowerCase();
+    const erros = validarUsuario({ ...entrada, email }, senha ?? "", {
+      novo: i < 0,
+      emailsExistentes: estado.usuarios.filter((x) => x.id !== entrada.id).map((x) => x.email.trim().toLowerCase()),
+    });
+    if (Object.keys(erros).length) throw new ErroNegocio(Object.values(erros).join(" "));
+    // A credencial nunca vem da tela: é gerada aqui a partir da senha, ou mantida a atual.
+    const { credencial: _ignorada, temSenha: _t, ...dados } = entrada;
+    const credencial = senha ? await gerarCredencial(senha) : i >= 0 ? estado.usuarios[i].credencial : undefined;
+    const u: Usuario = { ...dados, nome: dados.nome.trim(), email, credencial };
     if (i >= 0) {
-      auditar(diffAuditoria(estado.usuarios[i], u, { entidade: "configuracao", entidadeId: u.id, usuarioId: porId, data: agora(), acao: "Usuário alterado" }, () => novoId("a")));
+      const sem = (x: Usuario) => usuarioPublico(x);
+      auditar(diffAuditoria(sem(estado.usuarios[i]), sem(u), { entidade: "configuracao", entidadeId: u.id, usuarioId: porId, data: agora(), acao: "Usuário alterado" }, () => novoId("a")));
+      if (senha) registrar("configuracao", u.id, porId, "Senha redefinida");
       estado.usuarios[i] = u;
     } else {
-      u = { ...u, id: novoId("u") };
+      u.id = novoId("u");
       estado.usuarios.push(u);
       registrar("configuracao", u.id, porId, "Usuário criado", "nome", undefined, u.nome);
     }
     persistir();
-    return clone(u);
+    return usuarioPublico(clone(u));
   },
   async listarEmpresas() {
     return clone(estado.empresas);
