@@ -14,7 +14,7 @@ import { api } from "@/services";
 
 export function Dashboard() {
   const navegar = useNavigate();
-  const { nomeUsuario, usuario } = useApp();
+  const { nomeUsuario, usuario, cad } = useApp();
   const { dados: ind } = useConsulta(() => api.obterIndicadores(), []);
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
   if (!ind) return <Carregando />;
@@ -33,6 +33,17 @@ export function Dashboard() {
         }
       />
 
+      {cad.modo === "demonstracao" && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-cartao)] border border-alerta-50 bg-alerta-50 px-4 py-3 text-sm text-alerta-600">
+          <span>Você está vendo <b>dados fictícios</b> de demonstração.</span>
+          <Button variante="secundario" tamanho="sm" onClick={() => navegar("/admin")}>Começar com dados reais</Button>
+        </div>
+      )}
+      {cad.modo === "real" && ind.contratosVigentes === 0 && (
+        <div className="mb-4 rounded-[var(--radius-cartao)] border border-info-50 bg-info-50 px-4 py-3 text-sm text-info-600">
+          <b>Base vazia.</b> Comece em Administração: cadastre empresas, usuários e fornecedores, e importe a planilha atual de contratos (Administração → Importação da planilha).
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi rotulo="Contratos vigentes" valor={ind.contratosVigentes} icone={<FileCheck2 size={18} />} onClick={() => navegar("/contratos?aba=Vigentes")} />
         <Kpi rotulo="Valor anual contratado" valor={formatarMoeda(ind.valorAnualContratado, "BRL", true)} detalhe="Contratos vigentes, convertido em BRL" icone={<BadgeDollarSign size={18} />} />

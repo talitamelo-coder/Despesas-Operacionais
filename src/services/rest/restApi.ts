@@ -37,6 +37,7 @@ export const restApi: ContratosApi = {
   salvarEmpresa: (e, porId) => http("PUT", `/empresas/${e.id || "novo"}`, e, porId),
   listarFornecedores: () => http("GET", "/fornecedores"),
   criarFornecedorPotencial: (nome, porId) => http("POST", "/fornecedores/potenciais", { nome }, porId),
+  salvarFornecedor: (f, porId) => http("PUT", `/fornecedores/${f.fornecedor_id || "novo"}`, f, porId),
   listarTiposContrato: () => http("GET", "/tipos-contrato"),
   salvarTipoContrato: (t, porId) => http("PUT", `/tipos-contrato/${t.id || "novo"}`, t, porId),
   obterConfiguracao: () => http("GET", "/configuracao"),
@@ -73,6 +74,17 @@ export const restApi: ContratosApi = {
   listarAuditoria: (entidadeId) => http("GET", `/auditoria${q({ entidadeId })}`),
 
   buscarDemandaJira: (jira_key) => http("GET", `/integracoes/jira/demandas/${encodeURIComponent(jira_key)}`),
+  // Com backend real, a base é única e o backup é responsabilidade do banco (MySQL).
+  obterModoDados: async () => "real",
+  iniciarBaseVazia: async () => {
+    throw new Error("Indisponível com a API real.");
+  },
+  exportarBackup: async () => {
+    throw new Error("Indisponível com a API real.");
+  },
+  importarBackup: async () => {
+    throw new Error("Indisponível com a API real.");
+  },
   restaurarDadosDemonstracao: async () => {
     throw new Error("Indisponível com a API real.");
   },

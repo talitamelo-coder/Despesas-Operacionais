@@ -20,8 +20,12 @@ import type {
  * cenários (vencimento, renovação em risco etc.) continuem válidos em qualquer data.
  */
 
+export type ModoDados = "demonstracao" | "real";
+
 export interface EstadoDados {
   versao: number;
+  /** "demonstracao": dados fictícios recriáveis. "real": dados do usuário — nunca descartados automaticamente. */
+  modo: ModoDados;
   usuarios: Usuario[];
   empresas: Empresa[];
   fornecedores: Fornecedor[];
@@ -726,6 +730,7 @@ export function criarEstadoInicial(): EstadoDados {
 
   return {
     versao: VERSAO_SEED,
+    modo: "demonstracao",
     usuarios: USUARIOS,
     empresas: EMPRESAS,
     fornecedores: fornecedores(),
@@ -760,5 +765,26 @@ export function criarEstadoInicial(): EstadoDados {
         Projetos: ["Transformação Digital", "Expansão Nordeste", "Eficiência Operacional"],
       },
     },
+  };
+}
+
+/**
+ * Base vazia para uso com dados reais: mantém só listas/parâmetros e tipos de contrato,
+ * e cria o primeiro Administrador (quem iniciou a base).
+ */
+export function criarEstadoVazio(admin: { nome: string; email: string }): EstadoDados {
+  const demo = criarEstadoInicial();
+  return {
+    versao: VERSAO_SEED,
+    modo: "real",
+    usuarios: [{ id: "u-admin", nome: admin.nome, email: admin.email, perfil: "Administrador", cargo: "Administrador do sistema", ativo: true }],
+    empresas: [],
+    fornecedores: [],
+    tiposContrato: demo.tiposContrato,
+    contratos: [],
+    processos: [],
+    documentos: [],
+    auditoria: [],
+    configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
 }

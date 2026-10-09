@@ -13,7 +13,17 @@ npm test           # regras de negócio e fluxos ponta a ponta
 npm run build      # typecheck + build de produção em dist/
 ```
 
-Os dados de demonstração ficam no navegador (localStorage). Para recriá-los: **Administração → Restaurar dados de demonstração**. Para testar os perfis, use o seletor **Perfil simulado** no topo (Suprimentos, Gestor, Jurídico, Administrador, Diretor).
+Os dados ficam no navegador (localStorage). Para recriar a demonstração: **Administração → Dados e backup**. Para testar os perfis, use o seletor **Perfil simulado** no topo (Suprimentos, Gestor, Jurídico, Administrador, Diretor).
+
+## Usar com dados reais (fase de teste)
+
+1. **Administração → Dados e backup → Começar base vazia.** Remove os dados fictícios e cria você como primeiro Administrador.
+2. **Cadastros:** Empresas, Usuários (gestores, analistas de Suprimentos, Jurídico, diretores) e Fornecedores.
+3. **Contratos atuais:** Administração → Importação da planilha (planilha salva como CSV). O relatório aponta inconsistências, registros incompletos e duplicidades antes de importar. Gestores citados na planilha e ainda não cadastrados são criados automaticamente.
+4. **Novas contratações:** Novo Processo. Sem a integração com o JIRA, o número do chamado é registrado e os dados são preenchidos manualmente.
+5. **Cópia de segurança:** Administração → Dados e backup → Salvar cópia de segurança, ao fim de cada sessão de uso.
+
+Limites desta fase: os dados ficam **só no navegador e no computador** de quem usa (não são compartilhados com a equipe), não há login (o "Perfil simulado" só serve para testar as permissões) e os anexos guardam apenas o nome do arquivo. O uso por várias pessoas, com segurança, depende do backend com banco de dados (ver `docs/arquitetura.md`).
 
 ## Stack
 

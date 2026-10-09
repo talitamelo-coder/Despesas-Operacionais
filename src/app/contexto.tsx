@@ -14,6 +14,7 @@ interface Cadastros {
   fornecedores: Fornecedor[];
   tipos: TipoContrato[];
   config: Configuracao;
+  modo: "demonstracao" | "real";
 }
 
 interface Toast {
@@ -53,8 +54,8 @@ export function ProvedorApp({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const carregar = () =>
-      Promise.all([api.listarUsuarios(), api.listarEmpresas(), api.listarFornecedores(), api.listarTiposContrato(), api.obterConfiguracao()]).then(
-        ([usuarios, empresas, fornecedores, tipos, config]) => setCad({ usuarios, empresas, fornecedores, tipos, config }),
+      Promise.all([api.listarUsuarios(), api.listarEmpresas(), api.listarFornecedores(), api.listarTiposContrato(), api.obterConfiguracao(), api.obterModoDados()]).then(
+        ([usuarios, empresas, fornecedores, tipos, config, modo]) => setCad({ usuarios, empresas, fornecedores, tipos, config, modo }),
       );
     carregar();
     return aoMudar(carregar);

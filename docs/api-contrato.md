@@ -19,6 +19,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/empresas` · PUT `/empresas/{id\|novo}` | `listarEmpresas` · `salvarEmpresa` | |
 | GET | `/fornecedores` | `listarFornecedores` | Espelho do sistema atual |
 | POST | `/fornecedores/potenciais` | `criarFornecedorPotencial` | Pré-cadastro durante cotação |
+| PUT | `/fornecedores/{id\|novo}` | `salvarFornecedor` | Enquanto não houver integração com o sistema atual |
 | GET | `/tipos-contrato` · PUT `/tipos-contrato/{id\|novo}` | | |
 | GET / PUT | `/configuracao` | `obterConfiguracao` · `salvarConfiguracao` | Listas, regras de alerta |
 | GET | `/central?aba=&busca=&empresaId=&...&ordenarPor=&direcao=&pagina=&tamanhoPagina=` | `consultarCentral` | **Paginação e filtros no servidor**; retorna `{ linhas, total, contagemPorAba }` |
@@ -42,6 +43,8 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/dashboard/indicadores` | `obterIndicadores` | Derivado (`domain/rules/indicadores.ts`) |
 | GET | `/auditoria?entidadeId=` | `listarAuditoria` | |
 | GET | `/integracoes/jira/demandas/{jira_key}` | `buscarDemandaJira` | Backend consulta o JIRA |
+
+Métodos só do modo local (sem servidor): `obterModoDados`, `iniciarBaseVazia`, `exportarBackup`, `importarBackup` e `restaurarDadosDemonstracao`. Com a API real, a base é única, e cópia de segurança e recuperação são feitas no banco de dados.
 
 ## Regras que o backend precisa reproduzir
 

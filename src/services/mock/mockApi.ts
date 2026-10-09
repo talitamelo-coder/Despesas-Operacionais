@@ -11,7 +11,7 @@ import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
 import type { Contrato, Documento, Fornecedor, ProcessoContratacao, RegistroAuditoria, TipoProcesso, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
-import { criarEstadoInicial, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
+import { criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
 import { ErroNegocio, ErroPermissao, type ContratosApi } from "../api";
 import { consultar, montarLinhas } from "../consultaCentral";
 import { notificarMudanca } from "../eventos";
@@ -29,7 +29,9 @@ function carregar(): EstadoDados {
     const bruto = localStorage.getItem(CHAVE_STORAGE);
     if (bruto) {
       const e = JSON.parse(bruto) as EstadoDados;
-      if (e.versao === VERSAO_SEED) return e;
+      // Dados reais nunca são descartados por mudança de versão; só a demonstração é recriada.
+      if (e.modo === "real") return e;
+      if (e.versao === VERSAO_SEED) return { ...e, modo: "demonstracao" };
     }
   } catch {
     /* storage indisponível: segue com dados novos */
@@ -267,6 +269,25 @@ export const mockApi: ContratosApi = {
     persistir();
     return clone(f);
   },
+  async salvarFornecedor(f, porId) {
+    exigir(porId, "editar_processo");
+    if (!f.razaoSocial.trim()) throw new ErroNegocio("Informe a razão social.");
+    const cnpj = f.cnpj ? somenteDigitos(f.cnpj) : undefined;
+    if (cnpj && estado.fornecedores.some((x) => x.fornecedor_id !== f.fornecedor_id && x.cnpj && somenteDigitos(x.cnpj) === cnpj))
+      throw new ErroNegocio("Já existe fornecedor com este CNPJ.");
+    const novo: Fornecedor = { ...f, cnpj, nomeFantasia: f.nomeFantasia || f.razaoSocial };
+    const i = estado.fornecedores.findIndex((x) => x.fornecedor_id === f.fornecedor_id);
+    if (i >= 0) {
+      auditar(diffAuditoria(estado.fornecedores[i], novo, { entidade: "configuracao", entidadeId: f.fornecedor_id, usuarioId: porId, data: agora(), acao: "Fornecedor alterado" }, () => novoId("a")));
+      estado.fornecedores[i] = novo;
+    } else {
+      novo.fornecedor_id = novoId("f");
+      estado.fornecedores.push(novo);
+      registrar("configuracao", novo.fornecedor_id, porId, "Fornecedor cadastrado", "razaoSocial", undefined, novo.razaoSocial);
+    }
+    persistir();
+    return clone(novo);
+  },
   async listarTiposContrato() {
     return clone(estado.tiposContrato);
   },
@@ -367,7 +388,13 @@ export const mockApi: ContratosApi = {
       if (!empresa) estado.empresas.push((empresa = { id: novoId("e"), nome: r.empresa, cnpj: "", ativo: true }));
       let forn = estado.fornecedores.find((f) => f.cnpj && somenteDigitos(f.cnpj) === r.cnpj);
       if (!forn) estado.fornecedores.push((forn = { fornecedor_id: novoId("f"), razaoSocial: r.fornecedor, nomeFantasia: r.fornecedor, cnpj: r.cnpj, statusCadastral: "Ativo" }));
-      const gestor = porNome(estado.usuarios, r.gestor) ?? estado.usuarios.find((u) => u.perfil === "Gestor")!;
+      let gestor = porNome(estado.usuarios, r.gestor);
+      if (!gestor) {
+        // Gestor citado na planilha e ainda não cadastrado: cria o usuário (e-mail a completar na Administração).
+        gestor = { id: novoId("u"), nome: r.gestor, email: "", perfil: "Gestor", ativo: true };
+        estado.usuarios.push(gestor);
+        registrar("configuracao", gestor.id, porId, "Usuário criado pela importação", "nome", undefined, gestor.nome);
+      }
       const analista = (r.analista && porNome(estado.usuarios, r.analista)) || usuario(porId);
       const tipo = (r.tipo && estado.tiposContrato.find((t) => t.nome.toLowerCase() === r.tipo!.toLowerCase())) || estado.tiposContrato[0];
       const c: Contrato = {
@@ -604,10 +631,42 @@ export const mockApi: ContratosApi = {
   // ---------------------------------------------------------------- Integrações
   async buscarDemandaJira(jira_key) {
     await latencia();
+    // Sem integração real: a busca simulada só existe na demonstração.
+    if (estado.modo === "real") return undefined;
     return jiraSimulado.buscarDemanda(jira_key);
   },
 
-  async restaurarDadosDemonstracao() {
+  async obterModoDados() {
+    return estado.modo;
+  },
+  async iniciarBaseVazia(admin, porId) {
+    if (estado.modo === "real") exigir(porId ?? "", "administrar");
+    if (!admin.nome.trim() || !admin.email.trim()) throw new ErroNegocio("Informe nome e e-mail do administrador.");
+    estado = criarEstadoVazio({ nome: admin.nome.trim(), email: admin.email.trim() });
+    persistir();
+  },
+  async exportarBackup(porId) {
+    exigir(porId, "administrar");
+    return JSON.stringify({ formato: "akross-contratos-backup", geradoEm: agora(), estado }, null, 2);
+  },
+  async importarBackup(conteudo, porId) {
+    exigir(porId, "administrar");
+    let dados: { formato?: string; estado?: EstadoDados };
+    try {
+      dados = JSON.parse(conteudo);
+    } catch {
+      throw new ErroNegocio("Arquivo inválido: não é um backup do sistema.");
+    }
+    const e = dados.estado;
+    if (dados.formato !== "akross-contratos-backup" || !e || !Array.isArray(e.contratos) || !Array.isArray(e.usuarios))
+      throw new ErroNegocio("Arquivo inválido: não é um backup do sistema.");
+    estado = { ...e, modo: e.modo ?? "real" };
+    persistir();
+    return { contratos: estado.contratos.length, processos: estado.processos.length };
+  },
+  async restaurarDadosDemonstracao(porId) {
+    // Substituir dados reais por fictícios exige Administrador.
+    if (estado.modo === "real") exigir(porId ?? "", "administrar");
     estado = criarEstadoInicial();
     persistir();
   },

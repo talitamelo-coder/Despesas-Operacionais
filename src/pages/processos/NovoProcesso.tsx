@@ -113,7 +113,13 @@ export function NovoProcesso() {
     const d = await api.buscarDemandaJira(jiraKey);
     setBuscandoJira(false);
     if (!d) {
-      setJiraErro("Chamado não encontrado no JIRA.");
+      // Sem integração: o número do chamado é guardado mesmo assim, para busca e rastreabilidade.
+      if (cad.modo === "real") setDados((x) => ({ ...x, jira_key: jiraKey.trim(), origens: { ...x.origens, jira_key: "manual" } }));
+      setJiraErro(
+        cad.modo === "real"
+          ? `Chamado ${jiraKey} registrado no processo. A leitura automática do JIRA ainda não está disponível: avance e preencha os dados da solicitação manualmente.`
+          : "Chamado não encontrado no JIRA.",
+      );
       return;
     }
     const empresa = cad.empresas.find((e) => normalizarBusca(e.nome) === normalizarBusca(d.empresa));
@@ -235,7 +241,7 @@ export function NovoProcesso() {
               <Button variante="secundario" icone={<Download size={16} />} disabled={!jiraKey || buscandoJira} onClick={carregarJira}>
                 {buscandoJira ? "Buscando…" : "Carregar dados"}
               </Button>
-              <span className="pb-2 text-xs text-texto-fraco">Demonstração: {CHAVES_JIRA_DEMONSTRACAO.join(", ")}</span>
+              {cad.modo === "demonstracao" && <span className="pb-2 text-xs text-texto-fraco">Demonstração: {CHAVES_JIRA_DEMONSTRACAO.join(", ")}</span>}
             </div>
             {jiraErro && <Aviso tom="alerta">{jiraErro}</Aviso>}
             {dados.demandaJira && <DemandaJiraCard d={dados.demandaJira} />}

@@ -4,7 +4,8 @@ import { mockApi as api } from "./mockApi";
 /** Fluxos ponta a ponta na camada de serviço simulada (mesmo contrato da API futura). */
 
 beforeEach(async () => {
-  await api.restaurarDadosDemonstracao();
+  // "u-admin" existe tanto na demonstração quanto numa base real criada nos testes.
+  await api.restaurarDadosDemonstracao("u-admin");
 });
 
 describe("renovação", () => {
@@ -105,5 +106,52 @@ describe("central", () => {
     const todos = await api.consultarCentral({ aba: "Todos" }, { coluna: "valorAnual", direcao: "desc" }, 0, 10);
     expect(todos.total).toBeGreaterThan(100);
     expect(todos.linhas[0].valorAnualBRL! >= todos.linhas[1].valorAnualBRL!).toBe(true);
+  });
+});
+
+describe("uso com dados reais", () => {
+  it("base vazia remove dados fictícios e cria o administrador", async () => {
+    await api.iniciarBaseVazia({ nome: "Talita", email: "talita@empresa.com.br" });
+    expect(await api.obterModoDados()).toBe("real");
+    expect(await api.listarContratos()).toHaveLength(0);
+    expect(await api.listarFornecedores()).toHaveLength(0);
+    const usuarios = await api.listarUsuarios();
+    expect(usuarios).toHaveLength(1);
+    expect(usuarios[0].perfil).toBe("Administrador");
+    // Telas derivadas funcionam com base vazia.
+    expect((await api.obterIndicadores()).contratosVigentes).toBe(0);
+    expect((await api.consultarCentral({ aba: "Todos" }, { coluna: "codigo", direcao: "asc" }, 0, 25)).total).toBe(0);
+    // Sem integração, a busca no JIRA não devolve dados fictícios.
+    expect(await api.buscarDemandaJira("COMP-1287")).toBeUndefined();
+  });
+
+  it("importação em base vazia cria empresa, fornecedor e gestor", async () => {
+    await api.iniciarBaseVazia({ nome: "Talita", email: "t@e.com" });
+    const r = await api.importarContratos(
+      [{ linha: 2, fornecedor: "Fornecedor Real Ltda", cnpj: "11222333000181", empresa: "Minha Empresa", objeto: "Serviço", gestor: "Ana Gestora", valorAnual: 1000, moeda: "BRL", dataInicio: "2026-01-01", dataFim: "2027-12-31", avisoPrevioDias: 60, renovacaoAutomatica: false }],
+      "u-admin",
+    );
+    expect(r.criados).toBe(1);
+    expect((await api.listarUsuarios()).some((u) => u.nome === "Ana Gestora" && u.perfil === "Gestor")).toBe(true);
+    expect(await api.listarEmpresas()).toHaveLength(1);
+  });
+
+  it("dados reais só são substituídos pelo administrador", async () => {
+    await api.iniciarBaseVazia({ nome: "Talita", email: "t@e.com" });
+    await expect(api.restaurarDadosDemonstracao()).rejects.toThrow();
+    await api.restaurarDadosDemonstracao("u-admin");
+    expect(await api.obterModoDados()).toBe("demonstracao");
+  });
+
+  it("cópia de segurança restaura a base", async () => {
+    await api.iniciarBaseVazia({ nome: "Talita", email: "t@e.com" });
+    await api.salvarFornecedor({ fornecedor_id: "", razaoSocial: "Fornecedor X", nomeFantasia: "", cnpj: "11.222.333/0001-81", statusCadastral: "Ativo" }, "u-admin");
+    await expect(api.salvarFornecedor({ fornecedor_id: "", razaoSocial: "Duplicado", nomeFantasia: "", cnpj: "11222333000181", statusCadastral: "Ativo" }, "u-admin")).rejects.toThrow();
+    const backup = await api.exportarBackup("u-admin");
+    await api.restaurarDadosDemonstracao("u-admin");
+    await api.importarBackup(backup, "u-admin");
+    expect(await api.obterModoDados()).toBe("real");
+    expect((await api.listarFornecedores()).map((f) => f.razaoSocial)).toEqual(["Fornecedor X"]);
+    await expect(api.importarBackup("{}", "u-admin")).rejects.toThrow();
   });
 });

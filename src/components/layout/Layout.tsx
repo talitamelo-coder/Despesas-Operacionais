@@ -62,7 +62,7 @@ export function Layout() {
           )}
         </div>
         <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-          {MENU.filter((m) => !m.permissao || pode(m.permissao)).map((m) => (
+          {MENU.filter((m) => !m.permissao || pode(m.permissao) || (m.para === "/admin" && cad.modo === "demonstracao")).map((m) => (
             <NavLink
               key={m.para}
               to={m.para}
@@ -101,7 +101,14 @@ export function Layout() {
             />
           </form>
           <div className="ml-auto flex items-center gap-3">
-            {fonteDados === "mock" && <span className="hidden rounded bg-alerta-50 px-2 py-0.5 text-[11px] font-medium text-alerta-600 md:inline">Dados de demonstração</span>}
+            {fonteDados === "mock" &&
+              (cad.modo === "demonstracao" ? (
+                <span className="hidden rounded bg-alerta-50 px-2 py-0.5 text-[11px] font-medium text-alerta-600 md:inline">Dados de demonstração</span>
+              ) : (
+                <span title="Os dados ficam guardados só neste navegador. Faça cópias de segurança em Administração → Dados e backup." className="hidden rounded bg-info-50 px-2 py-0.5 text-[11px] font-medium text-info-600 md:inline">
+                  Dados reais · salvos neste navegador
+                </span>
+              ))}
             <div className="relative">
               <button onClick={() => setSinoAberto((v) => !v)} className="relative rounded-md p-2 text-texto-suave hover:bg-fundo" aria-label="Alertas">
                 <Bell size={18} />

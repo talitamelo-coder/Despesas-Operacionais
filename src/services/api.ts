@@ -121,6 +121,7 @@ export interface ContratosApi {
   salvarEmpresa(e: Empresa, porId: string): Promise<Empresa>;
   listarFornecedores(): Promise<Fornecedor[]>;
   criarFornecedorPotencial(nome: string, porId: string): Promise<Fornecedor>;
+  salvarFornecedor(f: Fornecedor, porId: string): Promise<Fornecedor>;
   listarTiposContrato(): Promise<TipoContrato[]>;
   salvarTipoContrato(t: TipoContrato, porId: string): Promise<TipoContrato>;
   obterConfiguracao(): Promise<Configuracao>;
@@ -162,8 +163,13 @@ export interface ContratosApi {
   // Integrações (gateways)
   buscarDemandaJira(jira_key: string): Promise<DemandaJira | undefined>;
 
-  // Demonstração
-  restaurarDadosDemonstracao(): Promise<void>;
+  // Base de dados (modo de uso, cópia de segurança)
+  obterModoDados(): Promise<"demonstracao" | "real">;
+  /** porId: obrigatório quando a base atual já é real (só Administrador substitui dados reais). */
+  iniciarBaseVazia(admin: { nome: string; email: string }, porId?: string): Promise<void>;
+  exportarBackup(porId: string): Promise<string>;
+  importarBackup(conteudo: string, porId: string): Promise<{ contratos: number; processos: number }>;
+  restaurarDadosDemonstracao(porId?: string): Promise<void>;
 }
 
 export class ErroPermissao extends Error {

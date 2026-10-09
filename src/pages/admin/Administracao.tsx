@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Plus, RotateCcw, Save, Upload, X } from "lucide-react";
+import { Download, Eraser, Plus, RotateCcw, Save, Upload, X } from "lucide-react";
 import { useApp } from "@/app/contexto";
+import { salvarArquivo } from "@/app/arquivos";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -12,14 +13,16 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabela } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
-import { CAMPOS_IMPORTACAO, chaveDuplicidade, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
-import { formatarCnpj } from "@/domain/formatacao";
-import type { Configuracao, Empresa, Perfil, TipoContrato, Usuario } from "@/domain/types";
+import { CAMPOS_IMPORTACAO, chaveDuplicidade, cnpjValido, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
+import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
+import type { Configuracao, Empresa, Fornecedor, Perfil, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados } from "@/services";
 
 const ABAS = [
+  { id: "dados", rotulo: "Dados e backup" },
   { id: "usuarios", rotulo: "Usuários e perfis" },
   { id: "empresas", rotulo: "Empresas" },
+  { id: "fornecedores", rotulo: "Fornecedores" },
   { id: "tipos", rotulo: "Tipos de contrato" },
   { id: "listas", rotulo: "Listas e parâmetros" },
   { id: "alertas", rotulo: "Regras de alertas" },
@@ -30,14 +33,27 @@ type AbaAdmin = (typeof ABAS)[number]["id"];
 
 export function Administracao() {
   const { pode } = useApp();
-  const [aba, setAba] = useState<AbaAdmin>("usuarios");
-  if (!pode("administrar")) return <Aviso tom="alerta" titulo="Acesso restrito">A Administração é exclusiva do perfil Administrador.</Aviso>;
+  const [aba, setAba] = useState<AbaAdmin>("dados");
+  const { cad } = useApp();
+  if (!pode("administrar")) {
+    // Na demonstração qualquer perfil pode iniciar a base real; com dados reais, só o Administrador.
+    if (cad.modo === "demonstracao")
+      return (
+        <>
+          <PageHeader titulo="Administração" descricao="Para os demais cadastros e parâmetros, use o perfil Administrador." />
+          <DadosBackup />
+        </>
+      );
+    return <Aviso tom="alerta" titulo="Acesso restrito">A Administração é exclusiva do perfil Administrador.</Aviso>;
+  }
   return (
     <>
-      <PageHeader titulo="Administração" descricao="Cadastros de apoio, parâmetros, regras de alertas e importação da planilha legada." acoes={fonteDados === "mock" ? <RestaurarDemo /> : undefined} />
+      <PageHeader titulo="Administração" descricao="Cadastros de apoio, parâmetros, regras de alertas, importação da planilha legada e cópias de segurança." />
       <Tabs className="mb-4" abas={[...ABAS]} ativa={aba} onChange={setAba} />
+      {aba === "dados" && <DadosBackup />}
       {aba === "usuarios" && <Usuarios />}
       {aba === "empresas" && <Empresas />}
+      {aba === "fornecedores" && <Fornecedores />}
       {aba === "tipos" && <Tipos />}
       {aba === "listas" && <Listas />}
       {aba === "alertas" && <RegrasAlertas />}
@@ -52,26 +68,196 @@ export function Administracao() {
   );
 }
 
-function RestaurarDemo() {
-  const { executar } = useApp();
-  const [aberto, setAberto] = useState(false);
+function DadosBackup() {
+  const { cad, usuario, executar, notificar } = useApp();
+  const [modal, setModal] = useState<"vazia" | "demo">();
+  const [admin, setAdmin] = useState({ nome: "", email: "" });
+  const [confirmacao, setConfirmacao] = useState("");
+  const real = cad.modo === "real";
+
+  if (fonteDados !== "mock") return <Aviso tom="info">Com o banco de dados oficial, cópias de segurança são feitas no servidor.</Aviso>;
+
+  const fechar = () => (setModal(undefined), setConfirmacao(""));
+  const exportar = async () => {
+    const json = await executar(() => api.exportarBackup(usuario.id));
+    if (!json) return;
+    const nome = `backup-contratos-${new Date().toISOString().slice(0, 10)}.json`;
+    const r = await executar(() => salvarArquivo(nome, json));
+    if (r === "salvo") notificar("Cópia de segurança salva.");
+  };
+  const restaurar = async (f: File) => {
+    const r = await executar(async () => api.importarBackup(await f.text(), usuario.id));
+    if (r) notificar(`Backup restaurado: ${r.contratos} contrato(s) e ${r.processos} processo(s).`);
+  };
+
   return (
-    <>
-      <Button variante="secundario" icone={<RotateCcw size={16} />} onClick={() => setAberto(true)}>Restaurar dados de demonstração</Button>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader titulo="Base em uso" />
+        <CardBody className="space-y-3">
+          {real ? (
+            <Aviso tom="info" titulo="Dados reais">
+              Os dados ficam guardados <b>somente neste navegador, neste computador</b>. Outras pessoas não veem o que você cadastra, e limpar os dados do navegador apaga tudo.
+              Faça uma cópia de segurança ao fim de cada sessão de uso.
+            </Aviso>
+          ) : (
+            <Aviso tom="alerta" titulo="Dados de demonstração (fictícios)">
+              Para testar com dados reais, comece uma base vazia. Os dados fictícios serão removidos deste navegador.
+            </Aviso>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button variante={real ? "secundario" : "primario"} icone={<Eraser size={16} />} onClick={() => setModal("vazia")}>
+              Começar base vazia
+            </Button>
+            {real && (
+              <Button variante="secundario" icone={<RotateCcw size={16} />} onClick={() => setModal("demo")}>
+                Voltar para a demonstração
+              </Button>
+            )}
+            {!real && (
+              <Button variante="secundario" icone={<RotateCcw size={16} />} onClick={() => setModal("demo")}>
+                Restaurar dados de demonstração
+              </Button>
+            )}
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader titulo="Cópia de segurança" subtitulo="Arquivo com todos os contratos, processos, cadastros, documentos (metadados) e auditoria" />
+        <CardBody className="flex flex-wrap items-center gap-3">
+          <Button icone={<Download size={16} />} onClick={exportar}>Salvar cópia de segurança</Button>
+          <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-borda-forte bg-superficie px-4 text-sm font-medium hover:bg-fundo">
+            <Upload size={16} /> Restaurar de um arquivo
+            <input type="file" accept=".json,application/json" className="hidden" onChange={(e) => (e.target.files?.[0] && restaurar(e.target.files[0]), (e.target.value = ""))} />
+          </label>
+          <p className="w-full text-xs text-texto-suave">Restaurar substitui a base atual pelo conteúdo do arquivo. Use também para levar seus dados para outro computador.</p>
+        </CardBody>
+      </Card>
+
       <Modal
-        aberto={aberto}
-        titulo="Restaurar dados de demonstração"
-        onFechar={() => setAberto(false)}
+        aberto={modal === "vazia"}
+        titulo="Começar base vazia"
+        onFechar={fechar}
         rodape={
           <>
-            <Button variante="secundario" onClick={() => setAberto(false)}>Cancelar</Button>
-            <Button variante="perigo" onClick={async () => (await executar(() => api.restaurarDadosDemonstracao(), "Dados de demonstração restaurados."), setAberto(false))}>Restaurar</Button>
+            <Button variante="secundario" onClick={fechar}>Cancelar</Button>
+            <Button
+              variante="perigo"
+              disabled={!admin.nome.trim() || !admin.email.trim() || (real && confirmacao !== "APAGAR")}
+              onClick={async () => {
+                const ok = await executar(async () => (await api.iniciarBaseVazia(admin, usuario.id), true), "Base vazia criada. Comece cadastrando empresas, usuários e fornecedores.");
+                if (ok) {
+                  fechar();
+                  setUsuarioPadrao();
+                }
+              }}
+            >
+              Começar base vazia
+            </Button>
           </>
         }
       >
-        <p className="text-sm">Todas as alterações feitas neste navegador serão descartadas e os cenários de demonstração serão recriados.</p>
+        <div className="space-y-4">
+          <p className="text-sm">
+            {real ? "Todos os dados reais deste navegador serão apagados." : "Os contratos, processos, fornecedores, empresas e usuários fictícios serão removidos."} Ficam mantidos os tipos de contrato e as listas de parâmetros.
+          </p>
+          <p className="text-sm">Você será o primeiro Administrador:</p>
+          <Input rotulo="Seu nome" obrigatorio value={admin.nome} onChange={(e) => setAdmin({ ...admin, nome: e.target.value })} />
+          <Input rotulo="Seu e-mail" obrigatorio type="email" value={admin.email} onChange={(e) => setAdmin({ ...admin, email: e.target.value })} />
+          {real && <Input rotulo='Digite APAGAR para confirmar' value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} ajuda="Recomendado: salve uma cópia de segurança antes." />}
+        </div>
       </Modal>
-    </>
+
+      <Modal
+        aberto={modal === "demo"}
+        titulo="Restaurar dados de demonstração"
+        onFechar={fechar}
+        rodape={
+          <>
+            <Button variante="secundario" onClick={fechar}>Cancelar</Button>
+            <Button variante="perigo" disabled={real && confirmacao !== "APAGAR"} onClick={async () => (await executar(() => api.restaurarDadosDemonstracao(usuario.id), "Dados de demonstração restaurados."), fechar())}>
+              Restaurar
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm">{real ? "Seus dados reais deste navegador serão substituídos pelos dados fictícios." : "Todas as alterações feitas neste navegador serão descartadas e os cenários de demonstração serão recriados."}</p>
+          {real && <Input rotulo="Digite APAGAR para confirmar" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} ajuda="Recomendado: salve uma cópia de segurança antes." />}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/** Após trocar de base, o usuário simulado passa a ser o administrador criado. */
+function setUsuarioPadrao() {
+  try {
+    localStorage.setItem("akross-contratos:usuario", "u-admin");
+  } catch {
+    /* preferência local */
+  }
+}
+
+function Fornecedores() {
+  const { cad, usuario, executar } = useApp();
+  const [edit, setEdit] = useState<Fornecedor>();
+  const [busca, setBusca] = useState("");
+  const lista = cad.fornecedores.filter((f) => !busca || normalizarBusca(`${f.razaoSocial} ${f.nomeFantasia} ${f.cnpj ?? ""}`).includes(normalizarBusca(busca)));
+  return (
+    <Card>
+      <CardHeader
+        titulo="Fornecedores"
+        subtitulo="Somente dados relevantes ao contrato. Dados bancários e de pagamento ficam no sistema atual."
+        acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => setEdit({ fornecedor_id: "", razaoSocial: "", nomeFantasia: "", statusCadastral: "Ativo" })}>Novo fornecedor</Button>}
+      />
+      <div className="border-b border-borda p-3">
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome ou CNPJ" className="h-9 w-full max-w-md rounded-md border border-borda-forte px-3 text-sm" />
+      </div>
+      <Tabela<Fornecedor>
+        linhas={lista}
+        chave={(f) => f.fornecedor_id}
+        onLinha={setEdit}
+        vazio="Nenhum fornecedor cadastrado. Use “Novo fornecedor” ou importe a planilha de contratos."
+        colunas={[
+          { id: "r", titulo: "Razão social", render: (f) => f.razaoSocial },
+          { id: "n", titulo: "Nome fantasia", render: (f) => <span className="text-texto-suave">{f.nomeFantasia}</span> },
+          { id: "c", titulo: "CNPJ", render: (f) => <span className="tabular">{formatarCnpj(f.cnpj)}</span> },
+          { id: "cod", titulo: "Código", render: (f) => f.codigoFornecedor ?? "—" },
+          { id: "uf", titulo: "Cidade/UF", render: (f) => (f.cidade ? `${f.cidade}/${f.uf ?? ""}` : "—") },
+          { id: "s", titulo: "Status", render: (f) => <Badge tom={f.statusCadastral === "Ativo" ? "sucesso" : f.statusCadastral === "Potencial" ? "alerta" : "neutro"}>{f.statusCadastral}</Badge> },
+        ]}
+      />
+      <Modal
+        aberto={Boolean(edit)}
+        titulo={edit?.fornecedor_id ? "Editar fornecedor" : "Novo fornecedor"}
+        onFechar={() => setEdit(undefined)}
+        rodape={
+          <>
+            <Button variante="secundario" onClick={() => setEdit(undefined)}>Cancelar</Button>
+            <Button
+              disabled={!edit?.razaoSocial.trim() || Boolean(edit?.cnpj && !cnpjValido(edit.cnpj))}
+              onClick={async () => (await executar(() => api.salvarFornecedor(edit!, usuario.id), "Fornecedor salvo.")) && setEdit(undefined)}
+            >
+              Salvar
+            </Button>
+          </>
+        }
+      >
+        {edit && (
+          <div className="grid grid-cols-2 gap-4">
+            <Input rotulo="Razão social" obrigatorio className="col-span-2" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} />
+            <Input rotulo="Nome fantasia" className="col-span-2" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} />
+            <Input rotulo="CNPJ" value={edit.cnpj ?? ""} onChange={(e) => setEdit({ ...edit, cnpj: e.target.value })} erro={edit.cnpj && !cnpjValido(edit.cnpj) ? "CNPJ inválido" : undefined} ajuda="Opcional para fornecedor estrangeiro" />
+            <Input rotulo="Código no sistema atual" value={edit.codigoFornecedor ?? ""} onChange={(e) => setEdit({ ...edit, codigoFornecedor: e.target.value || undefined })} />
+            <Input rotulo="Cidade" value={edit.cidade ?? ""} onChange={(e) => setEdit({ ...edit, cidade: e.target.value || undefined })} />
+            <Input rotulo="UF" maxLength={2} value={edit.uf ?? ""} onChange={(e) => setEdit({ ...edit, uf: e.target.value.toUpperCase() || undefined })} />
+            <Select rotulo="Status cadastral" vazio={false} value={edit.statusCadastral} onChange={(e) => setEdit({ ...edit, statusCadastral: e.target.value as Fornecedor["statusCadastral"] })} opcoes={["Ativo", "Inativo", "Bloqueado", "Potencial"].map((s) => ({ valor: s, rotulo: s }))} />
+          </div>
+        )}
+      </Modal>
+    </Card>
   );
 }
 
@@ -305,13 +491,8 @@ function Importacao() {
 
   const modelo = () => {
     const cab = CAMPOS_IMPORTACAO.map((c) => c.rotulo).join(";");
-    const ex = "CT-123;Fornecedor Exemplo Ltda;11.222.333/0001-81;Exemplo Holding S.A.;Serviço de exemplo;Carlos Mendes;Rafael Costa;120000,00;BRL;01/01/2026;31/12/2026;90;Sim;Serviços de TI;CC-1000;";
-    const blob = new Blob(["﻿" + cab + "\n" + ex], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "modelo-importacao-contratos.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
+    const ex = "CT-123;Fornecedor Exemplo Ltda;11.222.333/0001-81;Nome da Empresa;Serviço de exemplo;Nome do Gestor;Nome do Analista;120000,00;BRL;01/01/2026;31/12/2026;90;Sim;Serviços de TI;CC-1000;";
+    executar(() => salvarArquivo("modelo-importacao-contratos.csv", "\uFEFF" + cab + "\n" + ex));
   };
 
   return (

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Download, FilterX, Plus, Search } from "lucide-react";
 import { useApp, useOpcoes } from "@/app/contexto";
+import { salvarArquivo } from "@/app/arquivos";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Campos";
@@ -30,22 +31,17 @@ function useDebounce<T>(v: T, ms: number): T {
   return d;
 }
 
-function exportarCSV(linhas: LinhaCentral[]) {
+function csvDaPagina(linhas: LinhaCentral[]): string {
   const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor anual (BRL)", "Data fim", "Status", "Próxima ação"];
   const esc = (s: unknown) => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestor, l.analista, l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
-  const blob = new Blob(["﻿" + [cab.map(esc).join(";"), ...corpo].join("\n")], { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "central-de-contratos.csv";
-  a.click();
-  URL.revokeObjectURL(a.href);
+  return "\uFEFF" + [cab.map(esc).join(";"), ...corpo].join("\n");
 }
 
 export function CentralContratos() {
   const [params, setParams] = useSearchParams();
   const navegar = useNavigate();
-  const { pode } = useApp();
+  const { pode, executar } = useApp();
   const op = useOpcoes();
   const aba = (params.get("aba") as AbaCentral) || "Todos";
   const [busca, setBusca] = useState(params.get("busca") ?? "");
@@ -157,7 +153,7 @@ export function CentralContratos() {
         descricao="Contratos, processos em contratação e ações pendentes em um só lugar."
         acoes={
           <>
-            <Button variante="secundario" icone={<Download size={16} />} disabled={!dados?.linhas.length} onClick={() => dados && exportarCSV(dados.linhas)}>
+            <Button variante="secundario" icone={<Download size={16} />} disabled={!dados?.linhas.length} onClick={() => dados && executar(() => salvarArquivo("central-de-contratos.csv", csvDaPagina(dados.linhas)))}>
               Exportar página
             </Button>
             {pode("editar_processo") && (
