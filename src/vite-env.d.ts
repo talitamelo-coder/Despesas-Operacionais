@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly VITE_DATA_SOURCE?: "mock" | "api";
   readonly VITE_API_BASE_URL?: string;
+  readonly VITE_ROUTER?: "browser" | "memory";
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

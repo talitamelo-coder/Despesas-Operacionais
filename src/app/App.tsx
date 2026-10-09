@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ComponentType } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, MemoryRouter, Route, Routes } from "react-router-dom";
 import { Layout } from "@/components/layout/Layout";
 import { Carregando } from "@/components/ui/Diversos";
 import { ProvedorApp } from "./contexto";
@@ -18,10 +18,13 @@ const AcoesNecessarias = tela(() => import("@/pages/acoes/AcoesNecessarias"), "A
 const Administracao = tela(() => import("@/pages/admin/Administracao"), "Administracao");
 const NaoEncontrado = tela(() => import("@/pages/NaoEncontrado"), "NaoEncontrado");
 
+// Versão de demonstração publicada como página única: navegação em memória (sem depender da URL).
+const Roteador = import.meta.env.VITE_ROUTER === "memory" ? MemoryRouter : BrowserRouter;
+
 /** Rotas do módulo. Prefixáveis (ex.: /contratos/*) na incorporação à Akross Atende. */
 export function App() {
   return (
-    <BrowserRouter>
+    <Roteador>
       <ProvedorApp>
         <Suspense fallback={<Carregando />}>
           <Routes>
@@ -40,6 +43,6 @@ export function App() {
           </Routes>
         </Suspense>
       </ProvedorApp>
-    </BrowserRouter>
+    </Roteador>
   );
 }
