@@ -3,6 +3,8 @@ import { Download, Eraser, Plus, RotateCcw, Save, Upload, X } from "lucide-react
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
+import { FornecedorForm } from "@/components/dominio/FornecedorForm";
+import { fornecedorMascarado, validarFornecedor } from "@/domain/rules/fornecedor";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -13,7 +15,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabela } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
-import { CAMPOS_IMPORTACAO, chaveDuplicidade, cnpjValido, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
+import { CAMPOS_IMPORTACAO, chaveDuplicidade, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
 import type { Configuracao, Empresa, Fornecedor, Perfil, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados } from "@/services";
@@ -203,14 +205,22 @@ function setUsuarioPadrao() {
 function Fornecedores() {
   const { cad, usuario, executar } = useApp();
   const [edit, setEdit] = useState<Fornecedor>();
+  const [tentou, setTentou] = useState(false);
   const [busca, setBusca] = useState("");
   const lista = cad.fornecedores.filter((f) => !busca || normalizarBusca(`${f.razaoSocial} ${f.nomeFantasia} ${f.cnpj ?? ""}`).includes(normalizarBusca(busca)));
+  const erros = edit ? validarFornecedor(edit) : {};
+  const abrir = (f: Fornecedor) => (setTentou(false), setEdit(structuredClone(f)));
+  const salvar = async () => {
+    setTentou(true);
+    if (Object.keys(erros).length) return;
+    if (await executar(() => api.salvarFornecedor(edit!, usuario.id), "Fornecedor salvo.")) setEdit(undefined);
+  };
   return (
     <Card>
       <CardHeader
         titulo="Fornecedores"
-        subtitulo="Somente dados relevantes ao contrato. Dados bancários e de pagamento ficam no sistema atual."
-        acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => setEdit({ fornecedor_id: "", razaoSocial: "", nomeFantasia: "", statusCadastral: "Ativo" })}>Novo fornecedor</Button>}
+        subtitulo="Cadastro completo, incluindo dados bancários e PIX (exibidos mascarados)."
+        acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => abrir({ fornecedor_id: "", razaoSocial: "", nomeFantasia: "", statusCadastral: "Ativo", regimeTributario: "Não informado" })}>Novo fornecedor</Button>}
       />
       <div className="border-b border-borda p-3">
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome ou CNPJ" className="h-9 w-full max-w-md rounded-md border border-borda-forte px-3 text-sm" />
@@ -218,44 +228,43 @@ function Fornecedores() {
       <Tabela<Fornecedor>
         linhas={lista}
         chave={(f) => f.fornecedor_id}
-        onLinha={setEdit}
+        onLinha={abrir}
         vazio="Nenhum fornecedor cadastrado. Use “Novo fornecedor” ou importe a planilha de contratos."
         colunas={[
-          { id: "r", titulo: "Razão social", render: (f) => f.razaoSocial },
-          { id: "n", titulo: "Nome fantasia", render: (f) => <span className="text-texto-suave">{f.nomeFantasia}</span> },
-          { id: "c", titulo: "CNPJ", render: (f) => <span className="tabular">{formatarCnpj(f.cnpj)}</span> },
-          { id: "cod", titulo: "Código", render: (f) => f.codigoFornecedor ?? "—" },
+          { id: "r", titulo: "Razão social", render: (f) => <span>{f.razaoSocial}<span className="block text-xs text-texto-suave">{f.nomeFantasia !== f.razaoSocial ? f.nomeFantasia : ""}</span></span> },
+          { id: "c", titulo: "CNPJ", render: (f) => <span className="whitespace-nowrap tabular">{f.estrangeiro ? "Estrangeiro" : formatarCnpj(f.cnpj)}</span> },
+          { id: "contato", titulo: "Contato", render: (f) => <span className="text-xs">{f.email ?? "—"}<span className="block text-texto-suave">{f.telefone ?? ""}</span></span> },
           { id: "uf", titulo: "Cidade/UF", render: (f) => (f.cidade ? `${f.cidade}/${f.uf ?? ""}` : "—") },
+          {
+            id: "banco",
+            titulo: "Banco / PIX",
+            render: (f) => {
+              const m = fornecedorMascarado(f);
+              return (
+                <span className="text-xs tabular">
+                  {m.dadosBancarios ? `${m.dadosBancarios.nomeBanco ?? m.dadosBancarios.codigoBanco ?? "Banco"} · ag ${m.dadosBancarios.agencia ?? "—"} · cc ${m.dadosBancarios.conta ?? "—"}` : "—"}
+                  {m.pix && <span className="block text-texto-suave">PIX {m.pix.tipo}: {m.pix.chave}</span>}
+                </span>
+              );
+            },
+          },
           { id: "s", titulo: "Status", render: (f) => <Badge tom={f.statusCadastral === "Ativo" ? "sucesso" : f.statusCadastral === "Potencial" ? "alerta" : "neutro"}>{f.statusCadastral}</Badge> },
         ]}
       />
       <Modal
         aberto={Boolean(edit)}
         titulo={edit?.fornecedor_id ? "Editar fornecedor" : "Novo fornecedor"}
+        largura="xl"
         onFechar={() => setEdit(undefined)}
         rodape={
           <>
+            {tentou && Object.keys(erros).length > 0 && <span className="mr-auto self-center text-xs text-critico-600">Corrija os campos destacados.</span>}
             <Button variante="secundario" onClick={() => setEdit(undefined)}>Cancelar</Button>
-            <Button
-              disabled={!edit?.razaoSocial.trim() || Boolean(edit?.cnpj && !cnpjValido(edit.cnpj))}
-              onClick={async () => (await executar(() => api.salvarFornecedor(edit!, usuario.id), "Fornecedor salvo.")) && setEdit(undefined)}
-            >
-              Salvar
-            </Button>
+            <Button onClick={salvar}>Salvar</Button>
           </>
         }
       >
-        {edit && (
-          <div className="grid grid-cols-2 gap-4">
-            <Input rotulo="Razão social" obrigatorio className="col-span-2" value={edit.razaoSocial} onChange={(e) => setEdit({ ...edit, razaoSocial: e.target.value })} />
-            <Input rotulo="Nome fantasia" className="col-span-2" value={edit.nomeFantasia} onChange={(e) => setEdit({ ...edit, nomeFantasia: e.target.value })} />
-            <Input rotulo="CNPJ" value={edit.cnpj ?? ""} onChange={(e) => setEdit({ ...edit, cnpj: e.target.value })} erro={edit.cnpj && !cnpjValido(edit.cnpj) ? "CNPJ inválido" : undefined} ajuda="Opcional para fornecedor estrangeiro" />
-            <Input rotulo="Código no sistema atual" value={edit.codigoFornecedor ?? ""} onChange={(e) => setEdit({ ...edit, codigoFornecedor: e.target.value || undefined })} />
-            <Input rotulo="Cidade" value={edit.cidade ?? ""} onChange={(e) => setEdit({ ...edit, cidade: e.target.value || undefined })} />
-            <Input rotulo="UF" maxLength={2} value={edit.uf ?? ""} onChange={(e) => setEdit({ ...edit, uf: e.target.value.toUpperCase() || undefined })} />
-            <Select rotulo="Status cadastral" vazio={false} value={edit.statusCadastral} onChange={(e) => setEdit({ ...edit, statusCadastral: e.target.value as Fornecedor["statusCadastral"] })} opcoes={["Ativo", "Inativo", "Bloqueado", "Potencial"].map((s) => ({ valor: s, rotulo: s }))} />
-          </div>
-        )}
+        {edit && <FornecedorForm f={edit} onChange={setEdit} erros={tentou ? erros : {}} />}
       </Modal>
     </Card>
   );

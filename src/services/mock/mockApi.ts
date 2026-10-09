@@ -5,6 +5,7 @@ import { calcularAcoes } from "@/domain/rules/acoes";
 import { gerarAlertas } from "@/domain/rules/alertas";
 import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
+import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
@@ -271,14 +272,15 @@ export const mockApi: ContratosApi = {
   },
   async salvarFornecedor(f, porId) {
     exigir(porId, "editar_processo");
-    if (!f.razaoSocial.trim()) throw new ErroNegocio("Informe a razão social.");
-    const cnpj = f.cnpj ? somenteDigitos(f.cnpj) : undefined;
-    if (cnpj && estado.fornecedores.some((x) => x.fornecedor_id !== f.fornecedor_id && x.cnpj && somenteDigitos(x.cnpj) === cnpj))
+    const erros = validarFornecedor(f);
+    if (Object.keys(erros).length) throw new ErroNegocio(Object.values(erros).join(" "));
+    const novo = normalizarFornecedor(f);
+    if (novo.cnpj && estado.fornecedores.some((x) => x.fornecedor_id !== f.fornecedor_id && x.cnpj && somenteDigitos(x.cnpj) === novo.cnpj))
       throw new ErroNegocio("Já existe fornecedor com este CNPJ.");
-    const novo: Fornecedor = { ...f, cnpj, nomeFantasia: f.nomeFantasia || f.razaoSocial };
     const i = estado.fornecedores.findIndex((x) => x.fornecedor_id === f.fornecedor_id);
     if (i >= 0) {
-      auditar(diffAuditoria(estado.fornecedores[i], novo, { entidade: "configuracao", entidadeId: f.fornecedor_id, usuarioId: porId, data: agora(), acao: "Fornecedor alterado" }, () => novoId("a")));
+      // Dados bancários e PIX entram na auditoria apenas mascarados.
+      auditar(diffAuditoria(fornecedorMascarado(estado.fornecedores[i]), fornecedorMascarado(novo), { entidade: "configuracao", entidadeId: f.fornecedor_id, usuarioId: porId, data: agora(), acao: "Fornecedor alterado" }, () => novoId("a")));
       estado.fornecedores[i] = novo;
     } else {
       novo.fornecedor_id = novoId("f");

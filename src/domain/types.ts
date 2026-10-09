@@ -43,15 +43,48 @@ export type StatusCadastralFornecedor = "Ativo" | "Inativo" | "Bloqueado" | "Pot
  * Fornecedor: somente dados relevantes ao contrato.
  * A fonte oficial futura é o sistema atual — dados bancários/pagamento NÃO são mantidos aqui.
  */
+export type RegimeTributario = "Não informado" | "Simples Nacional" | "MEI" | "Lucro Presumido" | "Lucro Real" | "Outro";
+export type TipoConta = "Corrente" | "Poupança" | "Pagamento";
+export type TipoChavePix = "CNPJ" | "CPF" | "E-mail" | "Telefone" | "Chave aleatória";
+
+/**
+ * Dados bancários e PIX: DADO SENSÍVEL. Informativos neste módulo — a fonte oficial para
+ * pagamento continua sendo o sistema atual. Exibidos mascarados e auditados mascarados.
+ */
+export interface DadosBancarios {
+  codigoBanco?: string;
+  nomeBanco?: string;
+  agencia?: string;
+  digitoAgencia?: string;
+  conta?: string;
+  digitoConta?: string;
+  tipoConta?: TipoConta;
+}
+
+export interface Pix {
+  tipo: TipoChavePix;
+  chave?: string;
+}
+
 export interface Fornecedor {
   fornecedor_id: string;
   external_id?: string; // código no sistema atual
   razaoSocial: string;
   nomeFantasia: string;
-  cnpj?: string; // fornecedor potencial pode não ter
+  cnpj?: string; // fornecedor potencial ou estrangeiro pode não ter
+  /** Fornecedor estrangeiro: dispensa CNPJ. */
+  estrangeiro?: boolean;
   codigoFornecedor?: string;
+  inscricaoEstadual?: string;
+  email?: string;
+  telefone?: string;
+  regimeTributario?: RegimeTributario;
+  endereco?: string; // rua, número, complemento
   cidade?: string;
   uf?: string;
+  cep?: string;
+  dadosBancarios?: DadosBancarios;
+  pix?: Pix;
   statusCadastral: StatusCadastralFornecedor;
 }
 

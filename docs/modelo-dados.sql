@@ -25,8 +25,10 @@ CREATE TABLE empresas (
   ativo   BOOLEAN      NOT NULL DEFAULT TRUE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Fornecedor: apenas dados relevantes ao contrato. Fonte oficial = sistema atual.
--- NÃO armazenar banco/agência/conta/PIX/dados de pagamento.
+-- Fornecedor. Fonte oficial futura = sistema atual.
+-- Dados bancários e PIX incluídos a pedido do negócio: são DADO SENSÍVEL.
+-- No backend: criptografar em repouso (ex.: AES no app ou TDE), restringir SELECT dessas
+-- colunas a Suprimentos/Administrador e nunca gravá-las sem máscara na auditoria.
 CREATE TABLE fornecedores (
   fornecedor_id     CHAR(36)     PRIMARY KEY,
   external_id       VARCHAR(64)  NULL UNIQUE COMMENT 'Código no sistema atual',
@@ -37,6 +39,23 @@ CREATE TABLE fornecedores (
   cidade            VARCHAR(100) NULL,
   uf                CHAR(2)      NULL,
   status_cadastral  ENUM('Ativo','Inativo','Bloqueado','Potencial') NOT NULL,
+  estrangeiro       BOOLEAN      NOT NULL DEFAULT FALSE,
+  inscricao_estadual VARCHAR(30) NULL,
+  email             VARCHAR(190) NULL,
+  telefone          VARCHAR(20)  NULL,
+  regime_tributario ENUM('Não informado','Simples Nacional','MEI','Lucro Presumido','Lucro Real','Outro') NULL,
+  endereco          VARCHAR(255) NULL,
+  cep               CHAR(8)      NULL,
+  -- sensíveis (criptografados)
+  banco_codigo      CHAR(3)      NULL,
+  banco_nome        VARCHAR(120) NULL,
+  agencia           VARBINARY(255) NULL,
+  agencia_digito    VARBINARY(64)  NULL,
+  conta             VARBINARY(255) NULL,
+  conta_digito      VARBINARY(64)  NULL,
+  tipo_conta        ENUM('Corrente','Poupança','Pagamento') NULL,
+  pix_tipo          ENUM('CNPJ','CPF','E-mail','Telefone','Chave aleatória') NULL,
+  pix_chave         VARBINARY(255) NULL,
   INDEX ix_fornecedor_cnpj (cnpj)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

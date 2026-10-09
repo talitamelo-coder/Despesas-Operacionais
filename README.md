@@ -88,6 +88,7 @@ docs/
 8. A **resposta do gestor** à avaliação cria automaticamente o processo de renovação ou substituição para Suprimentos.
 9. **Importação** aceita CSV (a planilha exportada como CSV). A leitura direta de `.xlsx` fica para uma próxima entrega.
 10. **Documentos.** No MVP só os metadados e as versões são registrados. O arquivo não é armazenado.
+11. **Dados bancários e PIX do fornecedor** são cadastrados neste módulo a pedido do negócio, ao contrário do briefing original. Ficam mascarados nas consultas e na auditoria. A fonte oficial para pagamento continua sendo o sistema atual.
 
 ## Fora do escopo do MVP (conforme briefing)
 
