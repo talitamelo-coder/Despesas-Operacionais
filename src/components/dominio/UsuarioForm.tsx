@@ -7,7 +7,7 @@ import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { AREAS_PADRAO, SENHA_MINIMA } from "@/domain/rules/usuario";
 import type { Perfil, Usuario } from "@/domain/types";
 
-export const PERFIS: Perfil[] = ["Solicitante", "Gestor", "Suprimentos", "Juridico", "Administrador"];
+export const PERFIS: Perfil[] = ["Solicitante", "Gestor", "Suprimentos", "TI", "Juridico", "Administrador"];
 
 /** Cadastro de usuário: nome, e-mail, senha, perfil, área e filiais com acesso. */
 export function UsuarioForm({

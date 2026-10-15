@@ -7,14 +7,15 @@ import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
+import { sugerirContrato } from "@/domain/rules/licencas";
 import { gerarCredencial, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
-import type { Contrato, Documento, Fornecedor, ProcessoContratacao, RegistroAuditoria, TipoProcesso, Usuario } from "@/domain/types";
+import type { AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, ProcessoContratacao, ProdutoLicenca, RegistroAuditoria, TipoProcesso, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
-import { criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
-import { ErroNegocio, ErroPermissao, type ContratosApi } from "../api";
+import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
+import { ErroNegocio, ErroPermissao, type ArquivoImportacaoLicencas, type ContratosApi } from "../api";
 import { consultar, montarLinhas } from "../consultaCentral";
 import { notificarMudanca } from "../eventos";
 
@@ -32,8 +33,8 @@ function carregar(): EstadoDados {
     if (bruto) {
       const e = JSON.parse(bruto) as EstadoDados;
       // Dados reais nunca são descartados por mudança de versão; só a demonstração é recriada.
-      if (e.modo === "real") return e;
-      if (e.versao === VERSAO_SEED) return { ...e, modo: "demonstracao" };
+      if (e.modo === "real") return completarEstado(e);
+      if (e.versao === VERSAO_SEED) return completarEstado({ ...e, modo: "demonstracao" });
     }
   } catch {
     /* storage indisponível: segue com dados novos */
@@ -611,6 +612,143 @@ export const mockApi: ContratosApi = {
     return clone(novo);
   },
 
+  // ---------------------------------------------------------------- Licenças (não altera contratos)
+  async listarLicencas() {
+    await latencia();
+    return clone({ produtos: estado.produtosLicenca, colaboradores: estado.colaboradores, atribuicoes: estado.atribuicoes });
+  },
+  async salvarProdutoLicenca(p, porId) {
+    exigir(porId, "gerir_licencas");
+    if (!p.nome.trim()) throw new ErroNegocio("Informe o nome do produto.");
+    if (p.quantidadeContratada < 0 || p.valorUnitario < 0) throw new ErroNegocio("Quantidade e valor não podem ser negativos.");
+    if (p.contrato_id && !estado.contratos.some((c) => c.contrato_id === p.contrato_id)) throw new ErroNegocio("Contrato não encontrado.");
+    const i = estado.produtosLicenca.findIndex((x) => x.id === p.id);
+    const novo: ProdutoLicenca = { ...p, nome: p.nome.trim(), atualizadoEm: agora() };
+    if (i >= 0) {
+      auditar(diffAuditoria(estado.produtosLicenca[i], novo, { entidade: "licenca", entidadeId: p.id, usuarioId: porId, data: agora(), acao: "Produto de licença alterado" }, () => novoId("a")));
+      estado.produtosLicenca[i] = novo;
+    } else {
+      novo.id = novoId("pl");
+      novo.criadoEm = agora();
+      estado.produtosLicenca.push(novo);
+      registrar("licenca", novo.id, porId, "Produto de licença cadastrado", "nome", undefined, novo.nome);
+    }
+    persistir();
+    return clone(novo);
+  },
+  async salvarColaborador(c, porId) {
+    exigir(porId, "gerir_licencas");
+    if (!c.nome.trim()) throw new ErroNegocio("Informe o nome do colaborador.");
+    const email = c.email?.trim().toLowerCase() || undefined;
+    if (email && estado.colaboradores.some((x) => x.id !== c.id && x.email?.toLowerCase() === email)) throw new ErroNegocio("Já existe colaborador com este e-mail.");
+    const novo: Colaborador = { ...c, nome: c.nome.trim(), email };
+    const i = estado.colaboradores.findIndex((x) => x.id === c.id);
+    if (i >= 0) {
+      auditar(diffAuditoria(estado.colaboradores[i], novo, { entidade: "licenca", entidadeId: c.id, usuarioId: porId, data: agora(), acao: "Colaborador alterado" }, () => novoId("a")));
+      estado.colaboradores[i] = novo;
+    } else {
+      novo.id = novoId("col");
+      estado.colaboradores.push(novo);
+      registrar("licenca", novo.id, porId, "Colaborador cadastrado", "nome", undefined, novo.nome);
+    }
+    persistir();
+    return clone(novo);
+  },
+  async atribuirLicenca(produtoId, colaboradorId, porId, extra) {
+    exigir(porId, "gerir_licencas");
+    const p = estado.produtosLicenca.find((x) => x.id === produtoId);
+    const c = estado.colaboradores.find((x) => x.id === colaboradorId);
+    if (!p || !c) throw new ErroNegocio("Produto ou colaborador não encontrado.");
+    if (p.situacao !== "Ativo") throw new ErroNegocio("Produto cancelado não recebe novas atribuições.");
+    if (estado.atribuicoes.some((a) => a.status === "Ativa" && a.produtoId === produtoId && a.colaboradorId === colaboradorId && p.categoria !== "Linha telefônica"))
+      throw new ErroNegocio(`${c.nome} já tem ${p.nome}.`);
+    const a: AtribuicaoLicenca = { id: novoId("at"), produtoId, colaboradorId, status: "Ativa", dataInicio: extra?.dataInicio ?? hoje(), ...extra };
+    estado.atribuicoes.push(a);
+    registrar("licenca", produtoId, porId, "Licença atribuída", "colaborador", undefined, c.nome);
+    persistir();
+    return clone(a);
+  },
+  async removerAtribuicao(id, porId) {
+    exigir(porId, "gerir_licencas");
+    const a = estado.atribuicoes.find((x) => x.id === id);
+    if (!a || a.status !== "Ativa") throw new ErroNegocio("Atribuição não encontrada.");
+    // Nunca apaga: encerra a atribuição e mantém o histórico.
+    a.status = "Removida";
+    a.dataFim = hoje();
+    registrar("licenca", a.produtoId, porId, "Licença removida", "colaborador", estado.colaboradores.find((c) => c.id === a.colaboradorId)?.nome, undefined);
+    persistir();
+  },
+  async removerLicencasDoColaborador(colaboradorId, porId) {
+    exigir(porId, "gerir_licencas");
+    const ativas = estado.atribuicoes.filter((a) => a.colaboradorId === colaboradorId && a.status === "Ativa");
+    for (const a of ativas) {
+      a.status = "Removida";
+      a.dataFim = hoje();
+    }
+    registrar("licenca", colaboradorId, porId, "Todas as licenças removidas (desligamento)", "licencas", String(ativas.length), "0");
+    persistir();
+    return ativas.length;
+  },
+  async importarLicencas(conteudo, porId) {
+    exigir(porId, "gerir_licencas");
+    let arq: ArquivoImportacaoLicencas;
+    try {
+      arq = JSON.parse(conteudo);
+    } catch {
+      throw new ErroNegocio("Arquivo inválido: não é uma importação de licenças.");
+    }
+    if (arq.formato !== "akross-licencas-importacao" || !Array.isArray(arq.produtos)) throw new ErroNegocio("Arquivo inválido: não é uma importação de licenças.");
+
+    // Reimportar não duplica: produtos e colaboradores são reconhecidos pela chave de importação (ou e-mail).
+    const idProduto = new Map<string, string>();
+    let vinculados = 0;
+    let semContrato = 0;
+    for (const { chave, contratoSugerido, ...dados } of arq.produtos) {
+      let p = estado.produtosLicenca.find((x) => x.chaveImportacao === chave);
+      let contrato_id = p?.contrato_id;
+      const confirmacoes = [...(dados.confirmacoesPendentes ?? [])];
+      if (!contrato_id) {
+        contrato_id = contratoSugerido && estado.contratos.some((c) => c.contrato_id === contratoSugerido) ? contratoSugerido : sugerirContrato(dados.fornecedorNome, estado.contratos, estado.fornecedores).contrato_id;
+        // Vínculo deduzido pelo nome do fornecedor: sempre pedir confirmação.
+        if (contrato_id && !confirmacoes.some((x) => x.startsWith("Confirmar contrato vinculado")))
+          confirmacoes.push("Confirmar contrato vinculado automaticamente pelo nome do fornecedor");
+      }
+      if (!contrato_id && dados.situacao === "Ativo") confirmacoes.push("Vincular ao contrato (não identificado automaticamente)");
+      if (contrato_id) vinculados++;
+      else if (dados.situacao === "Ativo") semContrato++;
+      if (p) Object.assign(p, { ...dados, contrato_id, confirmacoesPendentes: confirmacoes, atualizadoEm: agora() });
+      else {
+        p = { ...dados, id: novoId("pl"), contrato_id, confirmacoesPendentes: confirmacoes, chaveImportacao: chave, criadoEm: agora(), atualizadoEm: agora() };
+        estado.produtosLicenca.push(p);
+      }
+      idProduto.set(chave, p.id);
+    }
+    const idColab = new Map<string, string>();
+    for (const { chave, ...dados } of arq.colaboradores) {
+      const email = dados.email?.toLowerCase();
+      let c = estado.colaboradores.find((x) => x.chaveImportacao === chave || (email && x.email?.toLowerCase() === email));
+      if (c) Object.assign(c, { ...dados, ativo: c.ativo });
+      else {
+        c = { ...dados, id: novoId("col"), chaveImportacao: chave };
+        estado.colaboradores.push(c);
+      }
+      idColab.set(chave, c.id);
+    }
+    let atribs = 0;
+    for (const { produtoChave, colaboradorChave, ...dados } of arq.atribuicoes) {
+      const produtoId = idProduto.get(produtoChave);
+      const colaboradorId = idColab.get(colaboradorChave);
+      if (!produtoId || !colaboradorId) continue;
+      const existe = estado.atribuicoes.some((a) => a.status === "Ativa" && a.produtoId === produtoId && a.colaboradorId === colaboradorId && a.linha?.numero === dados.linha?.numero);
+      if (existe) continue;
+      estado.atribuicoes.push({ ...dados, id: novoId("at"), produtoId, colaboradorId });
+      atribs++;
+    }
+    registrar("licenca", "importacao", porId, "Licenças importadas de planilha", "produtos", undefined, `${arq.produtos.length} produtos, ${atribs} atribuições`);
+    persistir();
+    return { produtos: arq.produtos.length, colaboradores: arq.colaboradores.length, atribuicoes: atribs, vinculadosAContrato: vinculados, semContrato };
+  },
+
   // ---------------------------------------------------------------- Derivados
   async listarAcoes() {
     await latencia();
@@ -675,7 +813,7 @@ export const mockApi: ContratosApi = {
     const e = dados.estado;
     if (dados.formato !== "akross-contratos-backup" || !e || !Array.isArray(e.contratos) || !Array.isArray(e.usuarios))
       throw new ErroNegocio("Arquivo inválido: não é um backup do sistema.");
-    estado = { ...e, modo: e.modo ?? "real" };
+    estado = completarEstado({ ...e, modo: e.modo ?? "real" });
     persistir();
     return { contratos: estado.contratos.length, processos: estado.processos.length };
   },

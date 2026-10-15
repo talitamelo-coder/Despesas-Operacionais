@@ -10,7 +10,8 @@ import { prazosDoContrato } from "@/domain/rules/prazos";
 import { datasReajuste, proximoReajuste } from "@/domain/rules/reajuste";
 import { formatarData } from "@/domain/datas";
 import { formatarCnpj, formatarMoeda, formatarNumero, formatarPercentual } from "@/domain/formatacao";
-import type { Alerta, Contrato } from "@/domain/types";
+import type { Alerta, AtribuicaoLicenca, Contrato, ProdutoLicenca } from "@/domain/types";
+import { divergenciaComContrato, resumoProduto } from "@/domain/rules/licencas";
 
 /** Blocos da Capa do Contrato — cada bloco é independente e reaproveitável. */
 
@@ -268,5 +269,31 @@ export function ListaAlertas({ alertas }: { alertas: Alerta[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Licenças ligadas ao contrato — SOMENTE LEITURA. A gestão fica no menu Licenças. */
+export function BlocoLicencas({ c, produtos, atribuicoes }: { c: Contrato; produtos: ProdutoLicenca[]; atribuicoes: AtribuicaoLicenca[] }) {
+  const doContrato = produtos.filter((p) => p.contrato_id === c.contrato_id);
+  const aviso = divergenciaComContrato(c, produtos);
+  return (
+    <div className="space-y-3">
+      {aviso && <Aviso tom="alerta">{aviso}</Aviso>}
+      <ul className="divide-y divide-borda">
+        {doContrato.map((p) => {
+          const r = resumoProduto(p, atribuicoes);
+          return (
+            <li key={p.id} className="py-2">
+              <Link to={`/licencas?aba=${p.categoria === "Linha telefônica" ? "linhas" : "produto"}&item=${p.id}`} className="flex items-center justify-between gap-3 text-sm hover:underline">
+                <span className="min-w-0 truncate">{p.nome}</span>
+                <span className={`shrink-0 text-xs tabular ${r.excedente ? "font-semibold text-critico-600" : "text-texto-suave"}`}>
+                  {p.categoria === "Linha telefônica" ? `${r.emUso} linha(s)` : `${r.contratadas} contratadas · ${r.emUso} em uso · ${r.excedente ? `+${r.excedente} acima` : `${r.livres} livres`}`}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

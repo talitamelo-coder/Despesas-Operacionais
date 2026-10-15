@@ -17,7 +17,7 @@ export type MapaOrigens = Partial<Record<string, OrigemDado>>;
 
 // ---------------------------------------------------------------- Cadastros
 
-export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "Solicitante";
+export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "Solicitante" | "TI";
 
 export interface Usuario {
   id: string;
@@ -493,7 +493,7 @@ export interface AcaoNecessaria {
 
 export interface RegistroAuditoria {
   id: string;
-  entidade: "contrato" | "processo" | "documento" | "configuracao";
+  entidade: "contrato" | "processo" | "documento" | "configuracao" | "licenca";
   entidadeId: string;
   usuarioId: string;
   data: ISODateTime;
@@ -525,4 +525,86 @@ export interface Configuracao {
   origensSaving: OrigemSaving[];
   origensOportunidade: OrigemOportunidade[];
   listasAuxiliares: Record<string, string[]>;
+}
+
+// ---------------------------------------------------------------- Controle de licenças
+
+/**
+ * O contrato registra O QUE foi comprado; o controle de licenças registra QUEM usa.
+ * Um produto licenciado pode estar ligado a um contrato (ou não, ex.: compra no cartão).
+ * Nada aqui altera o contrato.
+ */
+export type CategoriaLicenca = "Software" | "Linha telefônica";
+export type SituacaoProdutoLicenca = "Ativo" | "Cancelado" | "Downgrade";
+
+export interface ProdutoLicenca {
+  id: string;
+  nome: string; // ex.: "Power BI Pro", "Jira (Cloud) Standard"
+  fornecedorNome: string;
+  categoria: CategoriaLicenca;
+  contrato_id?: string;
+  quantidadeContratada: number;
+  /**
+   * false = o uso não é controlado por pessoa (ex.: conta única de uma ferramenta). Nesse caso
+   * as licenças são consideradas em uso e não geram custo ocioso. Padrão: true.
+   */
+  controlePorUsuario?: boolean;
+  /** Valor por licença na moeda, no período indicado (mensal ou anual). */
+  valorUnitario: number;
+  moeda: Moeda;
+  periodicidade: "Mensal" | "Anual";
+  cotacao?: Cotacao;
+  iofPercentual?: number;
+  impostosPercentual?: number;
+  vencimento?: ISODate;
+  /** Quando o vencimento é descrito em texto (ex.: "Mensal", "Por demanda"). */
+  vencimentoTexto?: string;
+  // Ficha da ferramenta
+  responsavel?: string;
+  utilizacao?: string;
+  manutencao?: string;
+  substituto?: string;
+  riscos?: string;
+  situacao: SituacaoProdutoLicenca;
+  observacoes?: string;
+  confirmacoesPendentes?: string[];
+  /** Chave estável usada para não duplicar em reimportações. */
+  chaveImportacao?: string;
+  criadoEm: ISODateTime;
+  atualizadoEm: ISODateTime;
+}
+
+export type TipoColaborador = "Pessoa" | "Conta compartilhada";
+
+/** Quem usa licenças. Diferente de Usuario (quem acessa este módulo). Dado pessoal (LGPD). */
+export interface Colaborador {
+  id: string;
+  nome: string;
+  email?: string;
+  tipo: TipoColaborador;
+  area?: string;
+  centroCusto?: string;
+  empresaId?: string;
+  ativo: boolean;
+  confirmacoesPendentes?: string[];
+  chaveImportacao?: string;
+}
+
+export interface LinhaTelefonica {
+  numero: string;
+  operadora: string;
+  plano?: string;
+}
+
+export interface AtribuicaoLicenca {
+  id: string;
+  produtoId: string;
+  colaboradorId: string;
+  status: "Ativa" | "Removida";
+  dataInicio?: ISODate;
+  dataFim?: ISODate;
+  /** Custo próprio desta atribuição (ex.: valor da fatura de uma linha telefônica). */
+  valorMensalBRL?: number;
+  linha?: LinhaTelefonica;
+  observacao?: string;
 }

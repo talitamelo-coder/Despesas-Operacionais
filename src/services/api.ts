@@ -3,6 +3,9 @@ import type { Pendencia } from "@/domain/rules/fluxo";
 import type { Indicadores } from "@/domain/rules/indicadores";
 import type { RegistroImportado } from "@/domain/rules/importacao";
 import type {
+  AtribuicaoLicenca,
+  Colaborador,
+  ProdutoLicenca,
   AcaoNecessaria,
   Alerta,
   AvaliacaoRenovacao,
@@ -168,6 +171,15 @@ export interface ContratosApi {
   // Integrações (gateways)
   buscarDemandaJira(jira_key: string): Promise<DemandaJira | undefined>;
 
+  // Controle de licenças (não altera contratos)
+  listarLicencas(): Promise<DadosLicencas>;
+  salvarProdutoLicenca(p: ProdutoLicenca, porId: string): Promise<ProdutoLicenca>;
+  salvarColaborador(c: Colaborador, porId: string): Promise<Colaborador>;
+  atribuirLicenca(produtoId: string, colaboradorId: string, porId: string, extra?: ExtraAtribuicao): Promise<AtribuicaoLicenca>;
+  removerAtribuicao(id: string, porId: string): Promise<void>;
+  removerLicencasDoColaborador(colaboradorId: string, porId: string): Promise<number>;
+  importarLicencas(conteudo: string, porId: string): Promise<ResultadoImportacaoLicencas>;
+
   // Base de dados (modo de uso, cópia de segurança)
   obterModoDados(): Promise<"demonstracao" | "real">;
   /** porId: obrigatório quando a base atual já é real (só Administrador substitui dados reais). */
@@ -176,6 +188,32 @@ export interface ContratosApi {
   importarBackup(conteudo: string, porId: string): Promise<{ contratos: number; processos: number }>;
   restaurarDadosDemonstracao(porId?: string): Promise<void>;
 }
+
+// ---------------------------------------------------------------- Licenças
+
+export interface DadosLicencas {
+  produtos: ProdutoLicenca[];
+  colaboradores: Colaborador[];
+  atribuicoes: AtribuicaoLicenca[];
+}
+
+/** Arquivo de importação de licenças (gerado a partir da planilha de licenças). */
+export interface ArquivoImportacaoLicencas {
+  formato: "akross-licencas-importacao";
+  produtos: (Omit<ProdutoLicenca, "id" | "criadoEm" | "atualizadoEm" | "contrato_id"> & { chave: string; contratoSugerido?: string })[];
+  colaboradores: (Omit<Colaborador, "id"> & { chave: string })[];
+  atribuicoes: (Omit<AtribuicaoLicenca, "id" | "produtoId" | "colaboradorId"> & { produtoChave: string; colaboradorChave: string })[];
+}
+
+export interface ResultadoImportacaoLicencas {
+  produtos: number;
+  colaboradores: number;
+  atribuicoes: number;
+  vinculadosAContrato: number;
+  semContrato: number;
+}
+
+export type ExtraAtribuicao = Partial<Pick<AtribuicaoLicenca, "dataInicio" | "valorMensalBRL" | "linha" | "observacao">>;
 
 export class ErroPermissao extends Error {
   constructor(msg = "Operação não permitida para o seu perfil.") {

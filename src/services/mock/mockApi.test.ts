@@ -173,3 +173,52 @@ describe("cadastro de usuário", () => {
     await expect(api.salvarUsuario({ id: "", nome: "Sem senha", email: "x@y.com", perfil: "Gestor", area: "Comercial", ativo: true }, "u-admin")).rejects.toThrow();
   });
 });
+
+describe("controle de licenças", () => {
+  it("atribui, remove sem apagar e nunca altera o contrato", async () => {
+    const contratoAntes = JSON.stringify(await api.obterContrato("c-usd"));
+    const { produtos, colaboradores } = await api.listarLicencas();
+    const p = produtos.find((x) => x.id === "pl-design")!;
+    const livre = colaboradores.find((c) => c.id === "col-299")!;
+    const a = await api.atribuirLicenca(p.id, livre.id, "u-sup1");
+    await expect(api.atribuirLicenca(p.id, livre.id, "u-sup1")).rejects.toThrow(/já tem/);
+    await api.removerAtribuicao(a.id, "u-sup1");
+    const depois = await api.listarLicencas();
+    expect(depois.atribuicoes.find((x) => x.id === a.id)?.status).toBe("Removida");
+    expect(JSON.stringify(await api.obterContrato("c-usd"))).toBe(contratoAntes);
+  });
+
+  it("TI gerencia licenças; gestor não", async () => {
+    const ti = await api.salvarUsuario({ id: "", nome: "Equipe TI", email: "ti@empresa.exemplo", perfil: "TI", area: "Tecnologia", ativo: true }, "u-admin", "123456");
+    await api.salvarColaborador({ id: "", nome: "Nova Pessoa", email: "nova@empresa.exemplo", tipo: "Pessoa", ativo: true }, ti.id);
+    await expect(api.salvarColaborador({ id: "", nome: "X", tipo: "Pessoa", ativo: true }, "u-ges1")).rejects.toThrow();
+  });
+
+  it("desligamento remove todas as licenças da pessoa", async () => {
+    const n = await api.removerLicencasDoColaborador("col-5", "u-admin");
+    expect(n).toBeGreaterThan(0);
+    const { atribuicoes } = await api.listarLicencas();
+    expect(atribuicoes.filter((a) => a.colaboradorId === "col-5" && a.status === "Ativa")).toHaveLength(0);
+  });
+
+  it("importação vincula ao contrato pelo fornecedor e não duplica ao reimportar", async () => {
+    // Só vincula sozinho quando o fornecedor tem exatamente um contrato vigente.
+    const arq = JSON.stringify({
+      formato: "akross-licencas-importacao",
+      produtos: [
+        { chave: "p:global", nome: "Colaboração extra", fornecedorNome: "Global Seat", categoria: "Software", quantidadeContratada: 2, valorUnitario: 10, moeda: "BRL", periodicidade: "Mensal", situacao: "Ativo" },
+        { chave: "p:inexistente", nome: "Ferramenta X", fornecedorNome: "Fornecedor Que Nao Existe", categoria: "Software", quantidadeContratada: 1, valorUnitario: 10, moeda: "BRL", periodicidade: "Mensal", situacao: "Ativo" },
+      ],
+      colaboradores: [{ chave: "c:ze", nome: "Zé Teste", email: "ze@x.com", tipo: "Pessoa", ativo: true }],
+      atribuicoes: [{ produtoChave: "p:global", colaboradorChave: "c:ze", status: "Ativa" }],
+    });
+    const r = await api.importarLicencas(arq, "u-admin");
+    expect(r).toMatchObject({ produtos: 2, atribuicoes: 1, vinculadosAContrato: 1, semContrato: 1 });
+    const r2 = await api.importarLicencas(arq, "u-admin");
+    expect(r2.atribuicoes).toBe(0);
+    const { produtos } = await api.listarLicencas();
+    expect(produtos.filter((p) => p.nome === "Colaboração extra")).toHaveLength(1);
+    expect(produtos.find((p) => p.nome === "Colaboração extra")?.contrato_id).toBe("c-usd");
+    expect(produtos.find((p) => p.nome === "Ferramenta X")?.confirmacoesPendentes).toContain("Vincular ao contrato (não identificado automaticamente)");
+  });
+});

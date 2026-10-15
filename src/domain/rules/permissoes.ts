@@ -10,6 +10,8 @@ export type Permissao =
   | "emitir_parecer"
   | "gerir_documentos"
   | "importar_planilha"
+  | "gerir_licencas"
+  | "ver_licencas_da_area"
   | "visualizar";
 
 const MATRIZ: Record<Perfil, Permissao[]> = {
@@ -23,13 +25,17 @@ const MATRIZ: Record<Perfil, Permissao[]> = {
     "emitir_parecer",
     "gerir_documentos",
     "importar_planilha",
+    "gerir_licencas",
     "visualizar",
   ],
-  Suprimentos: ["editar_processo", "validar_demanda", "editar_saving", "aprovar", "gerir_documentos", "importar_planilha", "visualizar"],
-  Gestor: ["aprovar", "avaliar_renovacao", "gerir_documentos", "visualizar"],
+  Suprimentos: ["editar_processo", "validar_demanda", "editar_saving", "aprovar", "gerir_documentos", "importar_planilha", "gerir_licencas", "visualizar"],
+  // Gestor vê só as licenças das pessoas da sua área (dados pessoais — LGPD).
+  Gestor: ["aprovar", "avaliar_renovacao", "gerir_documentos", "ver_licencas_da_area", "visualizar"],
   Juridico: ["emitir_parecer", "gerir_documentos", "visualizar"],
   // Solicitante (área requisitante): acompanha contratos e processos, sem editar.
   Solicitante: ["visualizar"],
+  // TI administra licenças junto com Suprimentos; consulta contratos.
+  TI: ["gerir_licencas", "visualizar"],
 };
 
 export function pode(perfil: Perfil, permissao: Permissao): boolean {
@@ -42,4 +48,5 @@ export const ROTULO_PERFIL: Record<Perfil, string> = {
   Gestor: "Gestor",
   Juridico: "Jurídico/Consulta",
   Solicitante: "Solicitante",
+  TI: "TI / Licenças",
 };

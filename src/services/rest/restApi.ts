@@ -74,6 +74,14 @@ export const restApi: ContratosApi = {
   listarAuditoria: (entidadeId) => http("GET", `/auditoria${q({ entidadeId })}`),
 
   buscarDemandaJira: (jira_key) => http("GET", `/integracoes/jira/demandas/${encodeURIComponent(jira_key)}`),
+  listarLicencas: () => http("GET", "/licencas"),
+  salvarProdutoLicenca: (p, porId) => http("PUT", `/licencas/produtos/${p.id || "novo"}`, p, porId),
+  salvarColaborador: (c, porId) => http("PUT", `/colaboradores/${c.id || "novo"}`, c, porId),
+  atribuirLicenca: (produtoId, colaboradorId, porId, extra) => http("POST", "/licencas/atribuicoes", { produtoId, colaboradorId, ...extra }, porId),
+  removerAtribuicao: (id, porId) => http("POST", `/licencas/atribuicoes/${id}/remover`, {}, porId),
+  removerLicencasDoColaborador: (colaboradorId, porId) => http("POST", `/colaboradores/${colaboradorId}/remover-licencas`, {}, porId),
+  importarLicencas: (conteudo, porId) => http("POST", "/importacoes/licencas", JSON.parse(conteudo), porId),
+
   // Com backend real, a base é única e o backup é responsabilidade do banco (MySQL).
   obterModoDados: async () => "real",
   iniciarBaseVazia: async () => {

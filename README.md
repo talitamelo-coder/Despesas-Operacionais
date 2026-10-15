@@ -42,6 +42,17 @@ React 19 + TypeScript + Vite + Tailwind CSS 4, a mesma base que o Lovable gera. 
 | 7 | Documentos | `/documentos` |
 | 8 | Ações Necessárias (pendências, alertas e prévia de e-mail) | `/acoes` |
 | 9 | Administração (inclui a importação da planilha) | `/admin` |
+| 10 | Controle de Licenças (visão geral, por produto, por pessoa, linhas telefônicas) | `/licencas` |
+
+### Controle de Licenças
+
+Menu lateral **Licenças**. Mostra quem usa cada licença ou linha telefônica, ligado ao contrato só por referência: **o contrato não é alterado**. A Capa do Contrato exibe um bloco somente leitura com as licenças vinculadas e avisa quando a quantidade diverge.
+
+- Quem administra: Administrador, Suprimentos e o perfil **TI**. Gestor vê só as pessoas da própria área.
+- Colaboradores (quem usa) são separados dos usuários do sistema.
+- Remover licença não apaga: fica no histórico como `Removida`. "Remover todas as licenças" atende desligamentos.
+- Produtos sem lista de usuários podem ficar com "uso não controlado por pessoa", para não gerar custo ocioso falso.
+- Importação: **Licenças → Importar licenças** (arquivo gerado por `ferramentas/importacao-licencas/`). Reimportar não duplica.
 
 ## Cenários de demonstração
 

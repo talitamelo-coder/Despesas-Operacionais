@@ -7,7 +7,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 ## Autenticação e permissões
 
 - A identidade vem da sessão/SSO da Akross Atende (**a definir**). O cabeçalho `X-Usuario-Id` do esboço REST serve **só para desenvolvimento** e não pode ser usado em produção.
-- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Saving e baseline só podem ser alterados por Suprimentos ou Administrador.
+- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Saving e baseline só podem ser alterados por Suprimentos ou Administrador. Licenças são geridas por Administrador, Suprimentos ou TI (perfil `TI`); Gestor só consulta as da própria área.
 - Erros: `403` para permissão (`ErroPermissao`), `422` para regra de negócio (`ErroNegocio`), com `{ "mensagem": "..." }`.
 
 ## Endpoints
@@ -43,6 +43,13 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/dashboard/indicadores` | `obterIndicadores` | Derivado (`domain/rules/indicadores.ts`) |
 | GET | `/auditoria?entidadeId=` | `listarAuditoria` | |
 | GET | `/integracoes/jira/demandas/{jira_key}` | `buscarDemandaJira` | Backend consulta o JIRA |
+| GET | `/licencas` | `listarLicencas` | `{ produtos, colaboradores, atribuicoes }`. Gestor recebe só colaboradores da própria área |
+| PUT | `/licencas/produtos/{id\|novo}` | `salvarProdutoLicenca` | Administrador, Suprimentos ou TI. `contrato_id` só vincula: **nunca altera o contrato** |
+| PUT | `/colaboradores/{id\|novo}` | `salvarColaborador` | Colaborador é separado de usuário do sistema |
+| POST | `/licencas/atribuicoes` | `atribuirLicenca` | `{ produtoId, colaboradorId, linha?, valorMensalBRL? }` |
+| POST | `/licencas/atribuicoes/{id}/remover` | `removerAtribuicao` | Marca `Removida` com data fim; histórico mantido |
+| POST | `/colaboradores/{id}/remover-licencas` | `removerLicencasDoColaborador` | Desligamento: remove todas e inativa o colaborador |
+| POST | `/importacoes/licencas` | `importarLicencas` | Arquivo `akross-licencas-importacao`; não duplica (chave de importação / e-mail) |
 
 Métodos só do modo local (sem servidor): `obterModoDados`, `iniciarBaseVazia`, `exportarBackup`, `importarBackup` e `restaurarDadosDemonstracao`. Com a API real, a base é única, e cópia de segurança e recuperação são feitas no banco de dados.
 
@@ -55,3 +62,4 @@ As fórmulas estão centralizadas em `src/domain/rules/` e cobertas por testes. 
 - `saving.ts`, `cambio.ts`, `reajuste.ts`: saving, baseline ajustado, decomposição preço × volume × câmbio.
 - `alertas.ts`, `acoes.ts`: alertas programados, interrupção, priorização.
 - `heranca.ts`: campos herdados na renovação e na substituição.
+- `licencas.ts`: uso × contratadas, custo mensal/anual em BRL (câmbio, IOF, impostos), custo ocioso, alertas de licenças.

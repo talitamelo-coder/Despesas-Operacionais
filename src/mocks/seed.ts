@@ -5,6 +5,9 @@ import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
 import type {
+  AtribuicaoLicenca,
+  Colaborador,
+  ProdutoLicenca,
   Configuracao,
   Contrato,
   Documento,
@@ -36,6 +39,15 @@ export interface EstadoDados {
   documentos: Documento[];
   auditoria: RegistroAuditoria[];
   configuracao: Configuracao;
+  // Controle de licenças
+  produtosLicenca: ProdutoLicenca[];
+  colaboradores: Colaborador[];
+  atribuicoes: AtribuicaoLicenca[];
+}
+
+/** Garante as coleções criadas depois da primeira versão (backups antigos não as têm). */
+export function completarEstado(e: EstadoDados): EstadoDados {
+  return { ...e, produtosLicenca: e.produtosLicenca ?? [], colaboradores: e.colaboradores ?? [], atribuicoes: e.atribuicoes ?? [] };
 }
 
 export const VERSAO_SEED = 1;
@@ -729,9 +741,13 @@ export function criarEstadoInicial(): EstadoDados {
     { id: "a-4", entidade: "processo", entidadeId: "p-juridico-crm", usuarioId: "u-sup2", data: new Date(Date.now() - 45 * 86400000).toISOString(), acao: "Demanda validada", campo: "validacao.valorValidado", valorAnterior: "540000", valorNovo: "468000" },
   );
 
+  // ------------------------------------------------------------ Licenças (demonstração, fictícias)
+  const licencas = licencasDemonstracao(H, agora, rnd);
+
   return {
     versao: VERSAO_SEED,
     modo: "demonstracao",
+    ...licencas,
     usuarios: USUARIOS,
     empresas: EMPRESAS,
     fornecedores: fornecedores(),
@@ -787,6 +803,46 @@ export function criarEstadoVazio(admin: { nome: string; email: string }): Estado
     processos: [],
     documentos: [],
     auditoria: [],
+    produtosLicenca: [],
+    colaboradores: [],
+    atribuicoes: [],
     configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
+}
+
+function licencasDemonstracao(H: string, agora: string, rnd: () => number): Pick<EstadoDados, "produtosLicenca" | "colaboradores" | "atribuicoes"> {
+  const nomes = ["Ana", "Bruno", "Carla", "Daniel", "Elisa", "Fábio", "Gabriela", "Heitor", "Isabela", "João", "Karen", "Lucas", "Marina", "Nelson", "Olívia", "Pedro", "Quésia", "Rafael", "Sofia", "Tiago"];
+  const sobrenomes = ["Almeida", "Barbosa", "Cardoso", "Dias", "Esteves", "Ferraz", "Gomes", "Holanda", "Lima", "Moura", "Nogueira", "Pires", "Queiroz", "Rocha", "Siqueira"];
+  const areas = ["Tecnologia", "Operações", "Comercial", "Financeiro", "Marketing", "Atendimento"];
+  const colaboradores: Colaborador[] = [];
+  for (let i = 0; i < 300; i++) {
+    // 20 nomes × 15 sobrenomes = 300 combinações únicas.
+    const nome = `${nomes[i % nomes.length]} ${sobrenomes[Math.floor(i / nomes.length) % sobrenomes.length]}`;
+    colaboradores.push({
+      id: `col-${i + 1}`,
+      nome,
+      email: `${nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(" ", ".")}@empresa.exemplo`,
+      tipo: "Pessoa",
+      area: areas[i % areas.length],
+      empresaId: "e-hold",
+      ativo: i !== 7 && i !== 42,
+    });
+  }
+  const produto = (p: Omit<ProdutoLicenca, "criadoEm" | "atualizadoEm" | "situacao"> & Partial<Pick<ProdutoLicenca, "situacao">>): ProdutoLicenca => ({ situacao: "Ativo", criadoEm: agora, atualizadoEm: agora, ...p });
+  const produtosLicenca: ProdutoLicenca[] = [
+    produto({ id: "pl-colab", nome: "Assentos de colaboração", fornecedorNome: "Global Seat Licensing Inc.", categoria: "Software", contrato_id: "c-usd", quantidadeContratada: 300, valorUnitario: 360, moeda: "USD", periodicidade: "Anual", cotacao: { valor: 5.42, data: addDias(H, -150), fonte: "PTAX" }, iofPercentual: 3.5, vencimento: addDias(H, 215), responsavel: "Carlos Mendes", utilizacao: "Chat, videoconferência e documentos compartilhados", substituto: "Ferramenta equivalente do pacote de escritório", riscos: "Migração de histórico de conversas" }),
+    produto({ id: "pl-design", nome: "Ferramenta de design", fornecedorNome: "Atlas Licenciamento de Software Ltda", categoria: "Software", quantidadeContratada: 10, valorUnitario: 190, moeda: "BRL", periodicidade: "Mensal", vencimentoTexto: "Mensal", responsavel: "Beatriz Nunes", utilizacao: "Protótipos e peças de marketing" }),
+    produto({ id: "pl-linhas", nome: "Linhas móveis corporativas", fornecedorNome: "Sigma Telecom Serviços Ltda", categoria: "Linha telefônica", quantidadeContratada: 6, valorUnitario: 0, moeda: "BRL", periodicidade: "Mensal", vencimentoTexto: "Mensal", responsavel: "Fernanda Rocha" }),
+    produto({ id: "pl-cancel", nome: "Ferramenta de pesquisa online", fornecedorNome: "Pulso Marketing Digital Ltda", categoria: "Software", quantidadeContratada: 0, valorUnitario: 0, moeda: "BRL", periodicidade: "Mensal", situacao: "Cancelado", responsavel: "Beatriz Nunes", observacoes: "Cancelado após migração para formulário interno." }),
+  ];
+  const atribuicoes: AtribuicaoLicenca[] = [];
+  let n = 0;
+  const atribuir = (produtoId: string, colaboradorId: string, extra: Partial<AtribuicaoLicenca> = {}) =>
+    atribuicoes.push({ id: `at-${++n}`, produtoId, colaboradorId, status: "Ativa", dataInicio: addDias(H, -Math.floor(30 + rnd() * 300)), ...extra });
+  for (let i = 0; i < 286; i++) atribuir("pl-colab", colaboradores[i].id);
+  for (let i = 0; i < 11; i++) atribuir("pl-design", colaboradores[i * 6 + 4].id); // 11 para 10 licenças: excedente
+  for (let i = 0; i < 6; i++)
+    atribuir("pl-linhas", colaboradores[i * 3 + 1].id, { valorMensalBRL: Math.round((70 + rnd() * 40) * 100) / 100, linha: { numero: `(11) 9${8000 + i * 137}-${1000 + i * 211}`, operadora: "Sigma Telecom", plano: "Corporativo 20 GB" } });
+  atribuir("pl-colab", colaboradores[290].id, { status: "Removida", dataFim: addDias(H, -20) });
+  return { produtosLicenca, colaboradores, atribuicoes };
 }
