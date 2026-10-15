@@ -23,7 +23,7 @@ export function formatarMoeda(valor: number | undefined | null, moeda: Moeda = "
 }
 
 export function formatarNumero(valor: number | undefined | null, casas = 0): string {
-  if (valor === undefined || valor === null) return "—";
+  if (valor === undefined || valor === null || Number.isNaN(valor)) return "—";
   return valor.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas });
 }
 

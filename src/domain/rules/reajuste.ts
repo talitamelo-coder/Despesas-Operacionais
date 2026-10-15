@@ -3,7 +3,7 @@ import type { ISODate, Reajuste, Vigencia } from "../types";
 
 /** Datas de reajuste: data-base + N × periodicidade, dentro da vigência. */
 export function datasReajuste(r: Reajuste, v: Pick<Vigencia, "dataFim">, limite = 10): ISODate[] {
-  if (!r.possui || !r.dataBase || !r.periodicidadeMeses) return [];
+  if (!r.possui || !r.dataBase || !r.periodicidadeMeses || !v.dataFim) return [];
   const datas: ISODate[] = [];
   for (let i = 1; i <= 120 && datas.length < limite; i++) {
     const d = addMeses(r.dataBase, r.periodicidadeMeses * i);

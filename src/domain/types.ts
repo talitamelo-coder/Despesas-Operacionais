@@ -148,6 +148,7 @@ export interface CondicoesComerciais {
 export type TipoVigencia = "Prazo determinado" | "Prazo indeterminado";
 
 export interface Vigencia {
+  /** Vazio ("") quando ainda não informado (ex.: contrato importado sem data). */
   dataInicio: ISODate;
   dataFim: ISODate;
   tipoVigencia: TipoVigencia;
@@ -418,6 +419,13 @@ export interface Contrato {
   substituicao?: { fornecedorAnteriorId: string; valorAnteriorAnual: number; origemOportunidade: OrigemOportunidade };
   execucaoFinanceira: ExecucaoFinanceira;
   avaliacaoRenovacao?: AvaliacaoRenovacao;
+  /** Texto livre: histórico, condições copiadas da planilha legada, anotações. */
+  observacoes?: string;
+  /**
+   * Pontos a confirmar vindos da importação (ex.: "Confirmar status"). Somem quando alguém
+   * revisa o contrato. Os dados faltantes em si são calculados em rules/cadastro.ts.
+   */
+  confirmacoesPendentes?: string[];
 
   origens: MapaOrigens;
   criadoEm: ISODateTime;

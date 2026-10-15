@@ -4,7 +4,8 @@ import { converterParaBRL, valorAnualBRL } from "@/domain/rules/cambio";
 import { processoAtivo, valorNegociado } from "@/domain/rules/fluxo";
 import { decisaoRegistrada, prazosDoContrato } from "@/domain/rules/prazos";
 import { normalizarBusca } from "@/domain/formatacao";
-import type { AcaoNecessaria, Contrato, Empresa, Fornecedor, Prioridade, ProcessoContratacao, RegrasAlerta, Usuario } from "@/domain/types";
+import { pendenciasCadastro } from "@/domain/rules/cadastro";
+import type { AcaoNecessaria, Contrato, Empresa, Fornecedor, Prioridade, ProcessoContratacao, RegrasAlerta, TipoContrato, Usuario } from "@/domain/types";
 import type { FiltrosCentral, LinhaCentral, Ordenacao, ResultadoCentral } from "./api";
 
 /**
@@ -19,6 +20,7 @@ interface Base {
   usuarios: Usuario[];
   empresas: Empresa[];
   fornecedores: Fornecedor[];
+  tiposContrato: TipoContrato[];
   acoes: AcaoNecessaria[];
   regras: RegrasAlerta;
 }
@@ -39,6 +41,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
   const usuario = new Map(b.usuarios.map((u) => [u.id, u.nome]));
   const empresa = new Map(b.empresas.map((e) => [e.id, e.nome]));
   const fornecedor = new Map(b.fornecedores.map((f) => [f.fornecedor_id, f]));
+  const tipo = new Map(b.tiposContrato.map((t) => [t.id, t.nome]));
   const acoesPorRef = new Map<string, AcaoNecessaria[]>();
   for (const a of b.acoes) acoesPorRef.set(a.referencia.id, [...(acoesPorRef.get(a.referencia.id) ?? []), a]);
   const abertos = new Map<string, ProcessoContratacao[]>();
@@ -71,8 +74,8 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       analista: usuario.get(c.analistaId) ?? "—",
       valorAnualBRL: valorAnualBRL(c.condicoes),
       moeda: c.condicoes.moeda,
-      dataFim: c.vigencia.dataFim,
-      diasAteVencimento: prazos.diasAteVencimento,
+      dataFim: c.vigencia.dataFim || undefined,
+      diasAteVencimento: Number.isNaN(prazos.diasAteVencimento) ? undefined : prazos.diasAteVencimento,
       status: c.status,
       situacao: situacaoCiclo(procs),
       proximaAcao,
@@ -80,6 +83,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       renovacaoAutomaticaEmRisco: prazos.renovacaoAutomaticaEmRisco,
       jira_key: c.jira_key,
       projeto: c.projeto,
+      pendenciasCadastro: pendenciasCadastro(c, f, tipo.get(c.tipoContratoId)),
       abas: abasDoContrato(c, procs, acoes.length > 0),
       textoBusca: normalizarBusca([c.codigo, f?.razaoSocial, f?.nomeFantasia, f?.cnpj, c.objeto, c.jira_key, c.projeto, ...procs.map((p) => p.codigo)].filter(Boolean).join(" ")),
       empresaId: c.empresaId,
@@ -121,6 +125,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       renovacaoAutomaticaEmRisco: false,
       jira_key: p.jira_key,
       projeto: p.projeto,
+      pendenciasCadastro: [],
       abas: abasDoProcesso(acoes.length > 0),
       textoBusca: normalizarBusca([p.codigo, f?.razaoSocial, rec?.fornecedorPotencial, f?.cnpj, p.objeto, p.jira_key, p.projeto].filter(Boolean).join(" ")),
       empresaId: p.empresaId,
@@ -145,6 +150,7 @@ function passaFiltros(l: LinhaIndexada, f: FiltrosCentral, termos: string[]): bo
   if (f.tipoProcesso && !l.tiposProcesso.includes(f.tipoProcesso)) return false;
   if (f.moeda && l.moeda !== f.moeda) return false;
   if (f.projeto && l.projeto !== f.projeto) return false;
+  if (f.cadastro === "incompleto" && l.pendenciasCadastro.length === 0) return false;
   if (f.renovacaoAutomatica && l.renovacaoAutomatica !== (f.renovacaoAutomatica === "sim")) return false;
   if (f.vencimento) {
     if (l.diasAteVencimento === undefined) return false;

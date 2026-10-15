@@ -19,7 +19,7 @@ import type { TipoProcesso } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api, type ColunaOrdenavel, type FiltrosCentral, type LinhaCentral, type Ordenacao } from "@/services";
 
-const CHAVES_FILTRO = ["empresaId", "fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto"] as const;
+const CHAVES_FILTRO = ["empresaId", "fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro"] as const;
 const STATUS_OPCOES = ["Vigente", "Suspenso", "Encerrado", "Rescindido", ...new Set(Object.values(FLUXO_POR_TIPO).flat())];
 
 function useDebounce<T>(v: T, ms: number): T {
@@ -129,6 +129,11 @@ export function CentralContratos() {
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={l.status} />
           {l.situacao && <Badge tom={l.tipo === "processo" ? "neutro" : "info"}>{l.situacao}</Badge>}
+          {l.pendenciasCadastro.length > 0 && (
+            <span title={`A completar: ${l.pendenciasCadastro.join(", ")}`}>
+              <Badge tom="alerta">A completar ({l.pendenciasCadastro.length})</Badge>
+            </span>
+          )}
         </div>
       ),
     },
@@ -225,6 +230,7 @@ export function CentralContratos() {
             />
             <Select rotulo="Moeda" opcoes={op.moedas} vazio="Todas" value={params.get("moeda") ?? ""} onChange={(e) => setParam("moeda", e.target.value)} />
             <Select rotulo="Projeto" opcoes={op.projetos} vazio="Todos" value={params.get("projeto") ?? ""} onChange={(e) => setParam("projeto", e.target.value)} />
+            <Select rotulo="Cadastro" opcoes={[{ valor: "incompleto", rotulo: "A completar" }]} vazio="Todos" value={params.get("cadastro") ?? ""} onChange={(e) => setParam("cadastro", e.target.value)} />
             <div className="flex items-end">
               <Button
                 variante="fantasma"

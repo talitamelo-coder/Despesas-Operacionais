@@ -94,7 +94,7 @@ export function BlocoVigencia({ c }: { c: Contrato }) {
         <Valor rotulo="Renovação automática">{c.vigencia.renovacaoAutomatica ? "Sim" : "Não"}</Valor>
         <Valor rotulo="Periodicidade de renovação">{c.vigencia.periodicidadeRenovacaoMeses ? `${c.vigencia.periodicidadeRenovacaoMeses} meses` : "—"}</Valor>
         <Valor rotulo="Dias até o vencimento" origem="calculado">
-          <span className={p.diasAteVencimento < 0 ? "text-critico-600" : p.diasAteVencimento <= 90 ? "text-alerta-600" : ""}>{p.diasAteVencimento < 0 ? `Vencido há ${-p.diasAteVencimento} dias` : `${p.diasAteVencimento} dias`}</span>
+          <span className={p.diasAteVencimento < 0 ? "text-critico-600" : p.diasAteVencimento <= 90 ? "text-alerta-600" : ""}>{Number.isNaN(p.diasAteVencimento) ? "—" : p.diasAteVencimento < 0 ? `Vencido há ${-p.diasAteVencimento} dias` : `${p.diasAteVencimento} dias`}</span>
         </Valor>
         <Valor rotulo="Data limite de manifestação" origem="calculado">{formatarData(p.dataLimiteManifestacao)}</Valor>
         <Valor rotulo="Início da avaliação" origem="calculado">{formatarData(p.dataAberturaAvaliacao)}</Valor>

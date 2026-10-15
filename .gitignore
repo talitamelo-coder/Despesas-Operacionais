@@ -6,3 +6,8 @@ dist
 !.env.example
 coverage
 dist-demo
+
+# Dados reais (planilhas, backups) nunca entram no repositório
+*.xlsx
+*.xlsm
+backup-*.json

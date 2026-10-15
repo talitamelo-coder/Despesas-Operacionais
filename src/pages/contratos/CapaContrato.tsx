@@ -1,9 +1,11 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { ClipboardCheck, FilePlus2, History, Lock, Save } from "lucide-react";
+import { ClipboardCheck, FilePlus2, History, Lock, Pencil, Save } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { DocumentosLista } from "@/components/dominio/DocumentosLista";
+import { EditarContratoModal } from "@/components/dominio/EditarContratoModal";
+import { pendenciasCadastro } from "@/domain/rules/cadastro";
 import { SavingEditor } from "@/components/dominio/SavingEditor";
 import { SavingResumo } from "@/components/dominio/SavingResumo";
 import { Badge } from "@/components/ui/Badge";
@@ -74,13 +76,14 @@ export function CapaContrato() {
   const [params, setParams] = useSearchParams();
   const aba = (params.get("aba") as AbaCapa) || "Visão Geral";
   const navegar = useNavigate();
-  const { fornecedor, nomeEmpresa, nomeUsuario, pode, usuario, executar } = useApp();
+  const { fornecedor, nomeEmpresa, nomeUsuario, nomeTipo, pode, usuario, executar } = useApp();
   const { dados: c, carregando } = useConsulta(() => api.obterContrato(id), [id]);
   const { dados: todos } = useConsulta(() => api.listarContratos(), []);
   const { dados: processos } = useConsulta(() => api.listarProcessos(), []);
   const { dados: alertas } = useConsulta(() => api.listarAlertas(id), [id]);
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
   const [modalStatus, setModalStatus] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [editandoSaving, setEditandoSaving] = useState<Saving>();
 
   const relacionados = useMemo(() => (processos ?? []).filter((p) => p.contrato_anterior_id === id || p.contrato_gerado_id === id || p.processo_id === c?.processo_id), [processos, id, c]);
@@ -91,6 +94,7 @@ export function CapaContrato() {
 
   const f = fornecedor(c.fornecedorId);
   const prazos = prazosDoContrato(c);
+  const pendencias = pendenciasCadastro(c, f, nomeTipo(c.tipoContratoId));
   const anterior = cadeia.find((x) => x.contrato_id === c.contrato_anterior_id);
   const sucessor = cadeia.find((x) => x.contrato_id === c.sucessor_id);
   const abertos = relacionados.filter((p) => p.contrato_anterior_id === id && processoAtivo(p));
@@ -99,7 +103,7 @@ export function CapaContrato() {
     .filter((a) => a.referencia.id === id || abertos.some((p) => p.processo_id === a.referencia.id))
     .sort((a, b) => ORDEM_PRIORIDADE[a.prioridade] - ORDEM_PRIORIDADE[b.prioridade]);
   const proxima = acoesContrato[0];
-  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor) && prazos.fase !== "Normal";
+  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor) && prazos.fase !== "Normal" && prazos.fase !== "Sem prazo";
   const relacaoSucessor = sucessor?.relacaoAnterior === "Substituição" ? "Substituído por" : "Renovado por";
   const relacaoAnterior = c.relacaoAnterior === "Substituição" ? "Substitui" : "Renovação de";
 
@@ -136,6 +140,11 @@ export function CapaContrato() {
             {pode("editar_processo") && c.status === "Vigente" && !c.sucessor_id && (
               <Button variante="secundario" icone={<FilePlus2 size={16} />} onClick={() => setParams({ aba: "Renovações & Aditivos" })}>
                 Iniciar processo
+              </Button>
+            )}
+            {pode("editar_processo") && (
+              <Button variante="secundario" icone={<Pencil size={16} />} onClick={() => setEditando(true)}>
+                Editar contrato
               </Button>
             )}
             {pode("editar_processo") && (
@@ -198,12 +207,32 @@ export function CapaContrato() {
         }
       />
 
+      {pendencias.length > 0 && (
+        <div className="mb-4">
+          <Aviso tom="alerta" titulo="Cadastro a completar">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span>{pendencias.join(" · ")}</span>
+              {pode("editar_processo") && (
+                <button className="font-semibold underline" onClick={() => setEditando(true)}>
+                  Completar agora
+                </button>
+              )}
+            </span>
+          </Aviso>
+        </div>
+      )}
+
       <Tabs className="mb-4" abas={ABAS.map((a) => ({ id: a, rotulo: a }))} ativa={aba} onChange={(a) => setParams({ aba: a }, { replace: true })} />
 
       {aba === "Visão Geral" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <div className="space-y-4 xl:col-span-2">
             <Bloco titulo="Informações gerais"><BlocoInformacoesGerais c={c} /></Bloco>
+            {c.observacoes && (
+              <Bloco titulo="Observações">
+                <p className="text-sm whitespace-pre-line text-texto">{c.observacoes}</p>
+              </Bloco>
+            )}
             <Bloco titulo="Resultado de Suprimentos"><SavingResumo saving={c.saving} /></Bloco>
             <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>
             {c.condicoes.moeda !== "BRL" && <Bloco titulo="Câmbio"><BlocoCambio c={c} /></Bloco>}
@@ -366,6 +395,7 @@ export function CapaContrato() {
       )}
 
       <ModalStatus aberto={modalStatus} onFechar={() => setModalStatus(false)} c={c} />
+      <EditarContratoModal contrato={c} aberto={editando} onFechar={() => setEditando(false)} />
     </>
   );
 }

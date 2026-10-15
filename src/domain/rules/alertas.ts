@@ -14,7 +14,7 @@ export function gerarAlertas(
   regras: RegrasAlerta = REGRAS_ALERTA_PADRAO,
   referencia: ISODate = hoje(),
 ): Alerta[] {
-  if (c.vigencia.tipoVigencia === "Prazo indeterminado") return [];
+  if (c.vigencia.tipoVigencia === "Prazo indeterminado" || !c.vigencia.dataFim) return [];
   if (c.status === "Encerrado" || c.status === "Rescindido") return [];
 
   const limite = dataLimiteManifestacao(c.vigencia);

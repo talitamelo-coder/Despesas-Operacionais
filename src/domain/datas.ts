@@ -17,10 +17,12 @@ export function toISO(d: Date): ISODate {
 }
 
 export function addDias(d: ISODate, dias: number): ISODate {
+  if (!d) return ""; // data ainda não informada
   return toISO(new Date(parseISO(d).getTime() + dias * MS_DIA));
 }
 
 export function addMeses(d: ISODate, meses: number): ISODate {
+  if (!d) return "";
   const base = parseISO(d);
   const y = base.getUTCFullYear();
   const m = base.getUTCMonth() + meses;

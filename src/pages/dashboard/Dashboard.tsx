@@ -17,6 +17,7 @@ export function Dashboard() {
   const { nomeUsuario, usuario, cad } = useApp();
   const { dados: ind } = useConsulta(() => api.obterIndicadores(), []);
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
+  const { dados: incompletos } = useConsulta(() => api.consultarCentral({ aba: "Todos", cadastro: "incompleto" }, { coluna: "codigo", direcao: "asc" }, 0, 1), []);
   if (!ind) return <Carregando />;
   const pctSuprimentos = ind.savingAnualTotal ? (ind.savingSuprimentos / ind.savingAnualTotal) * 100 : 0;
 
@@ -42,6 +43,14 @@ export function Dashboard() {
       {cad.modo === "real" && ind.contratosVigentes === 0 && (
         <div className="mb-4 rounded-[var(--radius-cartao)] border border-info-50 bg-info-50 px-4 py-3 text-sm text-info-600">
           <b>Base vazia.</b> Comece em Administração: cadastre empresas, usuários e fornecedores, e importe a planilha atual de contratos (Administração → Importação da planilha).
+        </div>
+      )}
+      {cad.modo === "real" && (incompletos?.total ?? 0) > 0 && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-cartao)] border border-alerta-50 bg-alerta-50 px-4 py-3 text-sm text-alerta-600">
+          <span>
+            <b>{incompletos!.total} contrato(s) com cadastro a completar</b> (datas, valores, CNPJ ou pontos a confirmar da importação).
+          </span>
+          <Button variante="secundario" tamanho="sm" onClick={() => navegar("/contratos?cadastro=incompleto")}>Ver lista</Button>
         </div>
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

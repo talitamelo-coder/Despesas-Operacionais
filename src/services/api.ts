@@ -52,6 +52,8 @@ export interface FiltrosCentral {
   renovacaoAutomatica?: "sim" | "nao";
   moeda?: Moeda;
   projeto?: string;
+  /** "incompleto": só contratos com dados a completar (ex.: importados de planilha). */
+  cadastro?: "incompleto";
 }
 
 export type ColunaOrdenavel = "codigo" | "fornecedor" | "empresa" | "objeto" | "gestor" | "analista" | "valorAnual" | "dataFim" | "status" | "prioridade";
@@ -83,6 +85,8 @@ export interface LinhaCentral {
   renovacaoAutomaticaEmRisco: boolean;
   jira_key?: string;
   projeto?: string;
+  /** Itens a completar no cadastro (ver domain/rules/cadastro.ts). */
+  pendenciasCadastro: string[];
 }
 
 export interface ResultadoCentral {

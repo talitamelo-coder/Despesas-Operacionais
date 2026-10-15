@@ -62,7 +62,8 @@ export function calcularPrazos(
   const diasAteDataLimite = diffDias(ref, limite);
 
   let fase: FaseRenovacao;
-  if (v.tipoVigencia === "Prazo indeterminado") fase = "Sem prazo";
+  // Sem data fim (indeterminado ou ainda não informada): não há prazo a controlar.
+  if (v.tipoVigencia === "Prazo indeterminado" || !v.dataFim) fase = "Sem prazo";
   else if (diasAteVencimento < 0) fase = "Vencido";
   else if (diasAteDataLimite < 0) fase = "Data limite vencida";
   else if (diasAteDataLimite <= DIAS_DATA_LIMITE_PROXIMA) fase = "Data limite próxima";
@@ -75,6 +76,7 @@ export function calcularPrazos(
   const renovacaoAutomaticaEmRisco =
     v.renovacaoAutomatica &&
     v.tipoVigencia !== "Prazo indeterminado" &&
+    Boolean(v.dataFim) &&
     !opcoes.resolvido &&
     diasAteVencimento >= 0 &&
     diasAteDataLimite <= regras.diasRiscoRenovacaoAutomatica;
