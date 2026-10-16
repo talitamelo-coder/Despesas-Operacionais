@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowRight, Ban, CheckCircle2, Circle, Pause, Play, Plus, Save, Trash2 } from "lucide-react";
@@ -496,7 +497,7 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
 function SecaoAprovacoes({ p }: { p: ProcessoContratacao }) {
   const { usuario, executar } = useApp();
   const [comentario, setComentario] = useState("");
-  const minha = p.status === "Aguardando aprovação comercial" ? p.aprovacoes.find((a) => a.status === "Pendente" && (a.usuarioId === usuario.id || usuario.perfil === "Administrador")) : undefined;
+  const minha = p.status === "Aguardando aprovação comercial" ? p.aprovacoes.find((a) => a.status === "Pendente" && (a.usuarioId === usuario.id || temPerfil(usuario, "Administrador"))) : undefined;
   return (
     <Secao titulo="Aprovações" subtitulo="Gestor e Suprimentos aprovam; Diretor dá ciência (aprova em exceção). Jurídico só após aprovação comercial.">
       <AprovacoesResumo p={p} />

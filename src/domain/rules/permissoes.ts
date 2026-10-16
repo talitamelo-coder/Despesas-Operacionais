@@ -40,7 +40,21 @@ const MATRIZ: Record<Perfil, Permissao[]> = {
 };
 
 export function pode(perfil: Perfil, permissao: Permissao): boolean {
-  return MATRIZ[perfil].includes(permissao);
+  return MATRIZ[perfil]?.includes(permissao) ?? false;
+}
+
+/** Todos os perfis do usuário (principal + adicionais), sem repetição. */
+export function perfisDo(u: { perfil: Perfil; perfisAdicionais?: Perfil[] }): Perfil[] {
+  return [...new Set([u.perfil, ...(u.perfisAdicionais ?? [])])];
+}
+
+export function temPerfil(u: { perfil: Perfil; perfisAdicionais?: Perfil[] }, perfil: Perfil): boolean {
+  return perfisDo(u).includes(perfil);
+}
+
+/** Permissão do usuário = soma das permissões de todos os seus perfis. */
+export function usuarioPode(u: { perfil: Perfil; perfisAdicionais?: Perfil[] }, permissao: Permissao): boolean {
+  return perfisDo(u).some((p) => pode(p, permissao));
 }
 
 export const ROTULO_PERFIL: Record<Perfil, string> = {

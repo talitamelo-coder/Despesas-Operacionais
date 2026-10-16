@@ -307,7 +307,7 @@ function Usuarios() {
         colunas={[
           { id: "n", titulo: "Nome", render: (u) => <span><span className="font-medium">{nomeDeExibicao(u)}</span>{u.nome !== nomeDeExibicao(u) && <span className="block text-xs text-texto-suave">{u.nome}</span>}{u.diretor && <span className="ml-2 text-xs text-texto-suave">Diretor</span>}</span> },
           { id: "e", titulo: "E-mail", render: (u) => <span className="text-texto-suave">{u.email || <span className="text-alerta-600">a completar</span>}</span> },
-          { id: "p", titulo: "Perfil", render: (u) => <Badge tom="primario">{ROTULO_PERFIL[u.perfil]}</Badge> },
+          { id: "p", titulo: "Perfis", render: (u) => <span className="flex flex-wrap gap-1"><Badge tom="primario">{ROTULO_PERFIL[u.perfil]}</Badge>{(u.perfisAdicionais ?? []).map((p) => <Badge key={p}>{ROTULO_PERFIL[p]}</Badge>)}</span> },
           { id: "ar", titulo: "Área", render: (u) => u.area ?? <span className="text-alerta-600">a completar</span> },
           { id: "f", titulo: "Filiais", render: (u) => <span className="text-xs">{u.empresasIds?.length ? u.empresasIds.map(nomeEmpresa).join(", ") : "Todas"}</span> },
           { id: "s", titulo: "Senha", render: (u) => (u.temSenha ? <Badge tom="sucesso">Definida</Badge> : <Badge tom="alerta">Não definida</Badge>) },

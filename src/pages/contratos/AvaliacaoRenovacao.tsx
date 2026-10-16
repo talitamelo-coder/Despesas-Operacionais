@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { CheckCircle2 } from "lucide-react";
@@ -65,7 +66,7 @@ export function AvaliacaoRenovacao() {
 
   const p = prazosDoContrato(c);
   const respondida = decisaoRegistrada(c);
-  const autorizado = pode("avaliar_renovacao") && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor);
+  const autorizado = pode("avaliar_renovacao") && (usuario.id === c.gestorId || temPerfil(usuario, "Administrador") || usuario.diretor);
   const indeterminado = c.vigencia.tipoVigencia === "Prazo indeterminado";
   const desfecho = desfechoAvaliacao(resp, c.vigencia.tipoVigencia);
   const completo = Boolean(desfecho) && PERGUNTAS.every((q) => resp[q.chave]);

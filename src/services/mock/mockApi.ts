@@ -19,7 +19,7 @@ import { erroParametro } from "@/domain/rules/parametros";
 import { erroUsoLinha, errosLinha, somenteDigitosLinha } from "@/domain/rules/telefonia";
 import { gerarCredencial, nomeDeExibicao, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
-import { pode } from "@/domain/rules/permissoes";
+import { temPerfil, usuarioPode, type Permissao } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
 import type { AditivoContrato, AporteSaldo, Cliente, EmissaoFaturamento, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
@@ -78,9 +78,9 @@ function usuario(id: string): Usuario {
   return u;
 }
 
-function exigir(porId: string, permissao: Parameters<typeof pode>[1]): Usuario {
+function exigir(porId: string, permissao: Permissao): Usuario {
   const u = usuario(porId);
-  if (!pode(u.perfil, permissao)) throw new ErroPermissao();
+  if (!usuarioPode(u, permissao)) throw new ErroPermissao();
   return u;
 }
 
@@ -217,7 +217,7 @@ function acoes() {
     contratos: estado.contratos,
     processos: estado.processos,
     regras: estado.configuracao.regrasAlerta,
-    juridicoPadraoId: estado.usuarios.find((u) => u.perfil === "Juridico")?.id,
+    juridicoPadraoId: estado.usuarios.find((u) => temPerfil(u, "Juridico"))?.id,
   });
 }
 
@@ -356,7 +356,8 @@ export const mockApi: ContratosApi = {
     const { credencial: _ignorada, temSenha: _t, ...dados } = entrada;
     const credencial = senha ? await gerarCredencial(senha) : i >= 0 ? estado.usuarios[i].credencial : undefined;
     // O nome de exibição é gravado (sugerido se vazio) para relatórios e telas usarem a mesma fonte.
-    const u: Usuario = { ...dados, nome: dados.nome.trim(), nomeExibicao: nomeDeExibicao(dados), email, credencial };
+    const adicionais = [...new Set((dados.perfisAdicionais ?? []).filter((p) => p !== dados.perfil))];
+    const u: Usuario = { ...dados, perfisAdicionais: adicionais.length ? adicionais : undefined, nome: dados.nome.trim(), nomeExibicao: nomeDeExibicao(dados), email, credencial };
     if (i >= 0) {
       const sem = (x: Usuario) => usuarioPublico(x);
       auditar(diffAuditoria(sem(estado.usuarios[i]), sem(u), { entidade: "configuracao", entidadeId: u.id, usuarioId: porId, data: agora(), acao: "Usuário alterado" }, () => novoId("a")));
@@ -477,7 +478,7 @@ export const mockApi: ContratosApi = {
   async registrarAvaliacaoRenovacao(id, avaliacao, porId) {
     const u = exigir(porId, "avaliar_renovacao");
     const c = getContrato(id);
-    if (u.perfil === "Gestor" && c.gestorId !== u.id && !u.diretor) throw new ErroPermissao("Apenas o gestor do contrato pode responder a avaliação.");
+    if (!temPerfil(u, "Administrador") && !temPerfil(u, "Suprimentos") && c.gestorId !== u.id && !u.diretor) throw new ErroPermissao("Apenas o gestor do contrato pode responder a avaliação.");
     if (c.status !== "Vigente") throw new ErroNegocio(`Contrato ${c.status.toLowerCase()} não tem avaliação de renovação.`);
     const indeterminado = c.vigencia.tipoVigencia === "Prazo indeterminado";
     const prazos = prazosDoContrato(c);
@@ -635,7 +636,7 @@ export const mockApi: ContratosApi = {
     const anterior = p.status;
     p.status = destino;
     if (destino === "Aguardando aprovação comercial") p.aprovacoes = aprovacoesPadrao(p);
-    if (destino === "Em análise jurídica") p.juridico = { ...p.juridico, status: "Em análise", responsavelId: p.juridico.responsavelId ?? estado.usuarios.find((u) => u.perfil === "Juridico")?.id };
+    if (destino === "Em análise jurídica") p.juridico = { ...p.juridico, status: "Em análise", responsavelId: p.juridico.responsavelId ?? estado.usuarios.find((u) => temPerfil(u, "Juridico"))?.id };
     if (destino === "Aguardando assinatura") p.assinatura = { status: "Enviado para assinatura" };
     let contratoGerado: Contrato | undefined;
     if (destino === "Concluído") {
@@ -661,7 +662,7 @@ export const mockApi: ContratosApi = {
     if (p.status !== "Aguardando aprovação comercial") throw new ErroNegocio("O processo não está em aprovação comercial.");
     const a = p.aprovacoes.find((x) => x.papel === papel);
     if (!a) throw new ErroNegocio("Aprovação não prevista para este papel.");
-    if (a.usuarioId !== porId && u.perfil !== "Administrador") throw new ErroPermissao("Esta aprovação está atribuída a outro usuário.");
+    if (a.usuarioId !== porId && !temPerfil(u, "Administrador")) throw new ErroPermissao("Esta aprovação está atribuída a outro usuário.");
     if (a.tipo === "Ciência" && status !== "Ciente") throw new ErroNegocio("Para o diretor, o registro normal é de ciência.");
     const antes = a.status;
     Object.assign(a, { status, comentario, data: agora() });
@@ -909,7 +910,7 @@ export const mockApi: ContratosApi = {
   async listarLicencas(porId) {
     await latencia();
     const u = usuario(porId);
-    const visao = pode(u.perfil, "gerir_licencas") ? "completa" : pode(u.perfil, "ver_licencas_da_area") ? "area" : pode(u.perfil, "ver_licencas_agregado") ? "agregada" : undefined;
+    const visao = usuarioPode(u, "gerir_licencas") ? "completa" : usuarioPode(u, "ver_licencas_da_area") ? "area" : usuarioPode(u, "ver_licencas_agregado") ? "agregada" : undefined;
     if (!visao) throw new ErroPermissao();
     // Minimização (LGPD): fora da visão completa, pessoas de outras áreas (ou todas, na agregada)
     // seguem só com id e área, para o rateio continuar fechando sem expor nome nem e-mail.
@@ -1116,7 +1117,7 @@ export const mockApi: ContratosApi = {
   },
   async registrarExportacao(descricao, porId) {
     const u = usuario(porId);
-    if (!pode(u.perfil, "gerir_licencas") && !pode(u.perfil, "ver_licencas_da_area") && !pode(u.perfil, "ver_licencas_agregado")) throw new ErroPermissao();
+    if (!usuarioPode(u, "gerir_licencas") && !usuarioPode(u, "ver_licencas_da_area") && !usuarioPode(u, "ver_licencas_agregado")) throw new ErroPermissao();
     registrar("licenca", "exportacao", porId, "Exportação de dados", "arquivo", undefined, descricao);
     persistir();
   },

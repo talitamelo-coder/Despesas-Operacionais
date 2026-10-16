@@ -335,3 +335,12 @@ CREATE TABLE emissoes_faturamento (
   FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- Bloqueio: emissão acima do saldo a faturar é recusada na mesma transação (SELECT ... FOR UPDATE no contrato).
+
+-- Usuário com mais de um perfil (ex.: Gestor e Solicitante). usuarios.perfil = principal;
+-- permissões = soma dos perfis (principal + adicionais).
+CREATE TABLE usuarios_perfis_adicionais (
+  usuario_id  CHAR(36) NOT NULL,
+  perfil      ENUM('Administrador','Suprimentos','Gestor','Juridico','Solicitante','Leitura') NOT NULL,
+  PRIMARY KEY (usuario_id, perfil),
+  FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

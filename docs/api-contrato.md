@@ -7,7 +7,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 ## Autenticação e permissões
 
 - A identidade vem da sessão/SSO da Akross Atende (**a definir**). O cabeçalho `X-Usuario-Id` do esboço REST serve **só para desenvolvimento** e não pode ser usado em produção.
-- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Saving e baseline só podem ser alterados por Suprimentos ou Administrador. Licenças e telefonia: Suprimentos e Administrador gerem tudo; Gestor vê só a própria área; perfil `Leitura` vê só totais (pessoas chegam sem nome nem e-mail). Custo por pessoa é dado pessoal (LGPD).
+- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Um usuário pode ter perfil principal e perfis adicionais; as permissões se somam (`usuarioPode`). Saving e baseline só podem ser alterados por Suprimentos ou Administrador. Licenças e telefonia: Suprimentos e Administrador gerem tudo; Gestor vê só a própria área; perfil `Leitura` vê só totais (pessoas chegam sem nome nem e-mail). Custo por pessoa é dado pessoal (LGPD).
 - Erros: `403` para permissão (`ErroPermissao`), `422` para regra de negócio (`ErroNegocio`), com `{ "mensagem": "..." }`.
 
 ## Endpoints

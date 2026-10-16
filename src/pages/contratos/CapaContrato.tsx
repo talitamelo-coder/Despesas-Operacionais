@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, FilePlus2, History, Lock, Pencil, Save } from "lucide-react";
@@ -109,7 +110,7 @@ export function CapaContrato() {
     .filter((a) => a.referencia.id === id || abertos.some((p) => p.processo_id === a.referencia.id))
     .sort((a, b) => ORDEM_PRIORIDADE[a.prioridade] - ORDEM_PRIORIDADE[b.prioridade]);
   const proxima = acoesContrato[0];
-  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor) && prazos.fase !== "Normal" && prazos.fase !== "Sem vigência";
+  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || temPerfil(usuario, "Administrador") || usuario.diretor) && prazos.fase !== "Normal" && prazos.fase !== "Sem vigência";
   const relacaoSucessor = sucessor?.relacaoAnterior === "Substituição" ? "Substituído por" : "Renovado por";
   const relacaoAnterior = c.relacaoAnterior === "Substituição" ? "Substitui" : "Renovação de";
 

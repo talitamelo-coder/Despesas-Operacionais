@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ExternalLink, Mail } from "lucide-react";
@@ -37,7 +38,7 @@ function Pendencias() {
   const navegar = useNavigate();
   const { usuario, nomeUsuario, cad } = useApp();
   const { dados, carregando } = useConsulta(() => api.listarAcoes(), []);
-  const [soMinhas, setSoMinhas] = useState(usuario.perfil !== "Administrador");
+  const [soMinhas, setSoMinhas] = useState(!temPerfil(usuario, "Administrador"));
   const [nivel, setNivel] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const lista = (dados ?? []).filter((a) => (!soMinhas || a.responsavelId === usuario.id) && (!nivel || a.prioridade === nivel) && (!responsavel || a.responsavelId === responsavel));

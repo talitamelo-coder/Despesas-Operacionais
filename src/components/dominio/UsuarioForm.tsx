@@ -58,8 +58,28 @@ export function UsuarioForm({
           {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
-      <Select rotulo="Perfil" obrigatorio vazio={false} value={u.perfil} onChange={(e) => set({ perfil: e.target.value as Perfil })} opcoes={PERFIS.map((p) => ({ valor: p, rotulo: ROTULO_PERFIL[p] }))} erro={erros.perfil} />
+      <Select rotulo="Perfil principal" obrigatorio vazio={false} value={u.perfil} onChange={(e) => set({ perfil: e.target.value as Perfil, perfisAdicionais: (u.perfisAdicionais ?? []).filter((p) => p !== e.target.value) })} opcoes={PERFIS.map((p) => ({ valor: p, rotulo: ROTULO_PERFIL[p] }))} erro={erros.perfil} />
       <Select rotulo="Área" obrigatorio vazio="— Selecione a área —" value={u.area ?? ""} onChange={(e) => set({ area: e.target.value || undefined })} opcoes={areas.map((a) => ({ valor: a, rotulo: a }))} erro={erros.area} />
+      <div className="md:col-span-2">
+        <Rotulo rotulo="Perfis adicionais" />
+        <div className="flex flex-wrap gap-2">
+          {PERFIS.filter((p) => p !== u.perfil).map((p) => {
+            const ativo = (u.perfisAdicionais ?? []).includes(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={ativo}
+                onClick={() => set({ perfisAdicionais: ativo ? u.perfisAdicionais!.filter((x) => x !== p) : [...(u.perfisAdicionais ?? []), p] })}
+                className={cn("rounded-full border px-3 py-1 text-xs transition-colors", ativo ? "border-primaria-500 bg-primaria-50 font-medium text-primaria-800" : "border-borda-forte bg-superficie text-texto-suave hover:bg-fundo")}
+              >
+                {ROTULO_PERFIL[p]}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1 text-xs text-texto-fraco">A mesma pessoa pode ter vários perfis (ex.: Gestor e Solicitante): as permissões se somam. Não precisa cadastrar de novo.</p>
+      </div>
       <div className="md:col-span-2">
         <Rotulo rotulo="Filiais com acesso" />
         {cad.empresas.length === 0 ? (

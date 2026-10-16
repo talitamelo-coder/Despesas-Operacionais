@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { conferirSenha, gerarCredencial, usuarioPublico, validarUsuario, nomeCurto, nomeDeExibicao } from "./usuario";
 import type { Usuario } from "../types";
+import { perfisDo, temPerfil, usuarioPode } from "./permissoes";
 
 const u: Usuario = { id: "", nome: "Ana Souza", email: "ana@empresa.com.br", perfil: "Solicitante", area: "Comercial", ativo: true };
+
+describe("vários perfis na mesma pessoa", () => {
+  it("permissões são a soma dos perfis", () => {
+    const u = { perfil: "Solicitante" as const, perfisAdicionais: ["Gestor" as const] };
+    expect(usuarioPode(u, "visualizar")).toBe(true);
+    expect(usuarioPode(u, "avaliar_renovacao")).toBe(true);
+    expect(usuarioPode({ perfil: "Solicitante" }, "avaliar_renovacao")).toBe(false);
+    expect(temPerfil(u, "Gestor")).toBe(true);
+    expect(perfisDo({ perfil: "Gestor", perfisAdicionais: ["Gestor", "Leitura"] })).toEqual(["Gestor", "Leitura"]);
+  });
+});
 
 describe("nome de exibição", () => {
   it("sugere nome e sobrenome a partir do nome completo", () => {

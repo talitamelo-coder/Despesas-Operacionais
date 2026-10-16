@@ -26,7 +26,10 @@ export interface Usuario {
   /** Nome e sobrenome: usado nas telas. Vazio = sugerido a partir do nome completo. */
   nomeExibicao?: string;
   email: string;
+  /** Perfil principal. */
   perfil: Perfil;
+  /** Outros perfis da mesma pessoa (ex.: Gestor e Solicitante). Permissões = soma de todos. */
+  perfisAdicionais?: Perfil[];
   cargo?: string;
   /** Diretores dão ciência (ou aprovam em exceção). */
   diretor?: boolean;

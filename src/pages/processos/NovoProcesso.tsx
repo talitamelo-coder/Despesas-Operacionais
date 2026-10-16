@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle2, CloudUpload, Download, FilePlus2, RefreshCw, Repeat, Search, Wrench } from "lucide-react";
@@ -43,7 +44,7 @@ export function NovoProcesso() {
   const tipoInicial = params.get("tipo") as TipoProcesso | null;
   const [passo, setPasso] = useState(tipoInicial ? 1 : 0);
   const [tipo, setTipo] = useState<TipoProcesso | undefined>(tipoInicial ?? undefined);
-  const [dados, setDados] = useState<Rascunho>({ analistaId: usuario.perfil === "Suprimentos" ? usuario.id : undefined, origens: {} });
+  const [dados, setDados] = useState<Rascunho>({ analistaId: temPerfil(usuario, "Suprimentos") ? usuario.id : undefined, origens: {} });
   const [processoId, setProcessoId] = useState<string>();
   const [salvoEm, setSalvoEm] = useState<string>();
   const [salvando, setSalvando] = useState(false);

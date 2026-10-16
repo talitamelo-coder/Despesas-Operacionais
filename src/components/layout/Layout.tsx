@@ -1,3 +1,4 @@
+import { temPerfil } from "@/domain/rules/permissoes";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, Smartphone, Handshake, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
@@ -39,7 +40,7 @@ export function Layout() {
   const [sinoAberto, setSinoAberto] = useState(false);
   const navegar = useNavigate();
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
-  const minhas = (acoes ?? []).filter((a) => a.responsavelId === usuario.id || usuario.perfil === "Administrador");
+  const minhas = (acoes ?? []).filter((a) => a.responsavelId === usuario.id || temPerfil(usuario, "Administrador"));
   const urgentes = minhas.filter((a) => a.prioridade === "Crítico" || a.prioridade === "Ação necessária");
 
   const alternar = () => {
@@ -159,7 +160,7 @@ export function Layout() {
               <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-9 rounded-md border border-borda bg-superficie px-2 text-sm text-texto">
                 {cad.usuarios.filter((u) => u.ativo).map((u) => (
                   <option key={u.id} value={u.id}>
-                    {nomeDeExibicao(u)} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}
+                    {nomeDeExibicao(u)} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}{u.perfisAdicionais?.length ? ` + ${u.perfisAdicionais.map((p) => ROTULO_PERFIL[p]).join(", ")}` : ""}
                   </option>
                 ))}
               </select>
