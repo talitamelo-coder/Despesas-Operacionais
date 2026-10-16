@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabela } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
-import { CAMPOS_IMPORTACAO, chaveDuplicidade, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
+import { CAMPOS_IMPORTACAO, chaveDuplicidade, identificadorFornecedor, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
 import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados } from "@/services";
@@ -234,7 +234,7 @@ function Fornecedores() {
         vazio="Nenhum fornecedor cadastrado. Use “Novo fornecedor” ou importe a planilha de contratos."
         colunas={[
           { id: "r", titulo: "Razão social", render: (f) => <span>{f.razaoSocial}<span className="block text-xs text-texto-suave">{f.nomeFantasia !== f.razaoSocial ? f.nomeFantasia : ""}</span></span> },
-          { id: "c", titulo: "CNPJ", render: (f) => <span className="whitespace-nowrap tabular">{f.estrangeiro ? "Estrangeiro" : formatarCnpj(f.cnpj)}</span> },
+          { id: "c", titulo: "CNPJ", render: (f) => <span className="whitespace-nowrap tabular">{f.estrangeiro ? `Exterior${f.pais ? ` · ${f.pais}` : ""}` : formatarCnpj(f.cnpj)}</span> },
           { id: "contato", titulo: "Contato", render: (f) => <span className="text-xs">{f.email ?? "—"}<span className="block text-texto-suave">{f.telefone ?? ""}</span></span> },
           { id: "uf", titulo: "Cidade/UF", render: (f) => (f.cidade ? `${f.cidade}/${f.uf ?? ""}` : "—") },
           {
@@ -504,11 +504,11 @@ function Importacao() {
     if (!csv) return;
     const contratos = await api.listarContratos();
     const fornecedores = await api.listarFornecedores();
-    const cnpj = new Map(fornecedores.map((f) => [f.fornecedor_id, f.cnpj ?? ""]));
+    const idForn = new Map(fornecedores.map((f) => [f.fornecedor_id, identificadorFornecedor(f.cnpj, f.razaoSocial)]));
     setRel(
       processarImportacao(csv.cabecalhos, csv.linhas, map, {
         codigos: contratos.flatMap((c) => [c.codigo, c.external_id ?? ""]).filter(Boolean),
-        chaves: contratos.map((c) => chaveDuplicidade(cnpj.get(c.fornecedorId) ?? "", c.objeto, c.vigencia.dataFim)),
+        chaves: contratos.map((c) => chaveDuplicidade(idForn.get(c.fornecedorId) ?? "", c.objeto, c.vigencia.dataFim)),
       }),
     );
   }

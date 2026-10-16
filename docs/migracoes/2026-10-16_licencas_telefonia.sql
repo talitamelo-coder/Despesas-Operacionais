@@ -234,3 +234,8 @@ CREATE TABLE aportes_saldo (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 -- Bloqueio: o backend valida "valor <= disponível" na mesma transação do INSERT em pedidos_contrato,
 -- com SELECT ... FOR UPDATE na linha do contrato (evita dois pedidos simultâneos estourarem o saldo).
+
+-- Fornecedor no exterior: sem CNPJ, com país e identificação fiscal local opcional.
+ALTER TABLE fornecedores
+  ADD COLUMN pais VARCHAR(80) NULL COMMENT 'Obrigatório quando estrangeiro' AFTER estrangeiro,
+  ADD COLUMN identificacao_fiscal_exterior VARCHAR(60) NULL COMMENT 'Tax ID / VAT / EIN (opcional)' AFTER pais;

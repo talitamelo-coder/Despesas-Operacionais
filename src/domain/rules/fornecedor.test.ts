@@ -8,7 +8,10 @@ describe("cadastro de fornecedor", () => {
   it("exige razão social e CNPJ (exceto estrangeiro ou potencial)", () => {
     expect(validarFornecedor(base)).toEqual({});
     expect(validarFornecedor({ ...base, cnpj: "" }).cnpj).toBe("Informe o CNPJ.");
-    expect(validarFornecedor({ ...base, cnpj: "", estrangeiro: true }).cnpj).toBeUndefined();
+    expect(validarFornecedor({ ...base, cnpj: "", estrangeiro: true, pais: "Estados Unidos" })).toEqual({});
+    expect(validarFornecedor({ ...base, cnpj: "", estrangeiro: true }).pais).toBe("Informe o país do fornecedor.");
+    // Endereço do exterior não passa pela validação de UF/CEP brasileiros.
+    expect(validarFornecedor({ ...base, cnpj: "", estrangeiro: true, pais: "Irlanda", cep: "D02 X285" })).toEqual({});
     expect(validarFornecedor({ ...base, cnpj: "", statusCadastral: "Potencial" }).cnpj).toBeUndefined();
     expect(validarFornecedor({ ...base, cnpj: "11.222.333/0001-00" }).cnpj).toBe("CNPJ inválido.");
   });

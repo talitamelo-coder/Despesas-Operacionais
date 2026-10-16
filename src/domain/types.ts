@@ -86,8 +86,11 @@ export interface Fornecedor {
   razaoSocial: string;
   nomeFantasia: string;
   cnpj?: string; // fornecedor potencial ou estrangeiro pode não ter
-  /** Fornecedor estrangeiro: dispensa CNPJ. */
+  /** Fornecedor no exterior: dispensa CNPJ (e UF/CEP brasileiros). */
   estrangeiro?: boolean;
+  /** Exterior: país (obrigatório) e identificação fiscal local, opcional (Tax ID, VAT, EIN…). */
+  pais?: string;
+  identificacaoFiscalExterior?: string;
   codigoFornecedor?: string;
   inscricaoEstadual?: string;
   email?: string;

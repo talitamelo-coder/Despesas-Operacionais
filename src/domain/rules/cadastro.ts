@@ -12,7 +12,7 @@ export function pendenciasCadastro(c: Contrato, fornecedor?: Fornecedor, tipoNom
   if (!(c.condicoes.valorAnual > 0)) p.push("Valor anual");
   if (c.condicoes.moeda !== "BRL" && !c.condicoes.cotacao?.valor) p.push("Cotação da moeda");
   if (!c.objeto?.trim()) p.push("Objeto");
-  if (fornecedor && !fornecedor.cnpj && !fornecedor.estrangeiro) p.push("CNPJ do fornecedor");
+  if (fornecedor && !fornecedor.cnpj && !fornecedor.estrangeiro) p.push("CNPJ do fornecedor (ou marcar como fornecedor no exterior)");
   if (tipoNome === TIPO_NAO_CLASSIFICADO) p.push("Tipo de contrato");
   return [...p, ...(c.confirmacoesPendentes ?? [])];
 }

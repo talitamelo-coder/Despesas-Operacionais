@@ -10,7 +10,9 @@ import type { ISODate, Moeda } from "../types";
 export const CAMPOS_IMPORTACAO = [
   { campo: "codigo", rotulo: "Código do contrato", obrigatorio: false, sinonimos: ["codigo", "cod", "contrato", "n contrato", "numero"] },
   { campo: "fornecedor", rotulo: "Fornecedor (razão social)", obrigatorio: true, sinonimos: ["fornecedor", "razao social", "prestador"] },
-  { campo: "cnpj", rotulo: "CNPJ", obrigatorio: true, sinonimos: ["cnpj", "cnpj fornecedor"] },
+  // CNPJ é opcional: fornecedor no exterior não tem. Sem CNPJ, o fornecedor é reconhecido pelo nome.
+  { campo: "cnpj", rotulo: "CNPJ", obrigatorio: false, sinonimos: ["cnpj", "cnpj fornecedor"] },
+  { campo: "pais", rotulo: "País do fornecedor", obrigatorio: false, sinonimos: ["pais", "país", "country", "pais fornecedor"] },
   { campo: "empresa", rotulo: "Empresa", obrigatorio: true, sinonimos: ["empresa", "contratante", "unidade"] },
   { campo: "objeto", rotulo: "Objeto", obrigatorio: true, sinonimos: ["objeto", "descricao", "servico"] },
   { campo: "gestor", rotulo: "Gestor", obrigatorio: true, sinonimos: ["gestor", "responsavel", "gestor do contrato"] },
@@ -33,7 +35,10 @@ export interface RegistroImportado {
   linha: number;
   codigo?: string;
   fornecedor: string;
+  /** Só dígitos; vazio para fornecedor sem CNPJ (exterior). */
   cnpj: string;
+  /** Preenchido quando o fornecedor é do exterior. */
+  pais?: string;
   empresa: string;
   objeto: string;
   gestor: string;
@@ -187,7 +192,7 @@ export function processarImportacao(
     const dataFim = parseDataBR(v("dataFim"));
     if (!dataFim) erros.push(`Data fim inválida: "${v("dataFim")}"`);
     if (dataInicio && dataFim && dataFim < dataInicio) erros.push("Data fim anterior à data início");
-    if (!cnpjValido(v("cnpj"))) erros.push(`CNPJ inválido: "${v("cnpj")}"`);
+    if (v("cnpj") && !cnpjValido(v("cnpj"))) erros.push(`CNPJ inválido: "${v("cnpj")}"`);
     const moedaTxt = (v("moeda") || "BRL").toUpperCase().replace("R$", "BRL").replace("US$", "USD");
     if (!["BRL", "USD", "EUR"].includes(moedaTxt)) erros.push(`Moeda não suportada: "${v("moeda")}"`);
     const aviso = v("avisoPrevioDias") ? parseNumeroBR(v("avisoPrevioDias")) : 0;
@@ -198,13 +203,13 @@ export function processarImportacao(
     }
 
     const codigo = v("codigo") || undefined;
-    const chave = `${somenteDigitos(v("cnpj"))}|${normalizarBusca(v("objeto"))}|${dataFim}`;
+    const chave = chaveDuplicidade(identificadorFornecedor(v("cnpj"), v("fornecedor")), v("objeto"), dataFim!);
     if (codigo && codigosVistos.has(codigo.toUpperCase())) {
       rel.duplicidades.push({ linha, motivo: `Código ${codigo} já existe` });
       return;
     }
     if (chavesVistas.has(chave)) {
-      rel.duplicidades.push({ linha, motivo: "Mesmo CNPJ, objeto e data fim de outro registro" });
+      rel.duplicidades.push({ linha, motivo: "Mesmo fornecedor (CNPJ ou nome), objeto e data fim de outro registro" });
       return;
     }
     if (codigo) codigosVistos.add(codigo.toUpperCase());
@@ -215,6 +220,7 @@ export function processarImportacao(
       codigo,
       fornecedor: v("fornecedor"),
       cnpj: somenteDigitos(v("cnpj")),
+      pais: paisExterior(v("pais")),
       empresa: v("empresa"),
       objeto: v("objeto"),
       gestor: v("gestor"),
@@ -233,7 +239,19 @@ export function processarImportacao(
   return rel;
 }
 
+/** Fornecedor identificado pelo CNPJ; sem CNPJ (exterior), pelo nome normalizado. */
+export function identificadorFornecedor(cnpj: string | undefined, nome: string): string {
+  const d = somenteDigitos(cnpj ?? "");
+  return d || `nome:${normalizarBusca(nome)}`;
+}
+
+/** País informado e diferente de Brasil = fornecedor do exterior. */
+export function paisExterior(pais?: string): string | undefined {
+  const p = pais?.trim();
+  return p && !["brasil", "brazil", "br"].includes(normalizarBusca(p)) ? p : undefined;
+}
+
 /** Chave de duplicidade de um contrato já cadastrado (mesma regra da importação). */
-export function chaveDuplicidade(cnpj: string, objeto: string, dataFim: ISODate): string {
-  return `${somenteDigitos(cnpj)}|${normalizarBusca(objeto)}|${dataFim}`;
+export function chaveDuplicidade(fornecedor: string, objeto: string, dataFim: ISODate): string {
+  return `${fornecedor.startsWith("nome:") ? fornecedor : somenteDigitos(fornecedor)}|${normalizarBusca(objeto)}|${dataFim}`;
 }

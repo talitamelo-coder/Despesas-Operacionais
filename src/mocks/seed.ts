@@ -171,6 +171,7 @@ function fornecedores(): Fornecedor[] {
     razaoSocial,
     nomeFantasia,
     cnpj: id === "f-global" ? undefined : cnpjFicticio(String(80100000 + i * 7311).padStart(8, "0")),
+    ...(id === "f-global" ? { estrangeiro: true, pais: "Estados Unidos" } : {}),
     codigoFornecedor: id === "f-global" ? "EXT-0091" : `F${(4100 + i * 13).toString()}`,
     cidade: cidade || undefined,
     uf: uf || undefined,

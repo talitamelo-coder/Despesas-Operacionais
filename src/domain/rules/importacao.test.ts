@@ -13,6 +13,17 @@ describe("importação de planilha", () => {
     expect(cnpjValido("11.222.333/0001-00")).toBe(false);
   });
 
+  it("fornecedor do exterior importa sem CNPJ; duplicidade vira pelo nome", () => {
+    const csv = `Razão Social;CNPJ;País;Empresa;Objeto;Gestor;Valor Anual;Início;Término
+Global SaaS Inc.;;Estados Unidos;Matriz;Licenças;Ana;1000;01/01/2026;31/12/2026
+Global SaaS Inc.;;Estados Unidos;Matriz;Licenças;Ana;1000;01/01/2026;31/12/2026
+Fornecedor Nacional;;Brasil;Matriz;Suporte;Ana;1000;01/01/2026;31/12/2026`;
+    const { cabecalhos, linhas } = parseCSV(csv);
+    const r = processarImportacao(cabecalhos, linhas, sugerirMapeamento(cabecalhos));
+    expect(r.importados.map((x) => [x.cnpj, x.pais])).toEqual([["", "Estados Unidos"], ["", undefined]]);
+    expect(r.duplicidades).toHaveLength(1);
+  });
+
   it("sugere mapeamento e gera relatório", () => {
     const { cabecalhos, linhas } = parseCSV(CSV);
     const m = sugerirMapeamento(cabecalhos);

@@ -79,8 +79,13 @@ export function validarFornecedor(f: Fornecedor): Record<string, string> {
     const d = somenteDigitos(f.telefone);
     if (d.length < 10 || d.length > 13) e.telefone = "Telefone inválido (inclua o DDD).";
   }
-  if (f.uf?.trim() && !UFS.includes(f.uf.trim().toUpperCase())) e.uf = "UF inválida.";
-  if (f.cep?.trim() && somenteDigitos(f.cep).length !== 8) e.cep = "CEP deve ter 8 dígitos.";
+  if (f.estrangeiro) {
+    if (!f.pais?.trim()) e.pais = "Informe o país do fornecedor.";
+  } else {
+    // UF e CEP brasileiros só valem para fornecedor nacional.
+    if (f.uf?.trim() && !UFS.includes(f.uf.trim().toUpperCase())) e.uf = "UF inválida.";
+    if (f.cep?.trim() && somenteDigitos(f.cep).length !== 8) e.cep = "CEP deve ter 8 dígitos.";
+  }
   const b = f.dadosBancarios;
   if (b?.codigoBanco?.trim() && !/^\d{3}$/.test(somenteDigitos(b.codigoBanco).padStart(3, "0"))) e["dadosBancarios.codigoBanco"] = "Código do banco tem 3 dígitos.";
   if (b?.agencia?.trim() && !/^\d{1,5}$/.test(b.agencia.trim())) e["dadosBancarios.agencia"] = "Agência deve ter só números.";

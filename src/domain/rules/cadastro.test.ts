@@ -16,7 +16,7 @@ const c: Contrato = {
 describe("cadastro incompleto (importação)", () => {
   it("lista o que falta e as confirmações", () => {
     expect(pendenciasCadastro(c, { fornecedor_id: "f", razaoSocial: "X", nomeFantasia: "X", statusCadastral: "Ativo" }, "Não classificado")).toEqual([
-      "Data de início", "Data de fim", "Valor anual", "CNPJ do fornecedor", "Tipo de contrato", "Confirmar status",
+      "Data de início", "Data de fim", "Valor anual", "CNPJ do fornecedor (ou marcar como fornecedor no exterior)", "Tipo de contrato", "Confirmar status",
     ]);
   });
   it("contrato sem datas não gera prazos nem alertas", () => {

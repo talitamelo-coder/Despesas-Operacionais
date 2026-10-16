@@ -30,22 +30,34 @@ export function FornecedorForm({ f, onChange, erros }: { f: Fornecedor; onChange
       <Secao titulo="Dados gerais">
         <Input rotulo="Razão Social" obrigatorio className="md:col-span-2" placeholder="Nome empresarial completo" value={f.razaoSocial} onChange={(e) => set({ razaoSocial: e.target.value })} erro={erros.razaoSocial} />
         <Input rotulo="Nome Fantasia" placeholder="Opcional" value={f.nomeFantasia} onChange={(e) => set({ nomeFantasia: e.target.value })} />
-        <div>
+        <Select
+          rotulo="Origem"
+          vazio={false}
+          opcoes={[{ valor: "nacional", rotulo: "Nacional (com CNPJ)" }, { valor: "exterior", rotulo: "No exterior (sem CNPJ)" }]}
+          value={f.estrangeiro ? "exterior" : "nacional"}
+          onChange={(e) =>
+            e.target.value === "exterior"
+              ? set({ estrangeiro: true, cnpj: undefined, uf: undefined, inscricaoEstadual: undefined })
+              : set({ estrangeiro: false, pais: undefined, identificacaoFiscalExterior: undefined })
+          }
+        />
+        {f.estrangeiro ? (
+          <>
+            <Input rotulo="País" obrigatorio placeholder="Ex.: Estados Unidos" value={f.pais ?? ""} onChange={(e) => set({ pais: e.target.value })} erro={erros.pais} />
+            <Input rotulo="Identificação fiscal no exterior" placeholder="Opcional (Tax ID, VAT, EIN…)" value={f.identificacaoFiscalExterior ?? ""} onChange={(e) => set({ identificacaoFiscalExterior: e.target.value || undefined })} />
+          </>
+        ) : (
           <Input
             rotulo="CNPJ"
-            obrigatorio={!f.estrangeiro && f.statusCadastral !== "Potencial"}
+            obrigatorio={f.statusCadastral !== "Potencial"}
+            ajuda={f.statusCadastral === "Potencial" ? "Opcional para fornecedor potencial." : undefined}
             placeholder="00.000.000/0000-00"
-            disabled={f.estrangeiro}
             value={f.cnpj ?? ""}
             onChange={(e) => set({ cnpj: e.target.value })}
             erro={erros.cnpj}
           />
-          <label className="mt-1.5 flex items-center gap-2 text-xs text-texto-suave">
-            <input type="checkbox" checked={Boolean(f.estrangeiro)} onChange={(e) => set({ estrangeiro: e.target.checked, cnpj: e.target.checked ? undefined : f.cnpj })} />
-            Fornecedor estrangeiro (sem CNPJ)
-          </label>
-        </div>
-        <Input rotulo="Inscrição Estadual" placeholder="Opcional" value={f.inscricaoEstadual ?? ""} onChange={(e) => set({ inscricaoEstadual: e.target.value })} />
+        )}
+        {!f.estrangeiro && <Input rotulo="Inscrição Estadual" placeholder="Opcional" value={f.inscricaoEstadual ?? ""} onChange={(e) => set({ inscricaoEstadual: e.target.value })} />}
         <Input rotulo="E-mail" type="email" placeholder="financeiro@empresa.com.br" value={f.email ?? ""} onChange={(e) => set({ email: e.target.value })} erro={erros.email} />
         <Input rotulo="Telefone" placeholder="(11) 99999-9999" value={f.telefone ?? ""} onChange={(e) => set({ telefone: e.target.value })} erro={erros.telefone} />
         <Select rotulo="Regime Tributário" vazio={false} opcoes={opcoes(REGIMES_TRIBUTARIOS)} value={f.regimeTributario ?? "Não informado"} onChange={(e) => set({ regimeTributario: e.target.value as RegimeTributario })} />
@@ -56,8 +68,8 @@ export function FornecedorForm({ f, onChange, erros }: { f: Fornecedor; onChange
       <Secao titulo="Endereço">
         <Input rotulo="Endereço" className="md:col-span-2" placeholder="Rua, número, complemento" value={f.endereco ?? ""} onChange={(e) => set({ endereco: e.target.value })} />
         <Input rotulo="Cidade" placeholder="São Paulo" value={f.cidade ?? ""} onChange={(e) => set({ cidade: e.target.value })} />
-        <Select rotulo="UF" vazio="Selecione…" opcoes={opcoes(UFS)} value={f.uf ?? ""} onChange={(e) => set({ uf: e.target.value || undefined })} erro={erros.uf} />
-        <Input rotulo="CEP" className="md:w-1/2" placeholder="00000-000" value={f.cep ?? ""} onChange={(e) => set({ cep: e.target.value })} erro={erros.cep} />
+        {!f.estrangeiro && <Select rotulo="UF" vazio="Selecione…" opcoes={opcoes(UFS)} value={f.uf ?? ""} onChange={(e) => set({ uf: e.target.value || undefined })} erro={erros.uf} />}
+        <Input rotulo={f.estrangeiro ? "Código postal" : "CEP"} className="md:w-1/2" placeholder={f.estrangeiro ? "Opcional" : "00000-000"} value={f.cep ?? ""} onChange={(e) => set({ cep: e.target.value })} erro={erros.cep} />
       </Secao>
 
       <Secao

@@ -1,6 +1,6 @@
 import { gerarCodigo, proximoSequencial } from "@/domain/codigos";
 import { anoDe, hoje } from "@/domain/datas";
-import { somenteDigitos } from "@/domain/formatacao";
+import { normalizarBusca, somenteDigitos } from "@/domain/formatacao";
 import { calcularAcoes } from "@/domain/rules/acoes";
 import { desfechoAvaliacao } from "@/domain/rules/avaliacao";
 import { errosVigencia, prazosDoContrato } from "@/domain/rules/prazos";
@@ -522,8 +522,11 @@ export const mockApi: ContratosApi = {
     for (const r of registros) {
       let empresa = porNome(estado.empresas, r.empresa);
       if (!empresa) estado.empresas.push((empresa = { id: novoId("e"), nome: r.empresa, cnpj: "", ativo: true }));
-      let forn = estado.fornecedores.find((f) => f.cnpj && somenteDigitos(f.cnpj) === r.cnpj);
-      if (!forn) estado.fornecedores.push((forn = { fornecedor_id: novoId("f"), razaoSocial: r.fornecedor, nomeFantasia: r.fornecedor, cnpj: r.cnpj, statusCadastral: "Ativo" }));
+      // Com CNPJ: reconhece pelo CNPJ. Sem CNPJ (exterior): pelo nome.
+      let forn = r.cnpj
+        ? estado.fornecedores.find((f) => f.cnpj && somenteDigitos(f.cnpj) === r.cnpj)
+        : estado.fornecedores.find((f) => !f.cnpj && (normalizarBusca(f.razaoSocial) === normalizarBusca(r.fornecedor) || normalizarBusca(f.nomeFantasia) === normalizarBusca(r.fornecedor)));
+      if (!forn) estado.fornecedores.push((forn = { fornecedor_id: novoId("f"), razaoSocial: r.fornecedor, nomeFantasia: r.fornecedor, cnpj: r.cnpj || undefined, estrangeiro: r.pais ? true : undefined, pais: r.pais, statusCadastral: "Ativo" }));
       let gestor = porNome(estado.usuarios, r.gestor);
       if (!gestor) {
         // Gestor citado na planilha e ainda não cadastrado: cria o usuário (e-mail a completar na Administração).
