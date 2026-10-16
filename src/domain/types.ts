@@ -21,7 +21,10 @@ export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "
 
 export interface Usuario {
   id: string;
+  /** Nome completo: usado em relatórios e extrações da base. */
   nome: string;
+  /** Nome e sobrenome: usado nas telas. Vazio = sugerido a partir do nome completo. */
+  nomeExibicao?: string;
   email: string;
   perfil: Perfil;
   cargo?: string;

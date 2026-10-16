@@ -14,7 +14,7 @@ import { planejarImportacao, chaveLicenca, type ContextoImportacao } from "@/dom
 import { aplicarMovimentacao, chaveEmail, dominiosDoGrupo, emailValido, erroAtribuicao, errosLicenca, errosMovimentacao, parametroNaData, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import { erroParametro } from "@/domain/rules/parametros";
 import { erroUsoLinha, errosLinha, somenteDigitosLinha } from "@/domain/rules/telefonia";
-import { gerarCredencial, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
+import { gerarCredencial, nomeDeExibicao, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
@@ -351,7 +351,8 @@ export const mockApi: ContratosApi = {
     // A credencial nunca vem da tela: é gerada aqui a partir da senha, ou mantida a atual.
     const { credencial: _ignorada, temSenha: _t, ...dados } = entrada;
     const credencial = senha ? await gerarCredencial(senha) : i >= 0 ? estado.usuarios[i].credencial : undefined;
-    const u: Usuario = { ...dados, nome: dados.nome.trim(), email, credencial };
+    // O nome de exibição é gravado (sugerido se vazio) para relatórios e telas usarem a mesma fonte.
+    const u: Usuario = { ...dados, nome: dados.nome.trim(), nomeExibicao: nomeDeExibicao(dados), email, credencial };
     if (i >= 0) {
       const sem = (x: Usuario) => usuarioPublico(x);
       auditar(diffAuditoria(sem(estado.usuarios[i]), sem(u), { entidade: "configuracao", entidadeId: u.id, usuarioId: porId, data: agora(), acao: "Usuário alterado" }, () => novoId("a")));

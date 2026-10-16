@@ -1,3 +1,4 @@
+import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { abasDoContrato, abasDoProcesso, ABAS_CENTRAL, processoApareceNaCentral, situacaoCiclo, type AbaCentral } from "@/domain/rules/central";
 import { ORDEM_PRIORIDADE, maiorPrioridade, prioridadeDosPrazos } from "@/domain/rules/acoes";
 import { converterParaBRL, valorAnualBRL } from "@/domain/rules/cambio";
@@ -38,7 +39,8 @@ interface LinhaIndexada extends LinhaCentral {
 }
 
 export function montarLinhas(b: Base): LinhaIndexada[] {
-  const usuario = new Map(b.usuarios.map((u) => [u.id, u.nome]));
+  const usuario = new Map(b.usuarios.map((u) => [u.id, nomeDeExibicao(u)]));
+  const completo = new Map(b.usuarios.map((u) => [u.id, u.nome]));
   const empresa = new Map(b.empresas.map((e) => [e.id, e.nome]));
   const fornecedor = new Map(b.fornecedores.map((f) => [f.fornecedor_id, f]));
   const tipo = new Map(b.tiposContrato.map((t) => [t.id, t.nome]));
@@ -72,6 +74,8 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       objeto: c.objeto,
       gestor: usuario.get(c.gestorId) ?? "—",
       analista: usuario.get(c.analistaId) ?? "—",
+      gestorCompleto: completo.get(c.gestorId) ?? "—",
+      analistaCompleto: completo.get(c.analistaId) ?? "—",
       valorAnualBRL: valorAnualBRL(c.condicoes),
       moeda: c.condicoes.moeda,
       dataFim: c.vigencia.dataFim || undefined,
@@ -115,6 +119,8 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       objeto: p.objeto ?? "—",
       gestor: p.gestorId ? usuario.get(p.gestorId) ?? "—" : "—",
       analista: p.analistaId ? usuario.get(p.analistaId) ?? "—" : "—",
+      gestorCompleto: p.gestorId ? completo.get(p.gestorId) ?? "—" : "—",
+      analistaCompleto: p.analistaId ? completo.get(p.analistaId) ?? "—" : "—",
       valorAnualBRL: valor !== undefined ? converterParaBRL(valor, moeda, p.condicoes?.cotacao) : undefined,
       moeda,
       dataFim: p.vigencia?.dataFim,

@@ -4,7 +4,7 @@ import { useApp } from "@/app/contexto";
 import { Input, Rotulo, Select, Toggle } from "@/components/ui/Campos";
 import { cn } from "@/components/ui/cn";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
-import { AREAS_PADRAO, SENHA_MINIMA } from "@/domain/rules/usuario";
+import { AREAS_PADRAO, SENHA_MINIMA, nomeCurto } from "@/domain/rules/usuario";
 import type { Perfil, Usuario } from "@/domain/types";
 
 export const PERFIS: Perfil[] = ["Solicitante", "Gestor", "Suprimentos", "Juridico", "Leitura", "Administrador"];
@@ -33,7 +33,15 @@ export function UsuarioForm({
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <Input rotulo="Nome completo" obrigatorio className="md:col-span-2" placeholder="Nome do usuário" value={u.nome} onChange={(e) => set({ nome: e.target.value })} erro={erros.nome} />
+      <Input rotulo="Nome completo" obrigatorio ajuda="Sai nos relatórios e nas extrações da base." placeholder="Ex.: Maria Clara de Souza Lima" value={u.nome} onChange={(e) => set({ nome: e.target.value })} erro={erros.nome} />
+      <Input
+        rotulo="Nome e sobrenome"
+        ajuda={u.nomeExibicao?.trim() ? "Mostrado nas telas do sistema." : `Mostrado nas telas. Em branco, o sistema usa: ${nomeCurto(u.nome) || "—"}`}
+        placeholder={nomeCurto(u.nome) || "Ex.: Maria Lima"}
+        value={u.nomeExibicao ?? ""}
+        onChange={(e) => set({ nomeExibicao: e.target.value || undefined })}
+        erro={erros.nomeExibicao}
+      />
       <Input rotulo="E-mail" obrigatorio type="email" autoComplete="off" placeholder="usuario@empresa.com.br" value={u.email} onChange={(e) => set({ email: e.target.value })} erro={erros.email} />
       <div className="relative">
         <Input

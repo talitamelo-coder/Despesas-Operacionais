@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pode, type Permissao } from "@/domain/rules/permissoes";
+import { nomeDeExibicao } from "@/domain/rules/usuario";
 import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
 import { aoMudar, api } from "@/services";
 
@@ -28,7 +29,10 @@ interface Contexto {
   trocarUsuario: (id: string) => void;
   pode: (p: Permissao) => boolean;
   cad: Cadastros;
+  /** Nome e sobrenome (telas). */
   nomeUsuario: (id?: string) => string;
+  /** Nome completo (relatórios e exportações). */
+  nomeCompletoUsuario: (id?: string) => string;
   nomeEmpresa: (id?: string) => string;
   fornecedor: (id?: string) => Fornecedor | undefined;
   nomeTipo: (id?: string) => string;
@@ -87,7 +91,8 @@ export function ProvedorApp({ children }: { children: ReactNode }) {
       },
       pode: (p) => pode(usuario.perfil, p),
       cad,
-      nomeUsuario: (id) => (id && us.get(id)?.nome) || "—",
+      nomeUsuario: (id) => { const u = id ? us.get(id) : undefined; return u ? nomeDeExibicao(u) : "—"; },
+      nomeCompletoUsuario: (id) => (id && us.get(id)?.nome) || "—",
       nomeEmpresa: (id) => (id && es.get(id)?.nome) || "—",
       fornecedor: (id) => (id ? fs.get(id) : undefined),
       nomeTipo: (id) => (id && ts.get(id)?.nome) || "—",
@@ -138,9 +143,9 @@ export function useOpcoes() {
     () => ({
       empresas: cad.empresas.filter((e) => e.ativo).map((e) => ({ valor: e.id, rotulo: e.nome })),
       fornecedores: cad.fornecedores.map((f) => ({ valor: f.fornecedor_id, rotulo: f.statusCadastral === "Potencial" ? `${f.razaoSocial} (potencial)` : f.razaoSocial })),
-      gestores: cad.usuarios.filter((u) => u.perfil === "Gestor" && !u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: u.nome })),
-      diretores: cad.usuarios.filter((u) => u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: u.nome })),
-      analistas: cad.usuarios.filter((u) => (u.perfil === "Suprimentos" || u.perfil === "Administrador") && u.ativo).map((u) => ({ valor: u.id, rotulo: u.nome })),
+      gestores: cad.usuarios.filter((u) => u.perfil === "Gestor" && !u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
+      diretores: cad.usuarios.filter((u) => u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
+      analistas: cad.usuarios.filter((u) => (u.perfil === "Suprimentos" || u.perfil === "Administrador") && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
       tipos: cad.tipos.filter((t) => t.ativo).map((t) => ({ valor: t.id, rotulo: t.nome })),
       moedas: cad.config.moedas.map((m) => ({ valor: m, rotulo: m })),
       periodicidades: cad.config.periodicidades.map((m) => ({ valor: m, rotulo: m })),

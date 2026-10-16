@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, Eraser, Plus, RotateCcw, Save, Upload, X } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
+import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { FornecedorForm } from "@/components/dominio/FornecedorForm";
 import { UsuarioForm } from "@/components/dominio/UsuarioForm";
@@ -304,7 +305,7 @@ function Usuarios() {
         chave={(u) => u.id}
         onLinha={abrir}
         colunas={[
-          { id: "n", titulo: "Nome", render: (u) => <span>{u.nome}{u.diretor && <span className="ml-2 text-xs text-texto-suave">Diretor</span>}</span> },
+          { id: "n", titulo: "Nome", render: (u) => <span><span className="font-medium">{nomeDeExibicao(u)}</span>{u.nome !== nomeDeExibicao(u) && <span className="block text-xs text-texto-suave">{u.nome}</span>}{u.diretor && <span className="ml-2 text-xs text-texto-suave">Diretor</span>}</span> },
           { id: "e", titulo: "E-mail", render: (u) => <span className="text-texto-suave">{u.email || <span className="text-alerta-600">a completar</span>}</span> },
           { id: "p", titulo: "Perfil", render: (u) => <Badge tom="primario">{ROTULO_PERFIL[u.perfil]}</Badge> },
           { id: "ar", titulo: "Área", render: (u) => u.area ?? <span className="text-alerta-600">a completar</span> },

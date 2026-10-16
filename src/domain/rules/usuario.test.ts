@@ -1,8 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { conferirSenha, gerarCredencial, usuarioPublico, validarUsuario } from "./usuario";
+import { conferirSenha, gerarCredencial, usuarioPublico, validarUsuario, nomeCurto, nomeDeExibicao } from "./usuario";
 import type { Usuario } from "../types";
 
 const u: Usuario = { id: "", nome: "Ana Souza", email: "ana@empresa.com.br", perfil: "Solicitante", area: "Comercial", ativo: true };
+
+describe("nome de exibição", () => {
+  it("sugere nome e sobrenome a partir do nome completo", () => {
+    expect(nomeCurto("Maria Clara de Souza Lima")).toBe("Maria Lima");
+    expect(nomeCurto("João da Silva")).toBe("João Silva");
+    expect(nomeCurto("Paulo Sérgio Lima Júnior")).toBe("Paulo Lima Júnior");
+    expect(nomeCurto("Ana Souza")).toBe("Ana Souza");
+    expect(nomeCurto("  Talita  ")).toBe("Talita");
+    expect(nomeDeExibicao({ nome: "Maria Clara de Souza Lima", nomeExibicao: "Clara Lima" })).toBe("Clara Lima");
+    expect(nomeDeExibicao({ nome: "Maria Clara de Souza Lima", nomeExibicao: " " })).toBe("Maria Lima");
+  });
+});
 
 describe("cadastro de usuário", () => {
   it("exige nome, e-mail válido e único, senha mínima, perfil e área", () => {

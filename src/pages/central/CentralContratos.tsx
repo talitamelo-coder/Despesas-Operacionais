@@ -34,7 +34,7 @@ function useDebounce<T>(v: T, ms: number): T {
 function csvDaPagina(linhas: LinhaCentral[]): string {
   const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor anual (BRL)", "Data fim", "Status", "Próxima ação"];
   const esc = (s: unknown) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestor, l.analista, l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
+  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestorCompleto, l.analistaCompleto, l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
   return "\uFEFF" + [cab.map(esc).join(";"), ...corpo].join("\n");
 }
 

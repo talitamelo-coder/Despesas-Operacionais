@@ -8,10 +8,33 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const AREAS_PADRAO = ["Atendimento", "Comercial", "Engenharia", "Facilities", "Financeiro", "Jurídico", "Marketing", "Operações", "Recursos Humanos", "Suprimentos", "Tecnologia"];
 
+const PARTICULAS = new Set(["da", "das", "de", "do", "dos", "e", "di", "du", "del", "van", "von"]);
+const SUFIXOS = new Set(["junior", "júnior", "jr", "jr.", "filho", "neto", "sobrinho", "segundo", "terceiro"]);
+
+/**
+ * Nome e sobrenome a partir do nome completo: primeiro nome + último sobrenome, sem partículas
+ * ("Maria Clara de Souza Lima" → "Maria Lima"). Sufixos ficam com o sobrenome ("Paulo Lima Júnior" → "Paulo Lima Júnior").
+ */
+export function nomeCurto(nomeCompleto: string): string {
+  const partes = nomeCompleto.trim().split(/\s+/).filter(Boolean);
+  if (partes.length <= 2) return partes.join(" ");
+  const ultimo = partes.length - 1;
+  const temSufixo = SUFIXOS.has(partes[ultimo].toLowerCase());
+  const fim = temSufixo ? ultimo - 1 : ultimo;
+  const sobrenome = partes.slice(1, fim + 1).filter((p) => !PARTICULAS.has(p.toLowerCase())).at(-1);
+  return [partes[0], sobrenome, temSufixo ? partes[ultimo] : undefined].filter(Boolean).join(" ");
+}
+
+/** Nome mostrado nas telas: o informado ou, se vazio, o sugerido pelo nome completo. */
+export function nomeDeExibicao(u: Pick<Usuario, "nome" | "nomeExibicao">): string {
+  return u.nomeExibicao?.trim() || nomeCurto(u.nome);
+}
+
 /** Erros por campo. `novo`: senha obrigatória no cadastro; na edição, vazia = manter a atual. */
 export function validarUsuario(u: Usuario, senha: string, opcoes: { novo: boolean; emailsExistentes: string[] }): Record<string, string> {
   const e: Record<string, string> = {};
   if (!u.nome.trim()) e.nome = "Informe o nome completo.";
+  if (u.nomeExibicao && u.nomeExibicao.trim().length > 60) e.nomeExibicao = "Use até 60 caracteres (nome e sobrenome).";
   if (!u.email.trim()) e.email = "Informe o e-mail.";
   else if (!EMAIL.test(u.email.trim())) e.email = "E-mail inválido.";
   else if (opcoes.emailsExistentes.includes(u.email.trim().toLowerCase())) e.email = "Já existe usuário com este e-mail.";

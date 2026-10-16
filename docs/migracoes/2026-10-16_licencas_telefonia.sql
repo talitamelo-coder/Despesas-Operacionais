@@ -239,3 +239,6 @@ CREATE TABLE aportes_saldo (
 ALTER TABLE fornecedores
   ADD COLUMN pais VARCHAR(80) NULL COMMENT 'Obrigatório quando estrangeiro' AFTER estrangeiro,
   ADD COLUMN identificacao_fiscal_exterior VARCHAR(60) NULL COMMENT 'Tax ID / VAT / EIN (opcional)' AFTER pais;
+
+-- Usuário: nome completo (relatórios) e nome e sobrenome (telas).
+ALTER TABLE usuarios ADD COLUMN nome_exibicao VARCHAR(60) NULL COMMENT 'Nome e sobrenome (telas)' AFTER nome;

@@ -9,7 +9,8 @@
 CREATE TABLE usuarios (
   id            CHAR(36)     PRIMARY KEY,
   external_id   VARCHAR(64)  NULL COMMENT 'ID no SSO/Akross Atende',
-  nome          VARCHAR(150) NOT NULL,
+  nome          VARCHAR(150) NOT NULL COMMENT 'Nome completo (relatórios e extrações)',
+  nome_exibicao VARCHAR(60)  NULL COMMENT 'Nome e sobrenome (telas); vazio = sugerido pelo nome completo',
   email         VARCHAR(190) NOT NULL UNIQUE,
   perfil        ENUM('Administrador','Suprimentos','Gestor','Juridico','Solicitante','Leitura') NOT NULL,
   cargo         VARCHAR(120) NULL,

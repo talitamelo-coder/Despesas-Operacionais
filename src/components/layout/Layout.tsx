@@ -8,6 +8,7 @@ import { api, fonteDados } from "@/services";
 import { cn } from "@/components/ui/cn";
 import { PrioridadeBadge } from "@/components/ui/status";
 import { formatarData } from "@/domain/datas";
+import { nomeDeExibicao } from "@/domain/rules/usuario";
 
 const MENU = [
   { para: "/", rotulo: "Dashboard", icone: LayoutDashboard, fim: true },
@@ -157,7 +158,7 @@ export function Layout() {
               <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-9 rounded-md border border-borda bg-superficie px-2 text-sm text-texto">
                 {cad.usuarios.filter((u) => u.ativo).map((u) => (
                   <option key={u.id} value={u.id}>
-                    {u.nome} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}
+                    {nomeDeExibicao(u)} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}
                   </option>
                 ))}
               </select>

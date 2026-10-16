@@ -87,8 +87,12 @@ export interface LinhaCentral {
   cnpj?: string;
   empresa: string;
   objeto: string;
+  /** Nome e sobrenome (telas). */
   gestor: string;
   analista: string;
+  /** Nome completo (exportação/relatório). */
+  gestorCompleto: string;
+  analistaCompleto: string;
   valorAnualBRL?: number;
   moeda: Moeda;
   dataFim?: ISODate;
