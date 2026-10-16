@@ -2,6 +2,8 @@ import { gerarCodigo, proximoSequencial } from "@/domain/codigos";
 import { anoDe, hoje } from "@/domain/datas";
 import { somenteDigitos } from "@/domain/formatacao";
 import { calcularAcoes } from "@/domain/rules/acoes";
+import { desfechoAvaliacao } from "@/domain/rules/avaliacao";
+import { errosVigencia, prazosDoContrato } from "@/domain/rules/prazos";
 import { gerarAlertas } from "@/domain/rules/alertas";
 import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
@@ -354,6 +356,8 @@ export const mockApi: ContratosApi = {
       if (erros.length) throw new ErroNegocio(erros.join(" "));
     }
     const novo = { ...c, ...patch, contrato_id: c.contrato_id, codigo: c.codigo, atualizadoEm: agora() };
+    const errosVig = errosVigencia(novo.vigencia);
+    if (errosVig.length) throw new ErroNegocio(`Todo contrato precisa de vigência. ${errosVig.join(" ")}`);
     auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: id, usuarioId: porId, data: agora(), acao: "Contrato alterado" }, () => novoId("a")));
     Object.assign(c, novo);
     persistir();
@@ -363,15 +367,30 @@ export const mockApi: ContratosApi = {
     const u = exigir(porId, "avaliar_renovacao");
     const c = getContrato(id);
     if (u.perfil === "Gestor" && c.gestorId !== u.id && !u.diretor) throw new ErroPermissao("Apenas o gestor do contrato pode responder a avaliação.");
-    if (c.avaliacaoRenovacao?.respondidoEm) throw new ErroNegocio("A avaliação deste contrato já foi respondida.");
-    c.avaliacaoRenovacao = { ...avaliacao, respondidoPorId: porId, respondidoEm: agora() };
+    if (c.status !== "Vigente") throw new ErroNegocio(`Contrato ${c.status.toLowerCase()} não tem avaliação de renovação.`);
+    const indeterminado = c.vigencia.tipoVigencia === "Prazo indeterminado";
+    const prazos = prazosDoContrato(c);
+    if (!indeterminado && c.avaliacaoRenovacao?.respondidoEm) throw new ErroNegocio("A avaliação deste contrato já foi respondida.");
+    if (indeterminado && (prazos.fase === "Normal" || prazos.fase === "Sem vigência"))
+      throw new ErroNegocio("A revisão anual deste contrato ainda não está aberta.");
+    const desfecho = desfechoAvaliacao(avaliacao, c.vigencia.tipoVigencia);
+    if (!desfecho) throw new ErroNegocio("Escolha se o contrato será renovado, substituído ou cancelado.");
+    // Revisões anteriores ficam guardadas: nada é sobrescrito sem histórico.
+    if (c.avaliacaoRenovacao?.respondidoEm) c.avaliacoesAnteriores = [...(c.avaliacoesAnteriores ?? []), c.avaliacaoRenovacao];
+    c.avaliacaoRenovacao = { ...avaliacao, respondidoPorId: porId, respondidoEm: agora(), cicloRevisao: prazos.proximaRevisao };
     c.atualizadoEm = agora();
-    registrar("contrato", id, porId, "Avaliação de renovação respondida", "avaliacaoRenovacao", undefined, JSON.stringify(avaliacao));
+    registrar("contrato", id, porId, indeterminado ? "Revisão anual respondida" : "Avaliação de renovação respondida", "avaliacaoRenovacao", undefined, JSON.stringify(avaliacao));
+
+    // Não renovar nem substituir = contrato cancelado (sai dos vigentes; alertas param).
+    if (desfecho === "Cancelar contrato") {
+      registrar("contrato", id, porId, "Contrato cancelado pela avaliação: não será renovado nem substituído", "status", c.status, "Cancelado");
+      c.status = "Cancelado";
+    }
 
     // Decisão => novo processo (renovação/substituição) para Suprimentos. Lembretes ao gestor param.
     let processo: ProcessoContratacao | undefined;
     const tipo: TipoProcesso | undefined =
-      avaliacao.desejaSubstituir === "Sim" ? "Substituição de fornecedor" : avaliacao.desejaRenovar === "Sim" ? "Renovação" : undefined;
+      desfecho === "Substituição de fornecedor" ? "Substituição de fornecedor" : desfecho === "Renovação" ? "Renovação" : undefined;
     const jaAberto = estado.processos.some((p) => p.contrato_anterior_id === id && processoAtivo(p));
     if (tipo && !jaAberto) {
       processo = { ...processoVazio(tipo, porId), ...herdarDeContrato(c, tipo, () => novoId("pr")) };

@@ -157,6 +157,8 @@ export interface Vigencia {
   /** Prazo do gestor para manifestação. Padrão configurável (30 dias). */
   prazoGestorDias: number;
   periodicidadeRenovacaoMeses?: number;
+  /** Prazo indeterminado: data-base da revisão anual (padrão: data de início). */
+  dataBaseRevisao?: ISODate;
 }
 
 export interface Reajuste {
@@ -358,7 +360,8 @@ export interface ProcessoContratacao {
 
 // ---------------------------------------------------------------- Contrato
 
-export type StatusContrato = "Vigente" | "Suspenso" | "Encerrado" | "Rescindido";
+/** Cancelado = não será renovado nem substituído (decisão da avaliação ou de Suprimentos). */
+export type StatusContrato = "Vigente" | "Suspenso" | "Encerrado" | "Rescindido" | "Cancelado";
 
 export type RespostaSimNao = "Sim" | "Não";
 
@@ -374,6 +377,8 @@ export interface AvaliacaoRenovacao {
   observacoes?: string;
   respondidoPorId?: string;
   respondidoEm?: ISODateTime;
+  /** Prazo indeterminado: data da revisão anual a que esta resposta se refere. */
+  cicloRevisao?: ISODate;
 }
 
 /** Espaço reservado para integração com o sistema atual (pedido/saldo). */
@@ -419,6 +424,8 @@ export interface Contrato {
   substituicao?: { fornecedorAnteriorId: string; valorAnteriorAnual: number; origemOportunidade: OrigemOportunidade };
   execucaoFinanceira: ExecucaoFinanceira;
   avaliacaoRenovacao?: AvaliacaoRenovacao;
+  /** Respostas de ciclos anteriores (revisões anuais). Nunca apagadas. */
+  avaliacoesAnteriores?: AvaliacaoRenovacao[];
   /** Texto livre: histórico, condições copiadas da planilha legada, anotações. */
   observacoes?: string;
   /**

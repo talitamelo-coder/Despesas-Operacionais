@@ -57,7 +57,7 @@ export function Layout() {
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/15 text-sm font-bold">A</div>
           {!recolhido && (
             <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-semibold">Akross Atende</p>
+              <p className="truncate text-sm font-semibold">Akross</p>
               <p className="truncate text-[11px] text-white/60">Gestão de Contratos</p>
             </div>
           )}

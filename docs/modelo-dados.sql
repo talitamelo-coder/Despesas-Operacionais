@@ -183,7 +183,7 @@ CREATE TABLE contratos (
   analista_id           CHAR(36)     NOT NULL,
   centro_custo          VARCHAR(60)  NULL,
   projeto               VARCHAR(120) NULL,
-  status                ENUM('Vigente','Suspenso','Encerrado','Rescindido') NOT NULL,
+  status                ENUM('Vigente','Suspenso','Encerrado','Rescindido','Cancelado') NOT NULL, -- Cancelado: não renovado nem substituído
   -- condições comerciais
   moeda                 CHAR(3)      NOT NULL,
   valor_anual           DECIMAL(18,2) NOT NULL COMMENT 'Na moeda do contrato',
@@ -198,8 +198,9 @@ CREATE TABLE contratos (
   cotacao_observacao    VARCHAR(255) NULL,
   -- vigência
   data_inicio           DATE         NOT NULL,
-  data_fim              DATE         NOT NULL,
+  data_fim              DATE         NULL COMMENT 'Obrigatória no prazo determinado',
   tipo_vigencia         ENUM('Prazo determinado','Prazo indeterminado') NOT NULL,
+  data_base_revisao     DATE         NULL COMMENT 'Indeterminado: revisão anual (padrão = data_inicio)',
   aviso_previo_dias     INT          NOT NULL DEFAULT 0,
   renovacao_automatica  BOOLEAN      NOT NULL DEFAULT FALSE,
   prazo_gestor_dias     INT          NOT NULL DEFAULT 30,

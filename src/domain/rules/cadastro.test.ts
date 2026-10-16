@@ -21,7 +21,7 @@ describe("cadastro incompleto (importação)", () => {
   });
   it("contrato sem datas não gera prazos nem alertas", () => {
     const p = calcularPrazos(c.vigencia, { referencia: "2026-10-15" });
-    expect(p.fase).toBe("Sem prazo");
+    expect(p.fase).toBe("Sem vigência");
     expect(p.renovacaoAutomaticaEmRisco).toBe(false);
     expect(gerarAlertas(c)).toEqual([]);
   });

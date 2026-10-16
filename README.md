@@ -1,4 +1,4 @@
-# Gestão de Contratos · Akross Atende
+# Gestão de Contratos · Akross
 
 Módulo de Gestão de Contratos de uma empresa de médio porte, que substitui o controle em planilha. Toma como referência as boas práticas do SAP Ariba Contracts, em versão bem mais simples, e foi pensado como **extensão nativa da plataforma Akross Atende**.
 

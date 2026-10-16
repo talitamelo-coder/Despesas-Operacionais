@@ -141,7 +141,7 @@ export interface ContratosApi {
   obterContrato(id: string): Promise<Contrato | undefined>;
   atualizarContrato(id: string, patch: Partial<Contrato>, porId: string): Promise<Contrato>;
   registrarAvaliacaoRenovacao(id: string, avaliacao: AvaliacaoRenovacao, porId: string): Promise<{ contrato: Contrato; processo?: ProcessoContratacao }>;
-  encerrarContrato(id: string, status: Extract<StatusContrato, "Encerrado" | "Rescindido" | "Suspenso" | "Vigente">, motivo: string, porId: string): Promise<Contrato>;
+  encerrarContrato(id: string, status: Extract<StatusContrato, "Encerrado" | "Rescindido" | "Suspenso" | "Vigente" | "Cancelado">, motivo: string, porId: string): Promise<Contrato>;
   importarContratos(registros: RegistroImportado[], porId: string): Promise<ResultadoImportacao>;
 
   // Processos

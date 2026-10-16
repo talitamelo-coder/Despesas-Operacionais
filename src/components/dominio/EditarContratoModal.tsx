@@ -105,8 +105,12 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
 
         <Secao titulo="Vigência e renovação">
           <Input rotulo="Data início" obrigatorio type="date" value={c.vigencia.dataInicio} onChange={(e) => vig({ dataInicio: e.target.value })} />
-          <Input rotulo="Data fim" obrigatorio={c.vigencia.tipoVigencia === "Prazo determinado"} type="date" value={c.vigencia.dataFim} onChange={(e) => vig({ dataFim: e.target.value })} />
-          <Select rotulo="Tipo de vigência" vazio={false} opcoes={["Prazo determinado", "Prazo indeterminado"].map((v) => ({ valor: v, rotulo: v }))} value={c.vigencia.tipoVigencia} onChange={(e) => vig({ tipoVigencia: e.target.value as TipoVigencia })} />
+          <Select rotulo="Tipo de vigência" vazio={false} opcoes={["Prazo determinado", "Prazo indeterminado"].map((v) => ({ valor: v, rotulo: v }))} value={c.vigencia.tipoVigencia} onChange={(e) => vig({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
+          {c.vigencia.tipoVigencia === "Prazo indeterminado" ? (
+            <Input rotulo="Data-base da revisão anual" type="date" ajuda="Todo ano nesta data o gestor avalia se mantém o fornecedor. Vazio = aniversário da data de início." value={c.vigencia.dataBaseRevisao ?? ""} onChange={(e) => vig({ dataBaseRevisao: e.target.value || undefined })} />
+          ) : (
+            <Input rotulo="Data fim" obrigatorio type="date" value={c.vigencia.dataFim} onChange={(e) => vig({ dataFim: e.target.value })} />
+          )}
           <InputNumero rotulo="Aviso prévio (dias)" valor={c.vigencia.avisoPrevioDias} onValor={(v) => vig({ avisoPrevioDias: v ?? 0 })} />
           <InputNumero rotulo="Prazo do gestor (dias)" valor={c.vigencia.prazoGestorDias} onValor={(v) => vig({ prazoGestorDias: v ?? 30 })} />
           <div className="flex items-end pb-1">

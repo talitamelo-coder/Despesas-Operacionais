@@ -174,7 +174,7 @@ export function requisitosContratoVigente(p: ProcessoContratacao, docs: Docs): P
   if (!propostaRecomendada(p)?.fornecedorId) r.push({ campo: "fornecedor", mensagem: "Fornecedor" });
   if (vazio(valorNegociado(p))) r.push({ campo: "valorFinal", mensagem: "Valor final" });
   if (vazio(p.vigencia?.dataInicio)) r.push({ campo: "vigencia.dataInicio", mensagem: "Data de início" });
-  if (vazio(p.vigencia?.dataFim)) r.push({ campo: "vigencia.dataFim", mensagem: "Data de fim" });
+  if (p.vigencia?.tipoVigencia !== "Prazo indeterminado" && vazio(p.vigencia?.dataFim)) r.push({ campo: "vigencia.dataFim", mensagem: "Data de fim (ou prazo indeterminado)" });
   if (vazio(p.tipoContratoId)) r.push({ campo: "tipoContratoId", mensagem: "Tipo de contrato" });
   if (vazio(p.analistaId)) r.push({ campo: "analistaId", mensagem: "Analista de Suprimentos" });
   return r;

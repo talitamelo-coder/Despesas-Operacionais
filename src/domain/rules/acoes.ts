@@ -1,5 +1,5 @@
 import { addDias, hoje } from "../datas";
-import { decisaoRegistrada, prazosDoContrato, REGRAS_ALERTA_PADRAO, type PrazosCalculados } from "./prazos";
+import { dataLimiteManifestacao, decisaoRegistrada, prazosDoContrato, REGRAS_ALERTA_PADRAO, type PrazosCalculados } from "./prazos";
 import { processoAtivo } from "./fluxo";
 import type { AcaoNecessaria, Contrato, ISODate, Prioridade, ProcessoContratacao, RegrasAlerta } from "../types";
 
@@ -33,12 +33,24 @@ interface Contexto {
 }
 
 function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], ctx: Contexto): AcaoNecessaria[] {
+  const ref = { tipo: "contrato" as const, id: c.contrato_id, codigo: c.codigo };
+  const link = `/contratos/${c.contrato_id}`;
+  // Cancelado com renovação automática: o fornecedor precisa ser avisado antes da data limite.
+  if (c.status === "Cancelado" && c.vigencia.renovacaoAutomatica && c.vigencia.tipoVigencia === "Prazo determinado" && c.vigencia.dataFim) {
+    const limite = dataLimiteManifestacao(c.vigencia);
+    if (limite >= (ctx.referencia ?? hoje()))
+      return [{ id: `${c.contrato_id}:comunicar`, prioridade: "Crítico", referencia: ref, acao: "Contrato cancelado com renovação automática — comunicar o fornecedor antes da data limite", responsavelId: c.analistaId, prazo: limite, link }];
+  }
   if (c.status !== "Vigente" || c.sucessor_id) return [];
   const prazos = prazosDoContrato(c, ctx.referencia, ctx.regras);
   const decidido = decisaoRegistrada(c);
-  const ref = { tipo: "contrato" as const, id: c.contrato_id, codigo: c.codigo };
   const acoes: AcaoNecessaria[] = [];
   const temProcesso = processosAbertos.length > 0;
+
+  if (prazos.fase === "Sem vigência") {
+    // Todo contrato precisa de vigência: sem ela não há alerta de renovação nem de revisão anual.
+    return [{ id: `${c.contrato_id}:vigencia`, prioridade: "Crítico", referencia: ref, acao: "Informar a vigência do contrato (data de início e fim, ou prazo indeterminado)", responsavelId: c.analistaId, link }];
+  }
 
   if (prazos.fase === "Vencido") {
     acoes.push({
@@ -53,12 +65,12 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
     return acoes;
   }
 
-  if (!decidido && prazos.fase !== "Normal" && prazos.fase !== "Sem prazo") {
+  if (!decidido && prazos.fase !== "Normal") {
     acoes.push({
       id: `${c.contrato_id}:avaliar`,
       prioridade: prioridadeDosPrazos(prazos, false),
       referencia: ref,
-      acao: "Avaliar renovação do contrato",
+      acao: c.vigencia.tipoVigencia === "Prazo indeterminado" ? "Revisão anual: avaliar se o fornecedor será mantido" : "Avaliar renovação do contrato",
       responsavelId: c.gestorId,
       prazo: prazos.dataLimiteManifestacao,
       link: `/contratos/${c.contrato_id}/avaliacao`,
@@ -67,12 +79,7 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
 
   if (decidido && !temProcesso) {
     const a = c.avaliacaoRenovacao!;
-    const acao =
-      a.desejaEncerrar === "Sim"
-        ? "Formalizar não renovação / encerramento junto ao fornecedor"
-        : a.desejaSubstituir === "Sim"
-          ? "Abrir processo de substituição de fornecedor"
-          : "Abrir processo de renovação";
+    const acao = a.desejaSubstituir === "Sim" ? "Abrir processo de substituição de fornecedor" : "Abrir processo de renovação";
     acoes.push({
       id: `${c.contrato_id}:processo`,
       prioridade: prioridadeDosPrazos(prazos, true),

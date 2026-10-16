@@ -24,6 +24,21 @@ describe("renovação", () => {
     expect(alertas.filter((a) => a.categoria === "Decisão do gestor" && a.status === "Programado")).toHaveLength(0);
   });
 
+  it("não renovar nem substituir cancela o contrato e para os alertas", async () => {
+    const { processo, contrato } = await api.registrarAvaliacaoRenovacao("c-aval-aberta", { desejaRenovar: "Não", desejaSubstituir: "Não", desejaEncerrar: "Sim" }, "u-ges2");
+    expect(contrato.status).toBe("Cancelado");
+    expect(processo).toBeUndefined();
+    expect(await api.listarAlertas("c-aval-aberta")).toEqual([]);
+    const aud = await api.listarAuditoria("c-aval-aberta");
+    expect(aud.some((x) => x.valorNovo === "Cancelado")).toBe(true);
+  });
+
+  it("não salva contrato sem vigência", async () => {
+    const c = await api.obterContrato("c-aval-aberta");
+    await expect(api.atualizarContrato("c-aval-aberta", { vigencia: { ...c!.vigencia, dataFim: "" } }, "u-admin")).rejects.toThrow(/vigência/);
+    await api.atualizarContrato("c-aval-aberta", { vigencia: { ...c!.vigencia, dataFim: "", tipoVigencia: "Prazo indeterminado" } }, "u-admin");
+  });
+
   it("só o gestor do contrato responde", async () => {
     await expect(api.registrarAvaliacaoRenovacao("c-aval-aberta", { desejaRenovar: "Sim" }, "u-ges1")).rejects.toThrow();
   });

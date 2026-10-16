@@ -1,5 +1,5 @@
 import { addDias, diffDias, hoje } from "../datas";
-import { decisaoRegistrada, cicloResolvido, dataAberturaAvaliacao, dataLimiteManifestacao, REGRAS_ALERTA_PADRAO } from "./prazos";
+import { decisaoRegistrada, cicloResolvido, dataAberturaAvaliacao, dataLimiteManifestacao, REGRAS_ALERTA_PADRAO, ultimaRevisao, vigenciaDoCiclo } from "./prazos";
 import type { Alerta, Contrato, ISODate, RegrasAlerta } from "../types";
 
 /**
@@ -8,17 +8,19 @@ import type { Alerta, Contrato, ISODate, RegrasAlerta } from "../types";
  *
  * - Lembretes de DECISÃO DO GESTOR são interrompidos quando o gestor responde a avaliação.
  * - Alertas CONTRATUAIS CRÍTICOS (renovação automática em risco) nunca são removidos para Suprimentos.
+ * - Prazo indeterminado: os mesmos alertas, todo ano, sobre a revisão anual (manter o fornecedor?).
  */
 export function gerarAlertas(
   c: Contrato,
   regras: RegrasAlerta = REGRAS_ALERTA_PADRAO,
   referencia: ISODate = hoje(),
 ): Alerta[] {
-  if (c.vigencia.tipoVigencia === "Prazo indeterminado" || !c.vigencia.dataFim) return [];
-  if (c.status === "Encerrado" || c.status === "Rescindido") return [];
+  if (c.status === "Encerrado" || c.status === "Rescindido" || c.status === "Cancelado") return [];
+  const vigencia = vigenciaDoCiclo(c.vigencia, ultimaRevisao(c));
+  if (!vigencia.dataInicio || !vigencia.dataFim) return [];
 
-  const limite = dataLimiteManifestacao(c.vigencia);
-  const abertura = dataAberturaAvaliacao(c.vigencia);
+  const limite = dataLimiteManifestacao(vigencia);
+  const abertura = dataAberturaAvaliacao(vigencia);
   const respondido = decisaoRegistrada(c);
   const resolvido = cicloResolvido(c);
   const gestorESuprimentos = [c.gestorId, c.analistaId];
@@ -45,7 +47,7 @@ export function gerarAlertas(
     if (tipo) alertas.push(decisao(tipo, addDias(limite, -dias)));
   }
 
-  if (c.vigencia.renovacaoAutomatica) {
+  if (vigencia.renovacaoAutomatica) {
     const data = addDias(limite, -regras.diasRiscoRenovacaoAutomatica);
     alertas.push({
       id: `${c.contrato_id}:Renovação automática em risco`,

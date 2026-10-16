@@ -29,7 +29,7 @@ export function situacaoCiclo(processosAbertos: Pick<ProcessoContratacao, "tipo"
 export function abasDoContrato(c: Contrato, processosAbertos: ProcessoContratacao[], temAcao: boolean): AbaCentral[] {
   const abas: AbaCentral[] = ["Todos"];
   if (c.status === "Vigente" || c.status === "Suspenso") abas.push("Vigentes");
-  if (c.status === "Encerrado" || c.status === "Rescindido") abas.push("Encerrados");
+  if (c.status === "Encerrado" || c.status === "Rescindido" || c.status === "Cancelado") abas.push("Encerrados");
   const sit = situacaoCiclo(processosAbertos);
   if (sit === "Em renovação" || sit === "Em substituição" || sit === "Em renegociação") abas.push("Em renovação");
   if (processosAbertos.some((p) => p.tipo === "Aditivo")) abas.push("Em aditivo");

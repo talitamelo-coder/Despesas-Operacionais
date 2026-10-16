@@ -17,7 +17,7 @@ import { converterParaBRL } from "@/domain/rules/cambio";
 import { etapasDoProcesso, indiceEtapa, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { formatarDataHora } from "@/domain/datas";
 import { formatarMoeda, formatarNumero } from "@/domain/formatacao";
-import type { Documento, FonteCotacao, Moeda, Periodicidade, ProcessoContratacao, PropostaFornecedor, StatusJuridico } from "@/domain/types";
+import type { Documento, FonteCotacao, Moeda, Periodicidade, ProcessoContratacao, PropostaFornecedor, StatusJuridico, TipoVigencia } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
 import { AprovacoesResumo } from "../contratos/CapaContrato";
@@ -444,7 +444,12 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
           <p className="mb-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Vigência proposta</p>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <Input rotulo="Data início" type="date" disabled={!editavel} value={v.dataInicio ?? ""} onChange={(e) => setV({ dataInicio: e.target.value })} />
-            <Input rotulo="Data fim" type="date" disabled={!editavel} value={v.dataFim ?? ""} onChange={(e) => setV({ dataFim: e.target.value })} />
+            <Select rotulo="Tipo de vigência" vazio={false} disabled={!editavel} opcoes={["Prazo determinado", "Prazo indeterminado"].map((x) => ({ valor: x, rotulo: x }))} value={v.tipoVigencia ?? "Prazo determinado"} onChange={(e) => setV({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
+            {v.tipoVigencia === "Prazo indeterminado" ? (
+              <Valor rotulo="Data fim">Indeterminado · revisão anual na data de início</Valor>
+            ) : (
+              <Input rotulo="Data fim" type="date" disabled={!editavel} value={v.dataFim ?? ""} onChange={(e) => setV({ dataFim: e.target.value })} />
+            )}
             <InputNumero rotulo="Aviso prévio (dias)" disabled={!editavel} origem={o["vigencia.avisoPrevioDias"]} valor={v.avisoPrevioDias} onValor={(x) => setV({ avisoPrevioDias: x })} />
             <InputNumero rotulo="Prazo do gestor (dias)" disabled={!editavel} valor={v.prazoGestorDias} onValor={(x) => setV({ prazoGestorDias: x })} placeholder="30" />
             <div className="flex items-end pb-1 md:col-span-2">

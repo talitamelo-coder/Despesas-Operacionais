@@ -12,6 +12,16 @@ export function valorAnualBRL(c: Pick<CondicoesComerciais, "valorAnual" | "moeda
   return converterParaBRL(c.valorAnual, c.moeda, c.cotacao);
 }
 
+/** Equivalente mensal do valor anual (na moeda do contrato). Mostrado junto do anual na capa. */
+export function valorMensal(c: Pick<CondicoesComerciais, "valorAnual">): number {
+  return (c.valorAnual ?? 0) / 12;
+}
+
+export function valorMensalBRL(c: Pick<CondicoesComerciais, "valorAnual" | "moeda" | "cotacao">): number | undefined {
+  const anual = valorAnualBRL(c);
+  return anual === undefined ? undefined : anual / 12;
+}
+
 export interface DecomposicaoVariacao {
   impactoPreco: number;
   impactoVolume: number;

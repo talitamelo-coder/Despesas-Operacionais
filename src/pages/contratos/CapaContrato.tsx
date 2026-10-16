@@ -19,7 +19,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { PrioridadeBadge, RiscoRenovacaoBadge, StatusBadge } from "@/components/ui/status";
 import { Tabela } from "@/components/ui/Tabela";
 import { ORDEM_PRIORIDADE } from "@/domain/rules/acoes";
-import { valorAnualBRL } from "@/domain/rules/cambio";
+import { valorAnualBRL, valorMensal, valorMensalBRL } from "@/domain/rules/cambio";
 import { processoAtivo } from "@/domain/rules/fluxo";
 import { decisaoRegistrada, prazosDoContrato } from "@/domain/rules/prazos";
 import { savingAnual } from "@/domain/rules/saving";
@@ -105,7 +105,7 @@ export function CapaContrato() {
     .filter((a) => a.referencia.id === id || abertos.some((p) => p.processo_id === a.referencia.id))
     .sort((a, b) => ORDEM_PRIORIDADE[a.prioridade] - ORDEM_PRIORIDADE[b.prioridade]);
   const proxima = acoesContrato[0];
-  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor) && prazos.fase !== "Normal" && prazos.fase !== "Sem prazo";
+  const podeAvaliar = c.status === "Vigente" && !c.sucessor_id && !decisaoRegistrada(c) && (usuario.id === c.gestorId || usuario.perfil === "Administrador" || usuario.diretor) && prazos.fase !== "Normal" && prazos.fase !== "Sem vigência";
   const relacaoSucessor = sucessor?.relacaoAnterior === "Substituição" ? "Substituído por" : "Renovado por";
   const relacaoAnterior = c.relacaoAnterior === "Substituição" ? "Substitui" : "Renovação de";
 
@@ -158,13 +158,14 @@ export function CapaContrato() {
         }
         extra={
           <Card className="mt-4">
-            <div className="grid grid-cols-2 divide-borda md:grid-cols-3 xl:grid-cols-6 xl:divide-x">
+            <div className="grid grid-cols-2 divide-borda md:grid-cols-4 xl:grid-cols-7 xl:divide-x">
               {[
                 ["Empresa", nomeEmpresa(c.empresaId)],
+                ["Valor mensal", <>{formatarMoeda(valorMensalBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(valorMensal(c.condicoes), c.condicoes.moeda)}</span>}</>],
                 ["Valor anual", <>{formatarMoeda(valorAnualBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(c.condicoes.valorAnual, c.condicoes.moeda)}</span>}</>],
                 ["Saving anual", c.saving ? <span className="text-sucesso-600">{formatarMoeda(savingAnual(c.saving))}</span> : "—"],
-                ["Vigência", `${formatarData(c.vigencia.dataInicio)} a ${formatarData(c.vigencia.dataFim)}`],
-                ["Data limite de manifestação", <>{formatarData(prazos.dataLimiteManifestacao)}<span className="block text-xs font-normal text-texto-suave">{prazos.fase}</span></>],
+                ["Vigência", c.vigencia.tipoVigencia === "Prazo indeterminado" ? <>Indeterminado<span className="block text-xs font-normal text-texto-suave">desde {formatarData(c.vigencia.dataInicio)}</span></> : `${formatarData(c.vigencia.dataInicio)} a ${formatarData(c.vigencia.dataFim)}`],
+                [prazos.proximaRevisao ? "Revisão anual" : "Data limite de manifestação", <>{formatarData(prazos.proximaRevisao ?? prazos.dataLimiteManifestacao)}<span className="block text-xs font-normal text-texto-suave">{prazos.fase}</span></>],
                 [
                   "Próxima ação",
                   proxima ? (
@@ -505,7 +506,7 @@ function ModalStatus({ aberto, onFechar, c }: { aberto: boolean; onFechar: () =>
     >
       <div className="space-y-4">
         <Aviso tom="info">Renovação e aditivo são processos relacionados e não alteram o status "Vigente". O histórico do contrato é preservado.</Aviso>
-        <Select rotulo="Novo status" vazio={false} value={status} onChange={(e) => setStatus(e.target.value as StatusContrato)} opcoes={["Vigente", "Suspenso", "Encerrado", "Rescindido"].map((s) => ({ valor: s, rotulo: s }))} />
+        <Select rotulo="Novo status" vazio={false} value={status} onChange={(e) => setStatus(e.target.value as StatusContrato)} opcoes={["Vigente", "Suspenso", "Cancelado", "Encerrado", "Rescindido"].map((s) => ({ valor: s, rotulo: s }))} />
         <Textarea rotulo="Motivo" obrigatorio value={motivo} onChange={(e) => setMotivo(e.target.value)} />
       </div>
     </Modal>

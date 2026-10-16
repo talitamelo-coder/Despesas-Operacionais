@@ -67,7 +67,7 @@ export function renderizarEmailAvaliacao(d: DadosEmailAvaliacao): EmailRenderiza
     )
     .join("");
   const html = `<div style="font-family:Inter,Segoe UI,Arial,sans-serif;max-width:600px;margin:0 auto;border:1px solid #e3e7ee;border-radius:8px;overflow:hidden">
-  <div style="background:#0b3d91;color:#fff;padding:16px 20px;font-size:15px;font-weight:600">Akross Atende · Gestão de Contratos</div>
+  <div style="background:#0b3d91;color:#fff;padding:16px 20px;font-size:15px;font-weight:600">Akross · Gestão de Contratos</div>
   <div style="padding:20px">
     <p style="margin:0 0 12px;font-size:14px;color:#1f2733">Olá, ${escapar(d.destinatario)}.</p>
     <p style="margin:0 0 16px;font-size:14px;color:#1f2733">${escapar(INTRO[d.tipo])}</p>

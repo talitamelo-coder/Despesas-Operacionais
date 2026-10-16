@@ -5,7 +5,7 @@ import { GradeValores, Valor } from "@/components/ui/Campos";
 import { Aviso } from "@/components/ui/Diversos";
 import { Badge } from "@/components/ui/Badge";
 import { RiscoRenovacaoBadge, StatusBadge } from "@/components/ui/status";
-import { cenarioDe, decomporVariacao, valorAnualBRL } from "@/domain/rules/cambio";
+import { cenarioDe, decomporVariacao, valorAnualBRL, valorMensal, valorMensalBRL } from "@/domain/rules/cambio";
 import { prazosDoContrato } from "@/domain/rules/prazos";
 import { datasReajuste, proximoReajuste } from "@/domain/rules/reajuste";
 import { formatarData } from "@/domain/datas";
@@ -54,6 +54,8 @@ export function BlocoCondicoesComerciais({ c }: { c: Contrato }) {
       <Valor rotulo="Moeda">{cc.moeda}</Valor>
       <Valor rotulo={`Valor anual (${cc.moeda})`}>{formatarMoeda(cc.valorAnual, cc.moeda)}</Valor>
       <Valor rotulo="Valor anual em BRL" origem={cc.moeda !== "BRL" ? "calculado" : undefined}>{formatarMoeda(valorAnualBRL(cc))}</Valor>
+      <Valor rotulo={`Valor mensal (${cc.moeda})`} origem="calculado">{formatarMoeda(valorMensal(cc), cc.moeda)}</Valor>
+      <Valor rotulo="Valor mensal em BRL" origem="calculado">{formatarMoeda(valorMensalBRL(cc))}</Valor>
       <Valor rotulo="Quantidade">{cc.quantidade ? `${formatarNumero(cc.quantidade)} ${cc.unidade ?? ""}` : "—"}</Valor>
       <Valor rotulo="Preço unitário anual">{cc.precoUnitario ? formatarMoeda(cc.precoUnitario, cc.moeda) : "—"}</Valor>
       <Valor rotulo="Periodicidade de pagamento">{cc.periodicidadePagamento}</Valor>
@@ -85,24 +87,31 @@ export function BlocoVigencia({ c }: { c: Contrato }) {
           A data limite de manifestação ({formatarData(p.dataLimiteManifestacao)}) está próxima. O sistema não renova contratos sozinho: registre a decisão e formalize junto ao fornecedor.
         </Aviso>
       )}
+      {p.fase === "Sem vigência" && <Aviso tom="critico" titulo="Vigência não informada">Todo contrato precisa de vigência, mesmo por prazo indeterminado: sem ela não há alertas de renovação nem de revisão anual. Use “Editar contrato”.</Aviso>}
+      {c.status === "Cancelado" && <Aviso tom="alerta" titulo="Contrato cancelado">Não será renovado nem substituído. {c.vigencia.renovacaoAutomatica && `Por ter renovação automática, comunique o fornecedor até ${formatarData(p.dataLimiteManifestacao)}.`}</Aviso>}
       <GradeValores colunas={4}>
         <Valor rotulo="Data início">{formatarData(c.vigencia.dataInicio)}</Valor>
-        <Valor rotulo="Data fim">{formatarData(c.vigencia.dataFim)}</Valor>
+        <Valor rotulo="Data fim">{c.vigencia.tipoVigencia === "Prazo indeterminado" ? "Indeterminado" : formatarData(c.vigencia.dataFim)}</Valor>
         <Valor rotulo="Tipo de vigência">{c.vigencia.tipoVigencia}</Valor>
-        <Valor rotulo="Duração" origem="calculado">{formatarNumero(p.duracaoDias)} dias</Valor>
+        {p.proximaRevisao ? (
+          <Valor rotulo="Próxima revisão anual" origem="calculado">{formatarData(p.proximaRevisao)}</Valor>
+        ) : (
+          <Valor rotulo="Duração" origem="calculado">{Number.isNaN(p.duracaoDias) ? "—" : `${formatarNumero(p.duracaoDias)} dias`}</Valor>
+        )}
         <Valor rotulo="Aviso prévio" origem={c.origens["vigencia.avisoPrevioDias"]}>{c.vigencia.avisoPrevioDias} dias</Valor>
         <Valor rotulo="Prazo do gestor">{c.vigencia.prazoGestorDias} dias</Valor>
         <Valor rotulo="Renovação automática">{c.vigencia.renovacaoAutomatica ? "Sim" : "Não"}</Valor>
         <Valor rotulo="Periodicidade de renovação">{c.vigencia.periodicidadeRenovacaoMeses ? `${c.vigencia.periodicidadeRenovacaoMeses} meses` : "—"}</Valor>
-        <Valor rotulo="Dias até o vencimento" origem="calculado">
+        <Valor rotulo={p.proximaRevisao ? "Dias até a revisão" : "Dias até o vencimento"} origem="calculado">
           <span className={p.diasAteVencimento < 0 ? "text-critico-600" : p.diasAteVencimento <= 90 ? "text-alerta-600" : ""}>{Number.isNaN(p.diasAteVencimento) ? "—" : p.diasAteVencimento < 0 ? `Vencido há ${-p.diasAteVencimento} dias` : `${p.diasAteVencimento} dias`}</span>
         </Valor>
         <Valor rotulo="Data limite de manifestação" origem="calculado">{formatarData(p.dataLimiteManifestacao)}</Valor>
         <Valor rotulo="Início da avaliação" origem="calculado">{formatarData(p.dataAberturaAvaliacao)}</Valor>
         <Valor rotulo="Fase" origem="calculado">{p.fase}</Valor>
       </GradeValores>
+      {c.avaliacoesAnteriores?.length ? <p className="text-xs text-texto-suave">{c.avaliacoesAnteriores.length} revisão(ões) anterior(es) registrada(s) no histórico.</p> : null}
       <p className="text-xs text-texto-fraco">
-        Data limite = data fim − aviso prévio ({c.vigencia.avisoPrevioDias} dias). Início da avaliação = data limite − prazo do gestor ({c.vigencia.prazoGestorDias} dias).
+        {p.proximaRevisao ? "Prazo indeterminado: todo ano, no aniversário da data de início, o gestor avalia se o fornecedor será mantido. " : ""}Data limite = {p.proximaRevisao ? "revisão" : "data fim"} − aviso prévio ({c.vigencia.avisoPrevioDias} dias). Início da avaliação = data limite − prazo do gestor ({c.vigencia.prazoGestorDias} dias).
       </p>
     </div>
   );
