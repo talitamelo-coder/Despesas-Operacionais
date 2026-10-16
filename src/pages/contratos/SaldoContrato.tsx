@@ -13,6 +13,7 @@ import { erroSaldoPedido } from "@/domain/rules/saldo";
 import type { Contrato } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
+import { AditivoModal } from "./Aditivos";
 
 /**
  * Saldo do contrato: contratado (vigência + aportes) − pedidos − licenças e linhas vinculadas.
@@ -28,6 +29,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
   const m = (v?: number) => formatarMoeda(v, s.moeda);
   const pct = s.percentualConsumido;
   const podeEditar = pode("editar_processo") && c.status === "Vigente";
+  const receita = c.natureza === "Receita";
 
   return (
     <div className="space-y-3">
@@ -37,7 +39,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
         <>
           <div>
             <div className="flex items-baseline justify-between gap-2">
-              <span className="text-xs text-texto-suave">Disponível</span>
+              <span className="text-xs text-texto-suave">{receita ? "Saldo a faturar" : "Disponível"}</span>
               <span className={`text-lg font-semibold tabular ${s.disponivel <= 0 ? "text-critico-600" : ""}`}>{m(s.disponivel)}</span>
             </div>
             <div className="mt-1.5 h-2 rounded-full bg-fundo" role="meter" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100} aria-label="Saldo consumido">
@@ -48,24 +50,43 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
               {s.periodo && ` · ${c.vigencia.tipoVigencia === "Prazo indeterminado" ? "ciclo" : "vigência"} ${formatarData(s.periodo.inicio)} a ${formatarData(s.periodo.fim)}`}
             </p>
           </div>
-          {pct >= 100 && <Aviso tom="critico">Saldo esgotado: novos pedidos estão bloqueados até adicionar saldo.</Aviso>}
+          {pct >= 100 && <Aviso tom="critico">{receita ? "Saldo a faturar esgotado: o Contas a receber não consegue emitir acima do contratado sem aditivo." : "Saldo esgotado: novos pedidos estão bloqueados até registrar um aditivo de valor."}</Aviso>}
           {pct >= 80 && pct < 100 && <Aviso tom="alerta">Mais de 80% do saldo consumido. Avalie um aditivo de valor.</Aviso>}
           <GradeValores colunas={compacto ? 2 : 4}>
             <Valor rotulo="Contratado" origem="calculado">{m(s.contratado)}{s.aportes > 0 && <span className="block text-xs text-texto-suave">inclui {m(s.aportes)} adicionados</span>}</Valor>
-            <Valor rotulo="Pedidos aprovados (comprometido)">{m(s.comprometido)}</Valor>
-            <Valor rotulo="Pedidos pagos (realizado)">{m(s.realizado)}</Valor>
-            <Valor rotulo="Licenças e linhas vinculadas" origem="calculado">{m(s.licencas + s.linhas)}</Valor>
+            {receita ? (
+              <Valor rotulo="Faturado (notas emitidas)">{m(s.realizado)}</Valor>
+            ) : (
+              <>
+                <Valor rotulo="Pedidos aprovados (comprometido)">{m(s.comprometido)}</Valor>
+                <Valor rotulo="Pedidos pagos (realizado)">{m(s.realizado)}</Valor>
+                <Valor rotulo="Licenças e linhas vinculadas" origem="calculado">{m(s.licencas + s.linhas)}</Valor>
+              </>
+            )}
           </GradeValores>
         </>
       )}
       {podeEditar && (
         <div className="flex flex-wrap gap-2">
-          <Button tamanho="sm" icone={<ReceiptText size={14} />} onClick={() => setPedido(true)}>Registrar pedido</Button>
-          <Button tamanho="sm" variante="secundario" icone={<Plus size={14} />} onClick={() => setAporte(true)}>Adicionar saldo</Button>
+          {!receita && <Button tamanho="sm" icone={<ReceiptText size={14} />} onClick={() => setPedido(true)}>Registrar pedido</Button>}
+          <Button tamanho="sm" variante="secundario" icone={<Plus size={14} />} onClick={() => setAporte(true)}>Registrar aditivo de valor</Button>
         </div>
       )}
       {!compacto && (
         <>
+          {receita ? (
+            <>
+              <p className="pt-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Notas emitidas (Contas a receber)</p>
+              <Tabela densa linhas={dados.emissoes} chave={(e) => e.id} vazio="Nenhuma emissão. Elas chegam pela integração com o Contas a receber." colunas={[
+                { id: "n", titulo: "Documento", render: (e) => e.numeroDocumento },
+                { id: "d", titulo: "Data", render: (e) => formatarData(e.data) },
+                { id: "v", titulo: "Valor", alinhamento: "direita", render: (e) => m(e.valor) },
+                { id: "s", titulo: "Situação", render: (e) => <Badge tom={e.status === "Emitida" ? "sucesso" : "neutro"}>{e.status}</Badge> },
+                { id: "o", titulo: "Origem", render: (e) => <span className="text-xs text-texto-suave">{e.origem}</span> },
+              ]} />
+            </>
+          ) : (
+          <>
           <p className="pt-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Pedidos</p>
           <Tabela
             densa
@@ -92,9 +113,11 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
               },
             ]}
           />
+          </>
+          )}
           {aportes.length > 0 && (
             <>
-              <p className="pt-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Saldo adicionado</p>
+              <p className="pt-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Saldo adicionado por aditivo</p>
               <Tabela densa linhas={aportes} chave={(a) => a.id} colunas={[
                 { id: "d", titulo: "Data", render: (a) => formatarData(a.data) },
                 { id: "m", titulo: "Motivo", render: (a) => a.motivo },
@@ -103,11 +126,11 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
               ]} />
             </>
           )}
-          <p className="text-xs text-texto-fraco">Contratado = valor anual × duração da vigência + saldo adicionado. Compras de licenças e linhas vinculadas a este contrato também consomem o saldo e são bloqueadas se não couberem.</p>
+          <p className="text-xs text-texto-fraco">{receita ? "Contratado = valor total (ou fixo mensal × meses da vigência) + aditivos. Cada nota emitida no Contas a receber consome o saldo; emissão acima dele é recusada." : "Contratado = valor anual × duração da vigência + aditivos. Compras de licenças e linhas vinculadas a este contrato também consomem o saldo e são bloqueadas se não couberem."}</p>
         </>
       )}
       {pedido && <PedidoModal c={c} disponivel={s} onFechar={() => setPedido(false)} />}
-      {aporte && <AporteModal c={c} moeda={s.moeda} onFechar={() => setAporte(false)} />}
+      {aporte && <AditivoModal c={c} onFechar={() => setAporte(false)} />}
     </div>
   );
 }
@@ -126,22 +149,6 @@ function PedidoModal({ c, disponivel, onFechar }: { c: Contrato; disponivel: Par
       </div>
       <p className="mt-3 text-sm text-texto-suave">Disponível: {formatarMoeda(disponivel.disponivel, disponivel.moeda)}. Até a integração com o módulo de pedidos, o registro é feito aqui.</p>
       {erro && <div className="mt-3"><Aviso tom="critico">{erro}</Aviso></div>}
-    </Modal>
-  );
-}
-
-function AporteModal({ c, moeda, onFechar }: { c: Contrato; moeda: string; onFechar: () => void }) {
-  const { usuario, executar } = useApp();
-  const [a, setA] = useState({ data: hoje(), valor: undefined as number | undefined, motivo: "Aditivo de valor", referencia: "" });
-  return (
-    <Modal aberto titulo={`Adicionar saldo · ${c.codigo}`} onFechar={onFechar} rodape={<><Button variante="secundario" onClick={onFechar}>Cancelar</Button><Button disabled={!a.valor || !a.motivo.trim()} onClick={async () => (await executar(() => api.registrarAporteSaldo({ contrato_id: c.contrato_id, data: a.data, valor: a.valor ?? 0, motivo: a.motivo, referencia: a.referencia || undefined }, usuario.id), "Saldo adicionado.")) && onFechar()}>Adicionar</Button></>}>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <InputNumero rotulo={`Valor (${moeda})`} obrigatorio valor={a.valor} onValor={(v) => setA({ ...a, valor: v })} />
-        <Input rotulo="Data" type="date" obrigatorio value={a.data} onChange={(e) => setA({ ...a, data: e.target.value })} />
-        <Input rotulo="Motivo" obrigatorio value={a.motivo} onChange={(e) => setA({ ...a, motivo: e.target.value })} />
-        <Input rotulo="Referência (aditivo, processo)" value={a.referencia} onChange={(e) => setA({ ...a, referencia: e.target.value })} />
-      </div>
-      <p className="mt-3 text-xs text-texto-suave">O valor soma ao contratado e fica no histórico e na auditoria; nada é sobrescrito. Para mudar o valor anual do contrato, use um processo de aditivo.</p>
     </Modal>
   );
 }

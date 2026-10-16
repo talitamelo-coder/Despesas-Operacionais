@@ -59,6 +59,10 @@ export function calcularIndicadores(
   regras?: RegrasAlerta,
   referencia?: ISODate,
 ): Indicadores {
+  // Dashboard de contratos = despesa (fornecedores). Contratos de clientes têm painel próprio.
+  const receita = new Set(contratos.filter((c) => c.natureza === "Receita").map((c) => c.contrato_id));
+  contratos = contratos.filter((c) => !receita.has(c.contrato_id));
+  acoes = acoes.filter((a) => !receita.has(a.referencia.id));
   const vigentes = contratos.filter((c) => c.status === "Vigente");
   const valor = (c: Contrato) => valorAnualBRL(c.condicoes) ?? 0;
   const saving = (c: Contrato) => (c.saving ? Math.max(0, savingAnual(c.saving)) : 0);

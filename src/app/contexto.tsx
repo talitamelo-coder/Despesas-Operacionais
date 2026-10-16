@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { pode, type Permissao } from "@/domain/rules/permissoes";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
-import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
+import type { Cliente, Configuracao, Contrato, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
 import { aoMudar, api } from "@/services";
 
 /**
@@ -13,6 +13,7 @@ interface Cadastros {
   usuarios: Usuario[];
   empresas: Empresa[];
   fornecedores: Fornecedor[];
+  clientes: Cliente[];
   tipos: TipoContrato[];
   config: Configuracao;
   modo: "demonstracao" | "real";
@@ -35,6 +36,9 @@ interface Contexto {
   nomeCompletoUsuario: (id?: string) => string;
   nomeEmpresa: (id?: string) => string;
   fornecedor: (id?: string) => Fornecedor | undefined;
+  cliente: (id?: string) => Cliente | undefined;
+  /** Outra parte do contrato: fornecedor (despesa) ou cliente (receita). */
+  contraparte: (c: Pick<Contrato, "natureza" | "fornecedorId" | "clienteId">) => { papel: "Fornecedor" | "Cliente"; nome: string; curto: string };
   nomeTipo: (id?: string) => string;
   notificar: (texto: string, tom?: Toast["tom"]) => void;
   executar: <T>(acao: () => Promise<T>, sucesso?: string) => Promise<T | undefined>;
@@ -58,8 +62,8 @@ export function ProvedorApp({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const carregar = () =>
-      Promise.all([api.listarUsuarios(), api.listarEmpresas(), api.listarFornecedores(), api.listarTiposContrato(), api.obterConfiguracao(), api.obterModoDados()]).then(
-        ([usuarios, empresas, fornecedores, tipos, config, modo]) => setCad({ usuarios, empresas, fornecedores, tipos, config, modo }),
+      Promise.all([api.listarUsuarios(), api.listarEmpresas(), api.listarFornecedores(), api.listarClientes(), api.listarTiposContrato(), api.obterConfiguracao(), api.obterModoDados()]).then(
+        ([usuarios, empresas, fornecedores, clientes, tipos, config, modo]) => setCad({ usuarios, empresas, fornecedores, clientes, tipos, config, modo }),
       );
     carregar();
     return aoMudar(carregar);
@@ -95,6 +99,15 @@ export function ProvedorApp({ children }: { children: ReactNode }) {
       nomeCompletoUsuario: (id) => (id && us.get(id)?.nome) || "—",
       nomeEmpresa: (id) => (id && es.get(id)?.nome) || "—",
       fornecedor: (id) => (id ? fs.get(id) : undefined),
+      cliente: (id) => (id ? cad.clientes.find((c) => c.cliente_id === id) : undefined),
+      contraparte: (c) => {
+        if (c.natureza === "Receita") {
+          const cl = c.clienteId ? cad.clientes.find((x) => x.cliente_id === c.clienteId) : undefined;
+          return { papel: "Cliente", nome: cl?.razaoSocial ?? "—", curto: cl?.nomeFantasia || cl?.razaoSocial || "—" };
+        }
+        const f = fs.get(c.fornecedorId);
+        return { papel: "Fornecedor", nome: f?.razaoSocial ?? "—", curto: f?.nomeFantasia || f?.razaoSocial || "—" };
+      },
       nomeTipo: (id) => (id && ts.get(id)?.nome) || "—",
       notificar,
       executar: async (acao, sucesso) => {

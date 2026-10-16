@@ -46,7 +46,11 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/contratos/{id}/saldo` | `obterSaldoContrato` | `{ saldo, pedidos, aportes }`. Saldo calculado (rules/saldo.ts), na moeda do contrato |
 | POST | `/contratos/{id}/pedidos` | `registrarPedido` | **Ponto de integração do módulo de pedidos.** `422` quando o valor passa do disponível: é preciso adicionar saldo antes |
 | POST | `/pedidos/{id}/status` | `atualizarStatusPedido` | Aprovado → Pago (realizado) ou Cancelado (devolve o saldo) |
-| POST | `/contratos/{id}/aportes` | `registrarAporteSaldo` | Adiciona saldo (ex.: aditivo de valor); soma ao contratado, com auditoria |
+| POST | `/contratos/{id}/aditivos` · GET | `registrarAditivo` · `listarAditivos` | **Única forma de mudar valor ou prazo** depois da contratação. Guarda antes/depois; variação de valor total vira saldo. A edição direta (`PATCH /contratos/{id}`) recusa mudança de valor/vigência em contrato com cadastro completo |
+| GET | `/clientes` · PUT `/clientes/{id\|novo}` | `listarClientes` · `salvarCliente` | Cadastro **separado** do de fornecedores. CNPJ obrigatório só para cliente nacional |
+| POST | `/contratos-clientes` | `registrarContratoCliente` | Contrato de receita: cliente, vigência, tipo de receita (fixa, variável, fixa + variável), valores e valores previstos (escalonamento). Renovação/substituição de um ou mais contratos (N → 1), sem alterar os anteriores |
+| POST | `/contratos/{id}/emissoes` | `registrarEmissao` | **Ponto de integração do Contas a receber.** Nota emitida consome o saldo a faturar; `422` acima do saldo (é preciso aditivo). Idempotente pelo número do documento |
+| POST | `/emissoes/{id}/cancelar` | `cancelarEmissao` | Cancelamento vindo do Contas a receber; devolve o saldo |
 | GET | `/licencas` | `listarLicencas` | Licenças, movimentações, atribuições, colaboradores, cotações, parâmetros, orçamentos, linhas e usos. Filtrado por perfil (`visao`: completa, area, agregada) |
 | PUT | `/licencas/{id\|novo}` | `salvarLicenca` | Corpo pode trazer `compraInicial`. `contrato_id` só vincula: **nunca altera o contrato**. Bloqueia anual com vencimento mensal |
 | POST | `/licencas/{id}/movimentacoes` | `registrarMovimentacao` | Compra, Redução, Renegociação, Cancelamento. Grava `valorAnualAntes/Depois` (registro de economia). Cancelamento encerra atribuições |
@@ -78,6 +82,7 @@ As fórmulas estão centralizadas em `src/domain/rules/` e cobertas por testes. 
 - `licencas.ts`: posição de assentos pelas movimentações, câmbio (PTAX × (1 + spread) + IOF só em USD), cobrança por competência, rateio por pessoa, ranking de ofensores (fecha com o total), ganhos e perdas, vencimentos e alertas. Impostos simulados nunca entram nos totais.
 - `importacaoCsv.ts`, `csv.ts`: modelos, leitura no padrão pt-BR, validação linha a linha e plano idempotente.
 - `telefonia.ts`: linhas, uso por pessoa, custos por operadora/pessoa/área e alertas.
+- `receita.ts`, `clientes.ts`: valores contratados de receita (fixo vigente com escalonamento, variável estimado, contrato principal), validação do registro e aplicação de aditivo. O módulo de contratos **não fatura nem mede**: só registra o contratado e o saldo.
 - `saldo.ts`: contratado (valor anual × anos da vigência + aportes; ciclo anual no indeterminado) − pedidos aprovados e pagos − licenças e linhas vinculadas. Bloqueio de pedido acima do saldo e de compra de licença/linha que estoure o saldo; alertas de 80% e 100%. O backend deve validar o saldo na mesma transação que grava o pedido (`SELECT ... FOR UPDATE` no contrato).
 - `avaliacao.ts`, `prazos.ts`: desfecho da avaliação (não renovar nem substituir = **Cancelado**) e revisão anual do prazo indeterminado.
 - **Pré-agregação (FinOps):** o backend mantém `custo_licenca_mensal` (competência × licença × colaborador × tipo) recalculada a cada movimentação/atribuição; o dashboard lê dela. Cotação em cache, 1 carga por dia.

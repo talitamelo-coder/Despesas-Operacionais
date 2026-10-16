@@ -81,7 +81,12 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
 
   if (decidido && !temProcesso) {
     const a = c.avaliacaoRenovacao!;
-    const acao = a.desejaSubstituir === "Sim" ? "Abrir processo de substituição de fornecedor" : "Abrir processo de renovação";
+    const acao =
+      c.natureza === "Receita"
+        ? "Registrar o novo contrato (renovação) com o cliente"
+        : a.desejaSubstituir === "Sim"
+          ? "Abrir processo de substituição de fornecedor"
+          : "Abrir processo de renovação";
     acoes.push({
       id: `${c.contrato_id}:processo`,
       prioridade: prioridadeDosPrazos(prazos, true),
@@ -99,7 +104,10 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
       id: `${c.contrato_id}:saldo`,
       prioridade: saldo.faixa === 100 ? "Crítico" : "Atenção",
       referencia: ref,
-      acao: `Saldo ${Math.round(saldo.percentual)}% consumido — ${saldo.faixa === 100 ? "novos pedidos estão bloqueados: adicionar saldo (aditivo)" : "avaliar aditivo de valor"}`,
+      acao:
+        c.natureza === "Receita"
+          ? `Saldo a faturar ${Math.round(saldo.percentual)}% utilizado — ${saldo.faixa === 100 ? "faturamento bloqueado: registrar aditivo" : "avaliar aditivo ou renovação"}`
+          : `Saldo ${Math.round(saldo.percentual)}% consumido — ${saldo.faixa === 100 ? "novos pedidos estão bloqueados: registrar aditivo de valor" : "avaliar aditivo de valor"}`,
       responsavelId: c.analistaId,
       link: `/contratos/${c.contrato_id}?aba=Financeiro`,
     });

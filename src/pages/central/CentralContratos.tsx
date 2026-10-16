@@ -155,7 +155,7 @@ export function CentralContratos() {
     <>
       <PageHeader
         titulo="Central de Contratos"
-        descricao="Contratos, processos em contratação e ações pendentes em um só lugar."
+        descricao="Contratos de fornecedores, processos em contratação e ações pendentes em um só lugar."
         acoes={
           <>
             <Button variante="secundario" icone={<Download size={16} />} disabled={!dados?.linhas.length} onClick={() => dados && executar(() => salvarArquivo("central-de-contratos.csv", csvDaPagina(dados.linhas)))}>

@@ -4,7 +4,10 @@ import { normalizarBusca, somenteDigitos } from "@/domain/formatacao";
 import { calcularAcoes } from "@/domain/rules/acoes";
 import { desfechoAvaliacao } from "@/domain/rules/avaliacao";
 import { errosVigencia, prazosDoContrato } from "@/domain/rules/prazos";
-import { erroSaldoApos, erroSaldoPedido, faixaAlertaSaldo, saldoDoContrato, type ContextoSaldo } from "@/domain/rules/saldo";
+import { erroSaldoApos, erroSaldoEmissao, erroSaldoPedido, faixaAlertaSaldo, saldoDoContrato, type ContextoSaldo } from "@/domain/rules/saldo";
+import { aplicarAditivoRegistrado, errosContratoReceita, valorAnualReceita } from "@/domain/rules/receita";
+import { validarCliente } from "@/domain/rules/clientes";
+import { camposDeValorAlterados, pendenciasCadastro } from "@/domain/rules/cadastro";
 import { gerarAlertas } from "@/domain/rules/alertas";
 import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
@@ -18,7 +21,7 @@ import { gerarCredencial, nomeDeExibicao, usuarioPublico, validarUsuario } from 
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
-import type { AporteSaldo, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
+import type { AditivoContrato, AporteSaldo, Cliente, EmissaoFaturamento, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
 import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
 import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao } from "../api";
@@ -167,6 +170,7 @@ function contextoImportacao(): ContextoImportacao {
 function contextoSaldo(e: EstadoDados = estado): ContextoSaldo {
   return {
     pedidos: e.pedidosContrato,
+    emissoes: e.emissoesFaturamento,
     aportes: e.aportesSaldo,
     linhas: e.linhasTelefonicas,
     licencas: { licencas: e.licencas, movimentacoes: e.movimentacoesLicenca, atribuicoes: e.atribuicoesLicenca, colaboradores: e.colaboradores, cotacoes: e.cotacoes, parametros: e.parametros },
@@ -175,7 +179,7 @@ function contextoSaldo(e: EstadoDados = estado): ContextoSaldo {
 
 /** Contratos vigentes que têm algo consumindo saldo (pedidos, licenças ou linhas vinculadas). */
 function contratosComConsumo(e: EstadoDados = estado): Contrato[] {
-  const ids = new Set([...e.pedidosContrato.map((p) => p.contrato_id), ...e.licencas.map((l) => l.contrato_id), ...e.linhasTelefonicas.map((l) => l.contrato_id)]);
+  const ids = new Set([...e.pedidosContrato.map((p) => p.contrato_id), ...e.emissoesFaturamento.map((x) => x.contrato_id), ...e.licencas.map((l) => l.contrato_id), ...e.linhasTelefonicas.map((l) => l.contrato_id)]);
   return e.contratos.filter((c) => c.status === "Vigente" && ids.has(c.contrato_id));
 }
 
@@ -460,6 +464,11 @@ export const mockApi: ContratosApi = {
     const novo = { ...c, ...patch, contrato_id: c.contrato_id, codigo: c.codigo, atualizadoEm: agora() };
     const errosVig = errosVigencia(novo.vigencia);
     if (errosVig.length) throw new ErroNegocio(`Todo contrato precisa de vigência. ${errosVig.join(" ")}`);
+    // Valor e prazo só mudam por aditivo; edição direta apenas para completar cadastro importado.
+    const alterados = camposDeValorAlterados(c, novo);
+    const tipoNome = estado.tiposContrato.find((t) => t.id === c.tipoContratoId)?.nome;
+    if (alterados.length && !pendenciasCadastro(c, estado.fornecedores.find((f) => f.fornecedor_id === c.fornecedorId), tipoNome).length)
+      throw new ErroNegocio(`Para alterar ${alterados.join(", ")}, registre um aditivo (ou renegociação/novo contrato).`);
     auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: id, usuarioId: porId, data: agora(), acao: "Contrato alterado" }, () => novoId("a")));
     Object.assign(c, novo);
     persistir();
@@ -494,7 +503,7 @@ export const mockApi: ContratosApi = {
     const tipo: TipoProcesso | undefined =
       desfecho === "Substituição de fornecedor" ? "Substituição de fornecedor" : desfecho === "Renovação" ? "Renovação" : undefined;
     const jaAberto = estado.processos.some((p) => p.contrato_anterior_id === id && processoAtivo(p));
-    if (tipo && !jaAberto) {
+    if (tipo && !jaAberto && c.natureza !== "Receita") {
       processo = { ...processoVazio(tipo, porId), ...herdarDeContrato(c, tipo, () => novoId("pr")) };
       processo.origemOportunidade = "Gestor";
       if (tipo === "Substituição de fornecedor")
@@ -744,6 +753,7 @@ export const mockApi: ContratosApi = {
       saldo: saldoDoContrato(c, contextoSaldo()),
       pedidos: estado.pedidosContrato.filter((p) => p.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
       aportes: estado.aportesSaldo.filter((a) => a.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
+      emissoes: estado.emissoesFaturamento.filter((e) => e.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
     });
   },
   async registrarPedido(p, porId) {
@@ -752,6 +762,7 @@ export const mockApi: ContratosApi = {
     if (!p.numero?.trim()) throw new ErroNegocio("Informe o número do pedido.");
     if (!p.data) throw new ErroNegocio("Informe a data do pedido.");
     if (estado.pedidosContrato.some((x) => x.contrato_id === c.contrato_id && x.numero === p.numero.trim() && x.status !== "Cancelado")) throw new ErroNegocio("Este pedido já está registrado no contrato.");
+    if (c.natureza === "Receita") throw new ErroNegocio("Contrato de cliente não recebe pedidos: o faturamento vem do Contas a receber.");
     const erro = erroSaldoPedido(saldoDoContrato(c, contextoSaldo()), p.valor, c.status);
     if (erro) throw new ErroNegocio(erro);
     const novo: PedidoContrato = { ...p, numero: p.numero.trim(), id: novoId("ped"), status: "Aprovado", origem: "Registro manual", registradoPorId: porId, registradoEm: agora() };
@@ -770,17 +781,128 @@ export const mockApi: ContratosApi = {
     persistir();
     return clone(p);
   },
-  async registrarAporteSaldo(a, porId) {
+  async registrarAditivo(a, porId) {
     exigir(porId, "editar_processo");
     const c = getContrato(a.contrato_id);
-    if (!(a.valor > 0)) throw new ErroNegocio("Informe o valor a adicionar.");
-    if (!a.data) throw new ErroNegocio("Informe a data.");
-    if (!a.motivo?.trim()) throw new ErroNegocio("Informe o motivo (ex.: aditivo de valor).");
-    const novo: AporteSaldo = { ...a, motivo: a.motivo.trim(), id: novoId("apt"), registradoPorId: porId, registradoEm: agora() };
-    estado.aportesSaldo.push(novo);
-    registrar("contrato", c.contrato_id, porId, "Saldo adicionado ao contrato", "saldo", undefined, `${novo.valor} · ${novo.motivo}`);
+    if (c.status !== "Vigente") throw new ErroNegocio(`Contrato ${c.status.toLowerCase()} não recebe aditivo.`);
+    if (estado.aditivosContrato.some((x) => x.contrato_id === c.contrato_id && x.numero.trim().toLowerCase() === a.numero.trim().toLowerCase())) throw new ErroNegocio("Já existe aditivo com este número no contrato.");
+    const r = aplicarAditivoRegistrado(c, a);
+    if (r.erros.length) throw new ErroNegocio(r.erros.join(" "));
+    const errosVig = errosVigencia(r.contrato.vigencia);
+    if (errosVig.length) throw new ErroNegocio(errosVig.join(" "));
+    // Redução de valor não pode deixar o saldo abaixo do que já foi consumido.
+    const aporte: AporteSaldo | undefined = a.variacaoValorTotal
+      ? { id: novoId("apt"), contrato_id: c.contrato_id, data: a.data, valor: a.variacaoValorTotal, motivo: `Aditivo ${a.numero.trim()}`, referencia: a.numero.trim(), registradoPorId: porId, registradoEm: agora() }
+      : undefined;
+    const ctx = contextoSaldo();
+    const depois = saldoDoContrato(r.contrato, { ...ctx, aportes: aporte ? [...ctx.aportes, aporte] : ctx.aportes });
+    if (!depois.indisponivel && depois.disponivel < -0.005) throw new ErroNegocio("O aditivo deixaria o saldo abaixo do que já foi consumido/faturado.");
+    const novo: AditivoContrato = { ...a, numero: a.numero.trim(), id: novoId("adt"), antes: r.antes, depois: r.depois, registradoPorId: porId, registradoEm: agora() };
+    estado.aditivosContrato.push(novo);
+    if (aporte) estado.aportesSaldo.push(aporte);
+    const atualizado = { ...r.contrato, atualizadoEm: agora() };
+    auditar(diffAuditoria(c, atualizado, { entidade: "contrato", entidadeId: c.contrato_id, usuarioId: porId, data: agora(), acao: `Aditivo ${novo.numero} registrado` }, () => novoId("a")));
+    registrar("contrato", c.contrato_id, porId, `Aditivo ${novo.numero} (${novo.tipo})`, "aditivo", r.antes, r.depois);
+    Object.assign(c, atualizado);
     persistir();
     return clone(novo);
+  },
+  async listarAditivos(contratoId) {
+    return clone(estado.aditivosContrato.filter((a) => a.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)));
+  },
+  async listarClientes() {
+    return clone(estado.clientes);
+  },
+  async salvarCliente(c, porId) {
+    exigir(porId, "editar_processo");
+    const erros = validarCliente(c, estado.clientes);
+    if (Object.keys(erros).length) throw new ErroNegocio(Object.values(erros).join(" "));
+    const novo: Cliente = { ...c, razaoSocial: c.razaoSocial.trim(), nomeFantasia: c.nomeFantasia?.trim() ?? "", cnpj: c.estrangeiro ? undefined : c.cnpj && somenteDigitos(c.cnpj) };
+    const i = estado.clientes.findIndex((x) => x.cliente_id === c.cliente_id);
+    if (i >= 0) {
+      auditar(diffAuditoria(estado.clientes[i], novo, { entidade: "configuracao", entidadeId: c.cliente_id, usuarioId: porId, data: agora(), acao: "Cliente alterado" }, () => novoId("a")));
+      estado.clientes[i] = novo;
+    } else {
+      novo.cliente_id = novoId("cl");
+      estado.clientes.push(novo);
+      registrar("configuracao", novo.cliente_id, porId, "Cliente cadastrado", "razaoSocial", undefined, novo.razaoSocial);
+    }
+    persistir();
+    return clone(novo);
+  },
+  async registrarContratoCliente(d, porId) {
+    exigir(porId, "editar_processo");
+    const base: Contrato = {
+      contrato_id: novoId("c"),
+      codigo: codigoNovo("CT", d.vigencia.dataInicio || hoje()),
+      natureza: "Receita",
+      clienteId: d.clienteId,
+      fornecedorId: "",
+      empresaId: d.empresaId,
+      objeto: d.objeto.trim(),
+      tipoContratoId: d.tipoContratoId || estado.tiposContrato[0]?.id || "",
+      gestorId: d.gestorId,
+      analistaId: porId,
+      centroCusto: d.centroCusto,
+      projeto: d.projeto,
+      external_id: d.external_id,
+      status: "Vigente",
+      condicoes: { moeda: d.moeda, valorAnual: valorAnualReceita(d.receita), periodicidadePagamento: "Mensal", condicaoPagamento: "" },
+      vigencia: d.vigencia,
+      reajuste: d.reajuste ?? { possui: false },
+      rescisao: { permite: true, possuiMulta: false },
+      receita: d.receita,
+      observacoes: d.observacoes,
+      execucaoFinanceira: { simulado: true },
+      origens: {},
+      criadoEm: agora(),
+      atualizadoEm: agora(),
+    };
+    const erros = errosContratoReceita(base);
+    if (!estado.clientes.some((c) => c.cliente_id === d.clienteId)) erros.push("Cliente não encontrado.");
+    if (d.receita.contratoPrincipalId && !estado.contratos.some((c) => c.contrato_id === d.receita.contratoPrincipalId && c.natureza === "Receita")) erros.push("Contrato principal não encontrado.");
+    const anteriores = (d.contratosAnterioresIds ?? []).map((id) => getContrato(id));
+    if (anteriores.some((a) => a.natureza !== "Receita")) erros.push("Só contratos de cliente podem ser renovados ou substituídos aqui.");
+    if (anteriores.some((a) => a.sucessor_id)) erros.push("Um dos contratos anteriores já foi renovado ou substituído.");
+    if (erros.length) throw new ErroNegocio(erros.join(" "));
+    if (anteriores.length) {
+      base.contrato_anterior_id = anteriores[0].contrato_id;
+      base.contratosAnterioresIds = anteriores.map((a) => a.contrato_id);
+      base.relacaoAnterior = d.relacaoAnterior ?? "Renovação";
+    }
+    estado.contratos.push(base);
+    registrar("contrato", base.contrato_id, porId, "Contrato de cliente registrado", "status", undefined, "Vigente");
+    // Contratos anteriores: só recebem o vínculo com o novo (nunca são sobrescritos).
+    for (const a of anteriores) {
+      a.sucessor_id = base.contrato_id;
+      a.atualizadoEm = agora();
+      registrar("contrato", a.contrato_id, porId, `${base.relacaoAnterior === "Substituição" ? "Substituído" : "Renovado"} por ${base.codigo}`, "sucessor_id", undefined, base.codigo);
+    }
+    persistir();
+    return clone(base);
+  },
+  async registrarEmissao(e, porId) {
+    exigir(porId, "editar_processo");
+    const c = getContrato(e.contrato_id);
+    if (c.natureza !== "Receita") throw new ErroNegocio("Emissões só existem em contratos de cliente.");
+    if (!e.numeroDocumento?.trim() || !e.data) throw new ErroNegocio("Informe o número do documento e a data.");
+    if (estado.emissoesFaturamento.some((x) => x.contrato_id === c.contrato_id && x.numeroDocumento === e.numeroDocumento.trim() && x.status === "Emitida")) throw new ErroNegocio("Esta emissão já foi registrada (integração idempotente).");
+    const erro = erroSaldoEmissao(saldoDoContrato(c, contextoSaldo()), e.valor, c.status);
+    if (erro) throw new ErroNegocio(erro);
+    const novo: EmissaoFaturamento = { ...e, numeroDocumento: e.numeroDocumento.trim(), id: novoId("nf"), status: "Emitida", origem: "Contas a receber", registradoEm: agora() };
+    estado.emissoesFaturamento.push(novo);
+    registrar("contrato", c.contrato_id, porId, `Emissão ${novo.numeroDocumento} recebida do Contas a receber`, "saldo", undefined, String(novo.valor));
+    persistir();
+    return clone(novo);
+  },
+  async cancelarEmissao(id, porId) {
+    exigir(porId, "editar_processo");
+    const e = estado.emissoesFaturamento.find((x) => x.id === id);
+    if (!e || e.status !== "Emitida") throw new ErroNegocio("Emissão não encontrada.");
+    e.status = "Cancelada";
+    registrar("contrato", e.contrato_id, porId, `Emissão ${e.numeroDocumento} cancelada no Contas a receber`, "saldo", String(e.valor), "0");
+    persistir();
+    return clone(e);
   },
 
   // ---------------------------------------------------------------- Licenças e telefonia (não alteram contratos)

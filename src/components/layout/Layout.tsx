@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, Smartphone, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
+import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, Smartphone, Handshake, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { useConsulta } from "@/hooks/useConsulta";
@@ -12,7 +12,8 @@ import { nomeDeExibicao } from "@/domain/rules/usuario";
 
 const MENU = [
   { para: "/", rotulo: "Dashboard", icone: LayoutDashboard, fim: true },
-  { para: "/contratos", rotulo: "Central de Contratos", icone: FolderKanban },
+  { para: "/contratos", rotulo: "Contratos de fornecedores", icone: FolderKanban },
+  { para: "/clientes", rotulo: "Contratos de clientes", icone: Handshake },
   { para: "/processos/novo", rotulo: "Novo Processo", icone: FilePlus2 },
   { para: "/acoes", rotulo: "Ações Necessárias", icone: ListChecks, contador: true },
   { para: "/documentos", rotulo: "Documentos", icone: FileText },

@@ -1,7 +1,8 @@
 import { addMeses, diffDias, hoje } from "../datas";
 import { cotacaoNaData, competenciaDe, parcelasDoPeriodo, type DadosCusto } from "./licencas";
 import { proximaRevisaoAnual, ultimaRevisao } from "./prazos";
-import type { AporteSaldo, Contrato, ISODate, LinhaTelefonica, Moeda, PedidoContrato } from "../types";
+import { fixoNoPeriodo } from "./receita";
+import type { AporteSaldo, Contrato, EmissaoFaturamento, ISODate, LinhaTelefonica, Moeda, PedidoContrato } from "../types";
 
 /**
  * Saldo do contrato — ÚNICA fonte deste cálculo. Fica no CONTRATO (não no fornecedor).
@@ -54,6 +55,8 @@ export function mesesDaLinha(l: Pick<LinhaTelefonica, "situacao" | "criadoEm" | 
 
 export interface ContextoSaldo {
   pedidos: PedidoContrato[];
+  /** Contratos de receita: emissões vindas de Contas a receber. */
+  emissoes?: EmissaoFaturamento[];
   aportes: AporteSaldo[];
   licencas: DadosCusto;
   linhas: LinhaTelefonica[];
@@ -89,6 +92,7 @@ export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo, referencia: ISO
   const vazio = { moeda, periodo, contratadoBase: 0, aportes: 0, contratado: 0, comprometido: 0, realizado: 0, licencas: 0, linhas: 0, consumido: 0, disponivel: 0, percentualConsumido: 0 };
   if (!periodo) return { ...vazio, indisponivel: "Informe a vigência do contrato para calcular o saldo." };
 
+  if (c.natureza === "Receita") return saldoReceita(c, ctx, periodo, vazio);
   const contratadoBase = (c.condicoes.valorAnual ?? 0) * anosDoPeriodo(periodo);
   const aportes = ctx.aportes.filter((a) => a.contrato_id === c.contrato_id && (c.vigencia.tipoVigencia !== "Prazo indeterminado" || dentro(a.data, periodo))).reduce((s, a) => s + a.valor, 0);
   const pedidos = ctx.pedidos.filter((p) => p.contrato_id === c.contrato_id && p.status !== "Cancelado" && (c.vigencia.tipoVigencia !== "Prazo indeterminado" || dentro(p.data, periodo)));
@@ -127,6 +131,41 @@ export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo, referencia: ISO
     disponivel: contratado - consumido,
     percentualConsumido: contratado ? (consumido / contratado) * 100 : 0,
   };
+}
+
+/**
+ * Saldo a faturar (contrato de cliente): valor total contratado (ou fixo × meses da vigência, com
+ * escalonamento) + aditivos − notas emitidas pelo Contas a receber.
+ */
+function saldoReceita(c: Contrato, ctx: ContextoSaldo, periodo: PeriodoSaldo, vazio: SaldoContrato): SaldoContrato {
+  const r = c.receita;
+  if (!r) return { ...vazio, indisponivel: "Contrato sem valores contratados." };
+  if (r.contratoPrincipalId) return { ...vazio, indisponivel: "Receita apurada no contrato principal: o saldo fica lá." };
+  const contratadoBase = r.valorTotalContratado ?? (r.tipoReceita === "Variável" ? 0 : fixoNoPeriodo(r, periodo.inicio, periodo.fim));
+  const indeterminado = c.vigencia.tipoVigencia === "Prazo indeterminado";
+  const aportes = ctx.aportes.filter((a) => a.contrato_id === c.contrato_id && (!indeterminado || dentro(a.data, periodo))).reduce((s, a) => s + a.valor, 0);
+  const emitido = (ctx.emissoes ?? []).filter((e) => e.contrato_id === c.contrato_id && e.status === "Emitida" && (!indeterminado || dentro(e.data, periodo))).reduce((s, e) => s + e.valor, 0);
+  const contratado = contratadoBase + aportes;
+  return {
+    ...vazio,
+    indisponivel: contratado > 0 ? undefined : "Contrato variável sem valor total: não há saldo a faturar; acompanhe pela estimativa mensal.",
+    contratadoBase,
+    aportes,
+    contratado,
+    realizado: emitido,
+    consumido: emitido,
+    disponivel: contratado - emitido,
+    percentualConsumido: contratado ? (emitido / contratado) * 100 : 0,
+  };
+}
+
+/** Integração Contas a receber: emissão acima do saldo a faturar é recusada (precisa de aditivo). */
+export function erroSaldoEmissao(s: SaldoContrato, valor: number, status: Contrato["status"]): string | undefined {
+  if (status !== "Vigente") return `Contrato ${status.toLowerCase()} não aceita faturamento.`;
+  if (!(valor > 0)) return "Informe o valor da emissão.";
+  if (s.indisponivel) return undefined; // variável sem valor total: sem limite de saldo
+  if (valor > s.disponivel + 0.005) return `Emissão acima do saldo a faturar (disponível ${fmt(s.disponivel, s.moeda)}). É preciso registrar um aditivo no contrato.`;
+  return undefined;
 }
 
 /** Bloqueio: o pedido só entra se couber no disponível. Devolve a mensagem de bloqueio. */

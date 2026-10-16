@@ -40,7 +40,8 @@ describe("renovação", () => {
   it("não salva contrato sem vigência", async () => {
     const c = await api.obterContrato("c-aval-aberta");
     await expect(api.atualizarContrato("c-aval-aberta", { vigencia: { ...c!.vigencia, dataFim: "" } }, "u-admin")).rejects.toThrow(/vigência/);
-    await api.atualizarContrato("c-aval-aberta", { vigencia: { ...c!.vigencia, dataFim: "", tipoVigencia: "Prazo indeterminado" } }, "u-admin");
+    // Contrato completo: prazo só muda por aditivo.
+    await expect(api.atualizarContrato("c-aval-aberta", { vigencia: { ...c!.vigencia, dataFim: "", tipoVigencia: "Prazo indeterminado" } }, "u-admin")).rejects.toThrow(/aditivo/);
   });
 
   it("só o gestor do contrato responde", async () => {
@@ -293,7 +294,7 @@ describe("saldo do contrato", () => {
     expect(saldo.percentualConsumido).toBeGreaterThan(80);
     const acima = Math.ceil(saldo.disponivel) + 1000;
     await expect(api.registrarPedido({ contrato_id: "c-eixo", numero: "PED-T1", data: H, valor: acima }, "u-sup1")).rejects.toThrow(/Saldo insuficiente/);
-    await api.registrarAporteSaldo({ contrato_id: "c-eixo", data: H, valor: 2000, motivo: "Aditivo de valor" }, "u-sup1");
+    await api.registrarAditivo({ contrato_id: "c-eixo", numero: "1º Aditivo", data: H, tipo: "Valor", descricao: "Aditivo de valor", variacaoValorTotal: 2000 }, "u-sup1");
     const p = await api.registrarPedido({ contrato_id: "c-eixo", numero: "PED-T1", data: H, valor: acima }, "u-sup1");
     const depois = (await api.obterSaldoContrato("c-eixo", "u-sup1")).saldo.disponivel;
     await api.atualizarStatusPedido(p.id, "Cancelado", "u-sup1");
@@ -306,6 +307,44 @@ describe("saldo do contrato", () => {
     await expect(api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 100000, precoUnitario: 30, responsavel: "Teste" }, "u-sup1")).rejects.toThrow(/Saldo insuficiente no contrato/);
     expect((await api.listarLicencas("u-sup1")).movimentacoes.length).toBe(antes.movimentacoes.length);
     await api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 1, precoUnitario: 30, responsavel: "Teste" }, "u-sup1");
+  });
+});
+
+describe("contratos de clientes (receita)", () => {
+  const H = new Date().toISOString().slice(0, 10);
+
+  it("registra com cliente próprio, fica fora da Central de fornecedores e renova sem alterar o anterior", async () => {
+    const cli = await api.salvarCliente({ cliente_id: "", razaoSocial: "Cliente Novo S.A.", nomeFantasia: "", cnpj: "11.222.333/0001-81", statusCadastral: "Ativo" }, "u-sup1");
+    await expect(api.salvarCliente({ cliente_id: "", razaoSocial: "Sem CNPJ", nomeFantasia: "", statusCadastral: "Ativo" }, "u-sup1")).rejects.toThrow(/CNPJ/);
+    const antes = await api.obterContrato("r-fibra");
+    const novo = await api.registrarContratoCliente(
+      { empresaId: "e-tel", clienteId: cli.cliente_id, objeto: "Squad fibra — renovação", gestorId: "u-ges1", moeda: "BRL", vigencia: { dataInicio: H, dataFim: "2027-12-31", tipoVigencia: "Prazo determinado", avisoPrevioDias: 60, renovacaoAutomatica: false, prazoGestorDias: 30 }, receita: { tipoReceita: "Fixa", valorMensalFixo: 75000 }, contratosAnterioresIds: ["r-fibra"], relacaoAnterior: "Renovação" },
+      "u-sup1",
+    );
+    expect(novo.natureza).toBe("Receita");
+    const anterior = await api.obterContrato("r-fibra");
+    expect(anterior?.sucessor_id).toBe(novo.contrato_id);
+    expect({ ...anterior, sucessor_id: undefined, atualizadoEm: "" }).toEqual({ ...antes, sucessor_id: undefined, atualizadoEm: "" });
+    const central = await api.consultarCentral({ aba: "Todos" }, { coluna: "codigo", direcao: "asc" }, 0, 500);
+    expect(central.linhas.some((l) => l.id === novo.contrato_id)).toBe(false);
+    await expect(api.registrarPedido({ contrato_id: novo.contrato_id, numero: "P1", data: H, valor: 10 }, "u-sup1")).rejects.toThrow(/Contas a receber/);
+  });
+
+  it("emissão do Contas a receber consome o saldo e é bloqueada acima dele; aditivo libera", async () => {
+    const { saldo } = await api.obterSaldoContrato("r-vas", "u-sup1");
+    const acima = Math.ceil(saldo.disponivel) + 10;
+    await expect(api.registrarEmissao({ contrato_id: "r-vas", numeroDocumento: "NF 1", data: H, valor: acima }, "u-sup1")).rejects.toThrow(/aditivo/);
+    await api.registrarAditivo({ contrato_id: "r-vas", numero: "2º Aditivo", data: H, tipo: "Valor", descricao: "Ampliação", variacaoValorTotal: 100 }, "u-sup1");
+    await api.registrarEmissao({ contrato_id: "r-vas", numeroDocumento: "NF 1", data: H, valor: acima }, "u-sup1");
+    await expect(api.registrarEmissao({ contrato_id: "r-vas", numeroDocumento: "NF 1", data: H, valor: 1 }, "u-sup1")).rejects.toThrow(/já foi registrada/);
+    expect((await api.listarAditivos("r-vas"))[0].numero).toBe("2º Aditivo");
+  });
+
+  it("valor só muda por aditivo (edição direta bloqueada em contrato completo)", async () => {
+    const c = (await api.obterContrato("r-wifi"))!;
+    await expect(api.atualizarContrato("r-wifi", { receita: { ...c.receita!, valorMensalFixo: 1 } }, "u-sup1")).rejects.toThrow(/aditivo/);
+    await api.registrarAditivo({ contrato_id: "r-wifi", numero: "2º Aditivo", data: H, tipo: "Prazo", descricao: "Prorrogação", novaDataFim: "2029-12-31" }, "u-sup1");
+    expect((await api.obterContrato("r-wifi"))!.vigencia.dataFim).toBe("2029-12-31");
   });
 });
 

@@ -61,6 +61,14 @@ Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem 
 
 Menu próprio, separado das licenças. Linha com número, operadora, plano, franquia, valor mensal (BRL) e situação; uma pessoa por vez, com histórico. Dashboard por pessoa, área e operadora, e alertas de linha sem usuário ou de pessoa desligada com linha.
 
+### Papel do módulo de contratos
+
+Três funções: **registro do contrato, saldo e valores contratados**. Pedidos, Contas a pagar e Contas a receber fazem o resto, respeitando o que foi contratado. Depois da contratação, valor e prazo só mudam por **aditivo**, renegociação ou novo contrato: a edição direta fica liberada apenas para completar cadastro importado.
+
+### Contratos de clientes
+
+Menu **Contratos de clientes**, com cadastro de **clientes separado** do de fornecedores (cliente no exterior sem CNPJ). Registra cliente, vigência (ou prazo indeterminado com revisão anual), tipo de receita (fixa, variável ou fixa + variável), valores previstos no contrato (ex.: "a partir de 11/2026, R$ X/mês"), contrato principal (receita apurada em outro contrato) e renovação/substituição de um ou mais contratos. O **saldo a faturar** é consumido pelas notas emitidas que chegam do Contas a receber (porta de integração pronta; nada de faturamento é feito aqui). A Central de Contratos e o Dashboard ficam com os contratos de fornecedores.
+
 ### Saldo do contrato
 
 O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos − licenças e linhas vinculadas. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Compras de licenças e linhas vinculadas também consomem o saldo e são bloqueadas se não couberem. Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.

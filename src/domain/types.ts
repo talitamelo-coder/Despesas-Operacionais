@@ -83,6 +83,28 @@ export interface Pix {
   chave?: string;
 }
 
+/** Cliente: cadastro separado do de fornecedores. Contratos de receita referenciam o cliente. */
+export interface Cliente {
+  cliente_id: string;
+  razaoSocial: string;
+  nomeFantasia: string;
+  cnpj?: string;
+  /** No exterior: dispensa CNPJ; país obrigatório. */
+  estrangeiro?: boolean;
+  pais?: string;
+  identificacaoFiscalExterior?: string;
+  /** Código do cliente no módulo de Contas a receber (integração). */
+  codigoCliente?: string;
+  email?: string;
+  telefone?: string;
+  contato?: string;
+  endereco?: string;
+  cidade?: string;
+  uf?: string;
+  cep?: string;
+  statusCadastral: "Ativo" | "Inativo";
+}
+
 export interface Fornecedor {
   fornecedor_id: string;
   external_id?: string; // código no sistema atual
@@ -410,7 +432,16 @@ export interface Contrato {
   jira_key?: string;
 
   empresaId: string;
+  /** Despesa (padrão): contrato com fornecedor. Receita: contrato com cliente. */
+  natureza?: NaturezaContrato;
+  /** Vazio em contratos de receita. */
   fornecedorId: string;
+  /** Contratos de receita. */
+  clienteId?: string;
+  /** Contratos de receita: valores contratados (só mudam por aditivo). */
+  receita?: ValoresReceita;
+  /** Substituição de vários contratos por um (N → 1). */
+  contratosAnterioresIds?: string[];
   objeto: string;
   tipoContratoId: string;
   gestorId: string;
@@ -538,6 +569,68 @@ export interface Configuracao {
   origensSaving: OrigemSaving[];
   origensOportunidade: OrigemOportunidade[];
   listasAuxiliares: Record<string, string[]>;
+}
+
+// ---------------------------------------------------------------- Contratos de receita (clientes)
+
+export type NaturezaContrato = "Despesa" | "Receita";
+export type TipoReceita = "Fixa" | "Variável" | "Fixa + variável";
+
+/** Mudança de valor JÁ PREVISTA no contrato (ex.: "a partir de 11/2026, R$ X/mês"). */
+export interface EscalonamentoReceita {
+  aPartirDe: ISODate;
+  valorMensalFixo: number;
+}
+
+export interface ValoresReceita {
+  tipoReceita: TipoReceita;
+  /** Parte fixa mensal (Fixa e Fixa + variável). */
+  valorMensalFixo?: number;
+  /** Parte variável: estimativa mensal (a medição é feita pelo Contas a receber). */
+  valorMensalVariavelEstimado?: number;
+  /** Valor global do contrato, quando houver. Sem ele, o saldo vem do fixo × meses da vigência. */
+  valorTotalContratado?: number;
+  escalonamento?: EscalonamentoReceita[];
+  /** Receita apurada em outro contrato (contrato principal / guarda-chuva). */
+  contratoPrincipalId?: string;
+}
+
+/**
+ * Aditivo registrado no contrato: a única forma de mudar valor ou prazo depois da contratação.
+ * Guarda antes/depois; nada é sobrescrito sem histórico.
+ */
+export type TipoAditivo = "Valor" | "Prazo" | "Valor e prazo" | "Escopo" | "Renegociação";
+
+export interface AditivoContrato {
+  id: string;
+  contrato_id: string;
+  numero: string;
+  data: ISODate;
+  tipo: TipoAditivo;
+  descricao: string;
+  /** Acréscimo (positivo) ou redução (negativo) do valor total contratado / saldo. */
+  variacaoValorTotal?: number;
+  /** Receita: novo valor mensal fixo a partir de `aPartirDe`. Despesa: novo valor anual. */
+  novoValorMensalFixo?: number;
+  novoValorAnual?: number;
+  aPartirDe?: ISODate;
+  novaDataFim?: ISODate;
+  antes: string;
+  depois: string;
+  registradoPorId: string;
+  registradoEm: ISODateTime;
+}
+
+/** Nota/emissão de faturamento: vem do módulo de Contas a receber (integração). Consome o saldo a faturar. */
+export interface EmissaoFaturamento {
+  id: string;
+  contrato_id: string;
+  numeroDocumento: string;
+  data: ISODate;
+  valor: number;
+  status: "Emitida" | "Cancelada";
+  origem: "Contas a receber" | "Integração simulada";
+  registradoEm: ISODateTime;
 }
 
 // ---------------------------------------------------------------- Saldo do contrato

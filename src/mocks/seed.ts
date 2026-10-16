@@ -6,7 +6,11 @@ import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
 import { aplicarMovimentacao, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import { saldoDoContrato } from "@/domain/rules/saldo";
+import { valorAnualReceita } from "@/domain/rules/receita";
 import type {
+  AditivoContrato,
+  Cliente,
+  EmissaoFaturamento,
   AporteSaldo,
   PedidoContrato,
   AtribuicaoLicenca,
@@ -62,6 +66,11 @@ export interface EstadoDados {
   // Saldo do contrato
   pedidosContrato: PedidoContrato[];
   aportesSaldo: AporteSaldo[];
+  // Clientes e contratos de receita
+  clientes: Cliente[];
+  aditivosContrato: AditivoContrato[];
+  /** Notas emitidas: chegam do Contas a receber (integração). */
+  emissoesFaturamento: EmissaoFaturamento[];
 }
 
 export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLicenca", "atribuicoesLicenca", "cotacoes", "parametros", "orcamentosFornecedor", "linhasTelefonicas", "usosLinha"] as const;
@@ -77,12 +86,15 @@ export function completarEstado(e: EstadoDados): EstadoDados {
   const legado = Array.isArray(_p);
   for (const k of COLECOES_LICENCAS) (r as unknown as Record<string, unknown[]>)[k] = legado && k === "colaboradores" ? [] : ((e as unknown as Record<string, unknown[]>)[k] ?? []);
   r.pedidosContrato = e.pedidosContrato ?? [];
+  r.clientes = e.clientes ?? [];
+  r.aditivosContrato = e.aditivosContrato ?? [];
+  r.emissoesFaturamento = e.emissoesFaturamento ?? [];
   r.aportesSaldo = e.aportesSaldo ?? [];
   r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
   return r;
 }
 
-export const VERSAO_SEED = 3;
+export const VERSAO_SEED = 4;
 
 // PRNG determinístico (mulberry32) — mesmos dados a cada geração.
 function prng(seed: number) {
@@ -793,12 +805,50 @@ export function criarEstadoInicial(): EstadoDados {
   consumir("c-eixo", [[0.3, "Pago"], [0.3, "Pago"], [0.27, "Aprovado"]]); // 87% consumido: alerta de saldo
   consumir("c-usd", [[0.15, "Pago"], [0.1, "Aprovado"]]);
 
+  // ------------------------------------------------------------ Contratos de clientes (receita) — fictícios
+  const clientes: Cliente[] = [
+    { cliente_id: "cl-alfa", razaoSocial: "Operadora Alfa S.A.", nomeFantasia: "Alfa", cnpj: cnpjFicticio("70100001"), codigoCliente: "CR-1001", statusCadastral: "Ativo" },
+    { cliente_id: "cl-beta", razaoSocial: "Rede Beta Telecom Ltda", nomeFantasia: "Beta", cnpj: cnpjFicticio("70100002"), codigoCliente: "CR-1002", statusCadastral: "Ativo" },
+    { cliente_id: "cl-gama", razaoSocial: "Gama Mídia Digital Ltda", nomeFantasia: "Gama Mídia", cnpj: cnpjFicticio("70100003"), statusCadastral: "Ativo" },
+    { cliente_id: "cl-delta", razaoSocial: "Delta Global Inc.", nomeFantasia: "Delta", estrangeiro: true, pais: "Estados Unidos", identificacaoFiscalExterior: "EIN 00-0000000", statusCadastral: "Ativo" },
+  ];
+  const receita = (id: string, clienteId: string, objeto: string, gestorId: string, ini: number, fim: number | undefined, r: Contrato["receita"], extra: Partial<Contrato> = {}) =>
+    contrato({
+      contrato_id: id, natureza: "Receita", clienteId, fornecedorId: "", empresaId: "e-tel", objeto, tipoContratoId: "t-tel", gestorId, analistaId: "u-sup1", status: "Vigente",
+      condicoes: { moeda: "BRL", valorAnual: valorAnualReceita(r!), periodicidadePagamento: "Mensal", condicaoPagamento: "30 dias após emissão" },
+      vigencia: { dataInicio: addDias(H, ini), dataFim: fim === undefined ? "" : addDias(H, fim), tipoVigencia: fim === undefined ? "Prazo indeterminado" : "Prazo determinado", avisoPrevioDias: 60, renovacaoAutomatica: false, prazoGestorDias: 30 },
+      reajuste: { possui: true, indice: "IPCA", periodicidadeMeses: 12 }, rescisao: { permite: true, possuiMulta: false },
+      receita: r, execucaoFinanceira: { simulado: true }, ...extra,
+    });
+  receita("r-wifi", "cl-alfa", "Plataforma WiFi gerenciada — operação nacional", "u-ges1", -500, 230, { tipoReceita: "Fixa", valorMensalFixo: 280000, escalonamento: [{ aPartirDe: addDias(H, 45), valorMensalFixo: 265000 }] });
+  receita("r-vas", "cl-alfa", "Serviços de valor agregado (SVA)", "u-ges1", -300, 430, { tipoReceita: "Fixa + variável", valorMensalFixo: 150000, valorMensalVariavelEstimado: 40000, valorTotalContratado: 4800000 });
+  receita("r-ads", "cl-gama", "Data Ads Apps — receita de mídia (contrato principal)", "u-ges4", -200, undefined, { tipoReceita: "Variável", valorMensalVariavelEstimado: 120000 });
+  receita("r-ads-2", "cl-beta", "Mídia em aplicativos (apurada no Data Ads Apps)", "u-ges4", -150, undefined, { tipoReceita: "Variável", contratoPrincipalId: "r-ads" });
+  receita("r-fibra", "cl-beta", "Squad de desenvolvimento — fibra", "u-ges1", -380, -10, { tipoReceita: "Fixa", valorMensalFixo: 70000 }); // vencido: receita em risco
+  receita("r-delta", "cl-delta", "Licenciamento de plataforma (exterior)", "u-ges1", -100, 600, { tipoReceita: "Fixa", valorMensalFixo: 15000 }, { condicoes: { moeda: "USD", valorAnual: 180000, periodicidadePagamento: "Mensal", condicaoPagamento: "45 dias", cotacao: { valor: 5.4, data: H, fonte: "PTAX" } } });
+  const emissoesFaturamento: EmissaoFaturamento[] = [];
+  const emitir = (contrato_id: string, meses: number, valor: number) => {
+    for (let i = 0; i < meses; i++) emissoesFaturamento.push({ id: `nf-${contrato_id}-${i}`, contrato_id, numeroDocumento: `NF ${20000 + emissoesFaturamento.length}`, data: addDias(H, -30 * (meses - i)), valor, status: "Emitida", origem: "Integração simulada", registradoEm: agora });
+  };
+  emitir("r-wifi", 16, 280000);
+  emitir("r-vas", 9, 185000);
+  emitir("r-ads", 6, 118000);
+  emitir("r-fibra", 12, 70000);
+  emitir("r-delta", 3, 15000);
+  const aditivosContrato: AditivoContrato[] = [
+    { id: "adt-1", contrato_id: "r-wifi", numero: "1º Aditivo", data: addDias(H, -20), tipo: "Valor", descricao: "Redução do valor mensal a partir do próximo ciclo (renegociação de escopo)", novoValorMensalFixo: 265000, aPartirDe: addDias(H, 45), antes: "fixo 280000/mês", depois: `fixo 265000/mês a partir de ${addDias(H, 45)}`, registradoPorId: "u-sup1", registradoEm: agora },
+  ];
+
+
   return {
     versao: VERSAO_SEED,
     modo: "demonstracao",
     ...licencas,
     pedidosContrato,
     aportesSaldo,
+    clientes,
+    aditivosContrato,
+    emissoesFaturamento,
     usuarios: USUARIOS,
     empresas: EMPRESAS,
     fornecedores: fornecedores(),
@@ -865,6 +915,9 @@ export function criarEstadoVazio(admin: { nome: string; email: string }): Estado
     usosLinha: [],
     pedidosContrato: [],
     aportesSaldo: [],
+    clientes: [],
+    aditivosContrato: [],
+    emissoesFaturamento: [],
     configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
 }

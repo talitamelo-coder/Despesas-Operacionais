@@ -4,7 +4,14 @@ import type { Indicadores } from "@/domain/rules/indicadores";
 import type { RegistroImportado } from "@/domain/rules/importacao";
 import type { LinhaPrevia, TipoImportacao } from "@/domain/rules/importacaoCsv";
 import type { SaldoContrato } from "@/domain/rules/saldo";
+import type { NovoAditivo } from "@/domain/rules/receita";
 import type {
+  AditivoContrato,
+  Cliente,
+  EmissaoFaturamento,
+  Reajuste,
+  ValoresReceita,
+  Vigencia,
   AporteSaldo,
   PedidoContrato,
   StatusPedido,
@@ -193,8 +200,23 @@ export interface ContratosApi {
   registrarPedido(p: NovoPedido, porId: string): Promise<PedidoContrato>;
   /** Aprovado → Pago, ou Aprovado → Cancelado (libera o saldo). */
   atualizarStatusPedido(id: string, status: Exclude<StatusPedido, "Aprovado">, porId: string): Promise<PedidoContrato>;
-  /** Adiciona saldo ao contrato (ex.: aditivo de valor). Nunca sobrescreve: soma ao contratado. */
-  registrarAporteSaldo(a: NovoAporte, porId: string): Promise<AporteSaldo>;
+  /**
+   * Única forma de mudar valor ou prazo depois da contratação (fornecedor ou cliente).
+   * Variação do valor total vira saldo; novo valor mensal (cliente) entra como escalonamento.
+   */
+  registrarAditivo(a: NovoAditivo, porId: string): Promise<AditivoContrato>;
+  listarAditivos(contratoId: string): Promise<AditivoContrato[]>;
+
+  // Clientes e contratos de receita (cadastro separado do de fornecedores)
+  listarClientes(): Promise<Cliente[]>;
+  salvarCliente(c: Cliente, porId: string): Promise<Cliente>;
+  registrarContratoCliente(c: NovoContratoCliente, porId: string): Promise<Contrato>;
+  /**
+   * Ponto de integração do Contas a receber: nota emitida consome o saldo a faturar.
+   * Recusada (422) quando passa do saldo: é preciso aditivo.
+   */
+  registrarEmissao(e: NovaEmissao, porId: string): Promise<EmissaoFaturamento>;
+  cancelarEmissao(id: string, porId: string): Promise<EmissaoFaturamento>;
 
   // Licenças de software e telefonia (só referenciam contratos; nunca os alteram).
   /** Dados já filtrados pelo perfil: Gestor recebe só a própria área; Leitura recebe pessoas sem nome/e-mail. */
@@ -237,10 +259,32 @@ export interface DadosSaldo {
   saldo: SaldoContrato;
   pedidos: PedidoContrato[];
   aportes: AporteSaldo[];
+  emissoes: EmissaoFaturamento[];
+}
+
+export type NovaEmissao = Pick<EmissaoFaturamento, "contrato_id" | "numeroDocumento" | "data" | "valor">;
+
+export interface NovoContratoCliente {
+  empresaId: string;
+  clienteId: string;
+  objeto: string;
+  gestorId: string;
+  tipoContratoId?: string;
+  centroCusto?: string;
+  projeto?: string;
+  external_id?: string;
+  moeda: Moeda;
+  vigencia: Vigencia;
+  reajuste?: Reajuste;
+  receita: ValoresReceita;
+  /** Renovação ou substituição de um ou mais contratos anteriores (nunca alterados). */
+  contratosAnterioresIds?: string[];
+  relacaoAnterior?: "Renovação" | "Substituição";
+  observacoes?: string;
 }
 
 export type NovoPedido = Pick<PedidoContrato, "contrato_id" | "numero" | "data" | "valor" | "descricao">;
-export type NovoAporte = Pick<AporteSaldo, "contrato_id" | "data" | "valor" | "motivo" | "referencia">;
+export type { NovoAditivo } from "@/domain/rules/receita";
 
 // ---------------------------------------------------------------- Licenças e telefonia
 

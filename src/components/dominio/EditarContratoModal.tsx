@@ -1,3 +1,4 @@
+import { pendenciasCadastro } from "@/domain/rules/cadastro";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useOpcoes } from "@/app/contexto";
 import { Button } from "@/components/ui/Button";
@@ -22,7 +23,10 @@ function Secao({ titulo, children }: { titulo: string; children: ReactNode }) {
  * Toda alteração é registrada na auditoria, campo a campo.
  */
 export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: Contrato; aberto: boolean; onFechar: () => void }) {
-  const { usuario, executar, nomeUsuario } = useApp();
+  const { usuario, executar, nomeUsuario, fornecedor, nomeTipo, contraparte } = useApp();
+  // Valor e prazo só mudam por aditivo; edição direta apenas para completar cadastro importado.
+  const travado = pendenciasCadastro(contrato, fornecedor(contrato.fornecedorId), nomeTipo(contrato.tipoContratoId)).length === 0;
+  const receita = contrato.natureza === "Receita";
   const op = useOpcoes();
   const [c, setC] = useState<Contrato>(contrato);
   const [revisado, setRevisado] = useState(false);
@@ -75,9 +79,19 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
           </Aviso>
         )}
 
+        {travado && (
+          <Aviso tom="info" titulo="Valor e prazo travados">
+            Este contrato está com o cadastro completo: valor, moeda e vigência só mudam por aditivo, renegociação ou novo contrato (aba Renovações &amp; Aditivos).
+          </Aviso>
+        )}
+
         <Secao titulo="Dados gerais">
           <Select rotulo="Empresa" obrigatorio vazio={false} opcoes={op.empresas} value={c.empresaId} onChange={(e) => set({ empresaId: e.target.value })} />
-          <Select rotulo="Fornecedor" obrigatorio vazio={false} className="md:col-span-2" opcoes={op.fornecedores} value={c.fornecedorId} onChange={(e) => set({ fornecedorId: e.target.value })} />
+          {receita ? (
+            <Input rotulo="Cliente" className="md:col-span-2" disabled value={contraparte(c).nome} onChange={() => undefined} />
+          ) : (
+            <Select rotulo="Fornecedor" obrigatorio vazio={false} className="md:col-span-2" opcoes={op.fornecedores} value={c.fornecedorId} onChange={(e) => set({ fornecedorId: e.target.value })} />
+          )}
           <Textarea rotulo="Objeto" obrigatorio className="md:col-span-3" value={c.objeto} onChange={(e) => set({ objeto: e.target.value })} />
           <Select rotulo="Tipo de contrato" vazio={false} opcoes={op.tipos} value={c.tipoContratoId} onChange={(e) => set({ tipoContratoId: e.target.value })} />
           <Input rotulo="Centro de custo" value={c.centroCusto ?? ""} onChange={(e) => set({ centroCusto: e.target.value || undefined })} />
@@ -87,9 +101,9 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
           <Select rotulo="Analista de Suprimentos" vazio={false} opcoes={comAtual(op.analistas, c.analistaId)} value={c.analistaId} onChange={(e) => set({ analistaId: e.target.value })} />
         </Secao>
 
-        <Secao titulo="Condições comerciais">
-          <Select rotulo="Moeda" vazio={false} opcoes={op.moedas} value={c.condicoes.moeda} onChange={(e) => cond({ moeda: e.target.value as Moeda })} />
-          <InputNumero rotulo={`Valor anual (${c.condicoes.moeda})`} obrigatorio valor={c.condicoes.valorAnual || undefined} onValor={(v) => cond({ valorAnual: v ?? 0 })} />
+        {!receita && <Secao titulo="Condições comerciais">
+          <Select rotulo="Moeda" vazio={false} disabled={travado} opcoes={op.moedas} value={c.condicoes.moeda} onChange={(e) => cond({ moeda: e.target.value as Moeda })} />
+          <InputNumero rotulo={`Valor anual (${c.condicoes.moeda})`} obrigatorio disabled={travado} valor={c.condicoes.valorAnual || undefined} onValor={(v) => cond({ valorAnual: v ?? 0 })} />
           <Select rotulo="Periodicidade de pagamento" vazio={false} opcoes={op.periodicidades} value={c.condicoes.periodicidadePagamento} onChange={(e) => cond({ periodicidadePagamento: e.target.value as Periodicidade })} />
           <InputNumero rotulo="Quantidade" valor={c.condicoes.quantidade} onValor={(v) => cond({ quantidade: v })} />
           <Input rotulo="Unidade" placeholder="licenças, meses, postos…" value={c.condicoes.unidade ?? ""} onChange={(e) => cond({ unidade: e.target.value || undefined })} />
@@ -101,15 +115,15 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
               <Select rotulo="Fonte" vazio={false} opcoes={op.fontesCotacao} value={c.condicoes.cotacao?.fonte ?? "PTAX"} onChange={(e) => c.condicoes.cotacao && cond({ cotacao: { ...c.condicoes.cotacao, fonte: e.target.value as FonteCotacao } })} />
             </>
           )}
-        </Secao>
+        </Secao>}
 
         <Secao titulo="Vigência e renovação">
-          <Input rotulo="Data início" obrigatorio type="date" value={c.vigencia.dataInicio} onChange={(e) => vig({ dataInicio: e.target.value })} />
-          <Select rotulo="Tipo de vigência" vazio={false} opcoes={["Prazo determinado", "Prazo indeterminado"].map((v) => ({ valor: v, rotulo: v }))} value={c.vigencia.tipoVigencia} onChange={(e) => vig({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
+          <Input rotulo="Data início" obrigatorio type="date" disabled={travado} value={c.vigencia.dataInicio} onChange={(e) => vig({ dataInicio: e.target.value })} />
+          <Select rotulo="Tipo de vigência" vazio={false} disabled={travado} opcoes={["Prazo determinado", "Prazo indeterminado"].map((v) => ({ valor: v, rotulo: v }))} value={c.vigencia.tipoVigencia} onChange={(e) => vig({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
           {c.vigencia.tipoVigencia === "Prazo indeterminado" ? (
             <Input rotulo="Data-base da revisão anual" type="date" ajuda="Todo ano nesta data o gestor avalia se mantém o fornecedor. Vazio = aniversário da data de início." value={c.vigencia.dataBaseRevisao ?? ""} onChange={(e) => vig({ dataBaseRevisao: e.target.value || undefined })} />
           ) : (
-            <Input rotulo="Data fim" obrigatorio type="date" value={c.vigencia.dataFim} onChange={(e) => vig({ dataFim: e.target.value })} />
+            <Input rotulo="Data fim" obrigatorio type="date" disabled={travado} value={c.vigencia.dataFim} onChange={(e) => vig({ dataFim: e.target.value })} />
           )}
           <InputNumero rotulo="Aviso prévio (dias)" valor={c.vigencia.avisoPrevioDias} onValor={(v) => vig({ avisoPrevioDias: v ?? 0 })} />
           <InputNumero rotulo="Prazo do gestor (dias)" valor={c.vigencia.prazoGestorDias} onValor={(v) => vig({ prazoGestorDias: v ?? 30 })} />

@@ -52,7 +52,8 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
 
   const linhas: LinhaIndexada[] = [];
 
-  for (const c of b.contratos) {
+  // Central = contratos de fornecedores. Contratos de clientes têm menu próprio.
+  for (const c of b.contratos.filter((x) => x.natureza !== "Receita")) {
     const f = fornecedor.get(c.fornecedorId);
     const procs = abertos.get(c.contrato_id) ?? [];
     // Ações do contrato + ações dos processos relacionados.

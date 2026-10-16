@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { ClipboardCheck, FilePlus2, History, Lock, Pencil, Save } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { BlocoSaldo } from "./SaldoContrato";
+import { AditivoModal, BlocoAditivos, BlocoValoresReceita } from "./Aditivos";
+import { receitaMensalNaData } from "@/domain/rules/receita";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { DocumentosLista } from "@/components/dominio/DocumentosLista";
 import { EditarContratoModal } from "@/components/dominio/EditarContratoModal";
@@ -77,7 +79,7 @@ export function CapaContrato() {
   const [params, setParams] = useSearchParams();
   const aba = (params.get("aba") as AbaCapa) || "Visão Geral";
   const navegar = useNavigate();
-  const { fornecedor, nomeEmpresa, nomeUsuario, nomeTipo, pode, usuario, executar } = useApp();
+  const { fornecedor, contraparte, nomeEmpresa, nomeUsuario, nomeTipo, pode, usuario, executar } = useApp();
   const { dados: c, carregando } = useConsulta(() => api.obterContrato(id), [id]);
   const { dados: todos } = useConsulta(() => api.listarContratos(), []);
   const { dados: processos } = useConsulta(() => api.listarProcessos(), []);
@@ -88,6 +90,7 @@ export function CapaContrato() {
   const [modalStatus, setModalStatus] = useState(false);
   const [editando, setEditando] = useState(false);
   const [editandoSaving, setEditandoSaving] = useState<Saving>();
+  const [aditivo, setAditivo] = useState(false);
 
   const relacionados = useMemo(() => (processos ?? []).filter((p) => p.contrato_anterior_id === id || p.contrato_gerado_id === id || p.processo_id === c?.processo_id), [processos, id, c]);
   const cadeia = useMemo(() => (c && todos ? montarCadeia(c, todos) : []), [c, todos]);
@@ -110,12 +113,15 @@ export function CapaContrato() {
   const relacaoSucessor = sucessor?.relacaoAnterior === "Substituição" ? "Substituído por" : "Renovado por";
   const relacaoAnterior = c.relacaoAnterior === "Substituição" ? "Substitui" : "Renovação de";
 
+  const receita = c.natureza === "Receita";
+  const parte = contraparte(c);
+  const abas = ABAS.filter((a) => !receita || (a !== "Negociação & Saving" && a !== "Aprovações"));
   const iniciar = (tipo: TipoProcesso) => navegar(`/processos/novo?tipo=${encodeURIComponent(tipo)}&contrato=${c.contrato_id}`);
 
   return (
     <>
       <PageHeader
-        migalhas={[{ rotulo: "Central de Contratos", para: "/contratos" }, { rotulo: c.codigo }]}
+        migalhas={[receita ? { rotulo: "Contratos de clientes", para: "/clientes" } : { rotulo: "Central de Contratos", para: "/contratos" }, { rotulo: c.codigo }]}
         titulo={
           <span className="flex flex-wrap items-center gap-2">
             {c.codigo}
@@ -130,7 +136,8 @@ export function CapaContrato() {
         }
         descricao={
           <span>
-            <span className="font-medium text-texto">{f?.razaoSocial}</span> · {c.objeto}
+            {receita && <Badge tom="primario" className="mr-2">Cliente</Badge>}
+            <span className="font-medium text-texto">{parte.nome}</span> · {c.objeto}
           </span>
         }
         acoes={
@@ -141,8 +148,8 @@ export function CapaContrato() {
               </Button>
             )}
             {pode("editar_processo") && c.status === "Vigente" && !c.sucessor_id && (
-              <Button variante="secundario" icone={<FilePlus2 size={16} />} onClick={() => setParams({ aba: "Renovações & Aditivos" })}>
-                Iniciar processo
+              <Button variante="secundario" icone={<FilePlus2 size={16} />} onClick={() => (receita ? setAditivo(true) : setParams({ aba: "Renovações & Aditivos" }))}>
+                {receita ? "Registrar aditivo" : "Iniciar processo"}
               </Button>
             )}
             {pode("editar_processo") && (
@@ -162,9 +169,11 @@ export function CapaContrato() {
             <div className="grid grid-cols-2 divide-borda md:grid-cols-4 xl:grid-cols-7 xl:divide-x">
               {[
                 ["Empresa", nomeEmpresa(c.empresaId)],
-                ["Valor mensal", <>{formatarMoeda(valorMensalBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(valorMensal(c.condicoes), c.condicoes.moeda)}</span>}</>],
+                receita && c.receita
+                  ? ["Receita mensal", <>{formatarMoeda(receitaMensalNaData(c.receita, new Date().toISOString().slice(0, 10)), c.condicoes.moeda)}<span className="block text-xs font-normal text-texto-suave">{c.receita.tipoReceita}</span></>]
+                  : ["Valor mensal", <>{formatarMoeda(valorMensalBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(valorMensal(c.condicoes), c.condicoes.moeda)}</span>}</>],
                 ["Valor anual", <>{formatarMoeda(valorAnualBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(c.condicoes.valorAnual, c.condicoes.moeda)}</span>}</>],
-                ["Saving anual", c.saving ? <span className="text-sucesso-600">{formatarMoeda(savingAnual(c.saving))}</span> : "—"],
+                receita ? ["Responsável", nomeUsuario(c.gestorId)] : ["Saving anual", c.saving ? <span className="text-sucesso-600">{formatarMoeda(savingAnual(c.saving))}</span> : "—"],
                 ["Vigência", c.vigencia.tipoVigencia === "Prazo indeterminado" ? <>Indeterminado<span className="block text-xs font-normal text-texto-suave">desde {formatarData(c.vigencia.dataInicio)}</span></> : `${formatarData(c.vigencia.dataInicio)} a ${formatarData(c.vigencia.dataFim)}`],
                 [prazos.proximaRevisao ? "Revisão anual" : "Data limite de manifestação", <>{formatarData(prazos.proximaRevisao ?? prazos.dataLimiteManifestacao)}<span className="block text-xs font-normal text-texto-suave">{prazos.fase}</span></>],
                 [
@@ -226,7 +235,7 @@ export function CapaContrato() {
         </div>
       )}
 
-      <Tabs className="mb-4" abas={ABAS.map((a) => ({ id: a, rotulo: a }))} ativa={aba} onChange={(a) => setParams({ aba: a }, { replace: true })} />
+      <Tabs className="mb-4" abas={abas.map((a) => ({ id: a, rotulo: a }))} ativa={aba} onChange={(a) => setParams({ aba: a }, { replace: true })} />
 
       {aba === "Visão Geral" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -237,8 +246,14 @@ export function CapaContrato() {
                 <p className="text-sm whitespace-pre-line text-texto">{c.observacoes}</p>
               </Bloco>
             )}
-            <Bloco titulo="Resultado de Suprimentos"><SavingResumo saving={c.saving} /></Bloco>
-            <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>
+            {receita ? (
+              <Bloco titulo="Valores contratados"><BlocoValoresReceita c={c} /></Bloco>
+            ) : (
+              <>
+                <Bloco titulo="Resultado de Suprimentos"><SavingResumo saving={c.saving} /></Bloco>
+                <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>
+              </>
+            )}
             {c.condicoes.moeda !== "BRL" && <Bloco titulo="Câmbio"><BlocoCambio c={c} /></Bloco>}
             <Bloco titulo="Vigência e renovação"><BlocoVigencia c={c} /></Bloco>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -254,7 +269,7 @@ export function CapaContrato() {
               </Bloco>
             )}
             <Bloco titulo="Histórico contratual"><BlocoHistoricoContratual c={c} cadeia={cadeia} /></Bloco>
-            <Bloco titulo="Saldo do contrato"><BlocoSaldo c={c} compacto /></Bloco>
+            <Bloco titulo={receita ? "Saldo a faturar" : "Saldo do contrato"}><BlocoSaldo c={c} compacto /></Bloco>
             <Card>
               <CardHeader titulo="Documentos" acoes={<Button variante="fantasma" tamanho="sm" onClick={() => setParams({ aba: "Jurídico & Documentos" })}>Ver todos</Button>} />
               <DocumentosLista contrato_id={c.contrato_id} densa />
@@ -325,9 +340,9 @@ export function CapaContrato() {
 
       {aba === "Financeiro" && (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-          <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>
+          {receita ? <Bloco titulo="Valores contratados"><BlocoValoresReceita c={c} /></Bloco> : <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>}
           <Bloco titulo="Câmbio"><BlocoCambio c={c} /></Bloco>
-          <Bloco className="xl:col-span-2" titulo="Saldo do contrato"><BlocoSaldo c={c} /></Bloco>
+          <Bloco className="xl:col-span-2" titulo={receita ? "Saldo a faturar" : "Saldo do contrato"}><BlocoSaldo c={c} /></Bloco>
         </div>
       )}
 
@@ -364,7 +379,14 @@ export function CapaContrato() {
 
       {aba === "Renovações & Aditivos" && (
         <div className="space-y-4">
-          {pode("editar_processo") && c.status === "Vigente" && !c.sucessor_id && (
+          <Bloco titulo="Aditivos registrados"><BlocoAditivos c={c} /></Bloco>
+          {receita && pode("editar_processo") && !c.sucessor_id && (
+            <Bloco titulo="Renovar ou substituir">
+              <p className="mb-3 text-sm text-texto-suave">Renovação, substituição (inclusive de vários contratos por um) ou renegociação ampla viram um novo contrato. Este contrato nunca é sobrescrito: só recebe o vínculo com o novo.</p>
+              <Button variante="secundario" onClick={() => navegar(`/clientes?novo=1&anterior=${c.contrato_id}`)}>Registrar novo contrato a partir deste</Button>
+            </Bloco>
+          )}
+          {!receita && pode("editar_processo") && c.status === "Vigente" && !c.sucessor_id && (
             <Bloco titulo="Iniciar novo processo a partir deste contrato">
               <p className="mb-3 text-sm text-texto-suave">Os dados do contrato são herdados automaticamente e podem ser editados no novo processo. O contrato atual nunca é sobrescrito.</p>
               <div className="flex flex-wrap gap-2">
@@ -404,6 +426,7 @@ export function CapaContrato() {
       )}
 
       <ModalStatus aberto={modalStatus} onFechar={() => setModalStatus(false)} c={c} />
+      {aditivo && <AditivoModal c={c} onFechar={() => setAditivo(false)} />}
       <EditarContratoModal contrato={c} aberto={editando} onFechar={() => setEditando(false)} />
     </>
   );

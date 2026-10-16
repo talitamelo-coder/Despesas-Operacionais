@@ -242,3 +242,96 @@ ALTER TABLE fornecedores
 
 -- Usuário: nome completo (relatórios) e nome e sobrenome (telas).
 ALTER TABLE usuarios ADD COLUMN nome_exibicao VARCHAR(60) NULL COMMENT 'Nome e sobrenome (telas)' AFTER nome;
+
+-- -----------------------------------------------------------------------------
+-- Contratos de clientes (receita). Cadastro de clientes SEPARADO do de fornecedores.
+-- O módulo registra o contratado e o saldo; faturamento e medição ficam no Contas a receber.
+-- -----------------------------------------------------------------------------
+CREATE TABLE clientes (
+  cliente_id                    CHAR(36)     PRIMARY KEY,
+  razao_social                  VARCHAR(200) NOT NULL,
+  nome_fantasia                 VARCHAR(150) NULL,
+  cnpj                          CHAR(14)     NULL UNIQUE COMMENT 'Obrigatório se nacional',
+  estrangeiro                   BOOLEAN      NOT NULL DEFAULT FALSE,
+  pais                          VARCHAR(80)  NULL,
+  identificacao_fiscal_exterior VARCHAR(60)  NULL,
+  codigo_cliente                VARCHAR(40)  NULL COMMENT 'Código no Contas a receber',
+  email                         VARCHAR(190) NULL,
+  telefone                      VARCHAR(30)  NULL,
+  contato                       VARCHAR(150) NULL,
+  endereco                      VARCHAR(255) NULL,
+  cidade                        VARCHAR(100) NULL,
+  uf                            CHAR(2)      NULL,
+  cep                           VARCHAR(20)  NULL,
+  status_cadastral              ENUM('Ativo','Inativo') NOT NULL DEFAULT 'Ativo'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE contratos
+  ADD COLUMN natureza ENUM('Despesa','Receita') NOT NULL DEFAULT 'Despesa' AFTER contrato_id,
+  MODIFY fornecedor_id CHAR(36) NULL COMMENT 'Despesa',
+  ADD COLUMN cliente_id CHAR(36) NULL COMMENT 'Receita' AFTER fornecedor_id,
+  ADD COLUMN tipo_receita ENUM('Fixa','Variável','Fixa + variável') NULL,
+  ADD COLUMN valor_mensal_fixo DECIMAL(15,2) NULL,
+  ADD COLUMN valor_mensal_variavel_estimado DECIMAL(15,2) NULL,
+  ADD COLUMN valor_total_contratado DECIMAL(15,2) NULL,
+  ADD COLUMN contrato_principal_id CHAR(36) NULL COMMENT 'Receita apurada no contrato principal',
+  ADD CONSTRAINT fk_contrato_cliente FOREIGN KEY (cliente_id) REFERENCES clientes(cliente_id),
+  ADD CONSTRAINT fk_contrato_principal FOREIGN KEY (contrato_principal_id) REFERENCES contratos(contrato_id),
+  ADD CONSTRAINT ck_contraparte CHECK ((natureza = 'Despesa' AND fornecedor_id IS NOT NULL) OR (natureza = 'Receita' AND cliente_id IS NOT NULL));
+
+-- Valores já previstos no contrato ("a partir de 11/2026, R$ X/mês") e os vindos de aditivo.
+CREATE TABLE escalonamento_receita (
+  contrato_id        CHAR(36)      NOT NULL,
+  a_partir_de        DATE          NOT NULL,
+  valor_mensal_fixo  DECIMAL(15,2) NOT NULL,
+  aditivo_id         CHAR(36)      NULL COMMENT 'NULL = previsto na contratação',
+  PRIMARY KEY (contrato_id, a_partir_de),
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Substituição de vários contratos por um (N → 1). Os anteriores só recebem o vínculo.
+CREATE TABLE contratos_anteriores (
+  contrato_id           CHAR(36) NOT NULL,
+  contrato_anterior_id  CHAR(36) NOT NULL,
+  relacao               ENUM('Renovação','Substituição') NOT NULL,
+  PRIMARY KEY (contrato_id, contrato_anterior_id),
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id),
+  FOREIGN KEY (contrato_anterior_id) REFERENCES contratos(contrato_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Aditivos: única forma de mudar valor/prazo após a contratação (despesa e receita).
+CREATE TABLE aditivos_contrato (
+  id                     CHAR(36)      PRIMARY KEY,
+  contrato_id            CHAR(36)      NOT NULL,
+  numero                 VARCHAR(60)   NOT NULL,
+  data                   DATE          NOT NULL,
+  tipo                   ENUM('Valor','Prazo','Valor e prazo','Escopo','Renegociação') NOT NULL,
+  descricao              TEXT          NOT NULL,
+  variacao_valor_total   DECIMAL(15,2) NULL,
+  novo_valor_mensal_fixo DECIMAL(15,2) NULL,
+  novo_valor_anual       DECIMAL(15,2) NULL,
+  a_partir_de            DATE          NULL,
+  nova_data_fim          DATE          NULL,
+  antes                  TEXT          NOT NULL,
+  depois                 TEXT          NOT NULL,
+  registrado_por         CHAR(36)      NOT NULL,
+  registrado_em          DATETIME      NOT NULL,
+  UNIQUE KEY uq_aditivo (contrato_id, numero),
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE aportes_saldo ADD COLUMN aditivo_id CHAR(36) NULL, ADD CONSTRAINT fk_aporte_aditivo FOREIGN KEY (aditivo_id) REFERENCES aditivos_contrato(id);
+
+-- Notas emitidas: chegam do Contas a receber; consomem o saldo a faturar.
+CREATE TABLE emissoes_faturamento (
+  id                CHAR(36)      PRIMARY KEY,
+  contrato_id       CHAR(36)      NOT NULL,
+  numero_documento  VARCHAR(60)   NOT NULL,
+  data              DATE          NOT NULL,
+  valor             DECIMAL(15,2) NOT NULL COMMENT 'Moeda do contrato',
+  status            ENUM('Emitida','Cancelada') NOT NULL DEFAULT 'Emitida',
+  origem            ENUM('Contas a receber','Integração simulada') NOT NULL,
+  registrado_em     DATETIME      NOT NULL,
+  UNIQUE KEY uq_emissao (contrato_id, numero_documento),
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Bloqueio: emissão acima do saldo a faturar é recusada na mesma transação (SELECT ... FOR UPDATE no contrato).

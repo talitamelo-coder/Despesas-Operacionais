@@ -18,8 +18,23 @@ import { cambioNaData, divergenciaComContrato, equivalentes } from "@/domain/rul
 /** Blocos da Capa do Contrato — cada bloco é independente e reaproveitável. */
 
 export function BlocoInformacoesGerais({ c }: { c: Contrato }) {
-  const { nomeEmpresa, fornecedor, nomeTipo } = useApp();
+  const { nomeEmpresa, fornecedor, cliente, nomeTipo } = useApp();
   const f = fornecedor(c.fornecedorId);
+  if (c.natureza === "Receita") {
+    const cl = cliente(c.clienteId);
+    return (
+      <GradeValores>
+        <Valor rotulo="Empresa do grupo">{nomeEmpresa(c.empresaId)}</Valor>
+        <Valor rotulo="Cliente">{cl?.razaoSocial ?? "—"}</Valor>
+        <Valor rotulo={cl?.estrangeiro ? "País" : "CNPJ"}>{cl?.estrangeiro ? cl.pais : formatarCnpj(cl?.cnpj)}</Valor>
+        <Valor rotulo="Código no Contas a receber">{cl?.codigoCliente ?? "—"}</Valor>
+        <Valor rotulo="Tipo de contrato">{nomeTipo(c.tipoContratoId)}</Valor>
+        <Valor rotulo="Centro de custo">{c.centroCusto ?? "—"}</Valor>
+        <Valor rotulo="Objeto" className="sm:col-span-2 lg:col-span-3">{c.objeto}</Valor>
+        {c.external_id && <Valor rotulo="Código na planilha legada" origem="importado">{c.external_id}</Valor>}
+      </GradeValores>
+    );
+  }
   return (
     <GradeValores>
       <Valor rotulo="Empresa" origem={c.origens.empresaId}>{nomeEmpresa(c.empresaId)}</Valor>
