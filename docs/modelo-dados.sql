@@ -47,7 +47,7 @@ CREATE TABLE fornecedores (
   uf                CHAR(2)      NULL,
   status_cadastral  ENUM('Ativo','Inativo','Bloqueado','Potencial') NOT NULL,
   estrangeiro       BOOLEAN      NOT NULL DEFAULT FALSE COMMENT 'Exterior: dispensa CNPJ',
-  pais              VARCHAR(80)  NULL COMMENT 'Obrigatório quando estrangeiro',
+  pais              VARCHAR(80)  NULL COMMENT 'Opcional (fornecedor no exterior)',
   identificacao_fiscal_exterior VARCHAR(60) NULL COMMENT 'Tax ID / VAT / EIN (opcional)',
   inscricao_estadual VARCHAR(30) NULL,
   email             VARCHAR(190) NULL,

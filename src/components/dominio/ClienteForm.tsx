@@ -18,7 +18,7 @@ export function ClienteForm({ c, onChange, erros }: { c: Cliente; onChange: (c: 
       />
       {c.estrangeiro ? (
         <>
-          <Input rotulo="País" obrigatorio value={c.pais ?? ""} onChange={(e) => set({ pais: e.target.value })} erro={erros.pais} />
+          <Input rotulo="País" value={c.pais ?? ""} onChange={(e) => set({ pais: e.target.value })} erro={erros.pais} />
           <Input rotulo="Identificação fiscal no exterior" placeholder="Opcional (Tax ID, VAT…)" value={c.identificacaoFiscalExterior ?? ""} onChange={(e) => set({ identificacaoFiscalExterior: e.target.value || undefined })} />
         </>
       ) : (

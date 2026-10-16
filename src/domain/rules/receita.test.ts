@@ -52,6 +52,7 @@ describe("contratos de receita", () => {
     const base = { cliente_id: "", razaoSocial: "Cliente", nomeFantasia: "", statusCadastral: "Ativo" as const };
     expect(validarCliente(base, []).cnpj).toBe("Informe o CNPJ.");
     expect(validarCliente({ ...base, estrangeiro: true, pais: "Chile" }, [])).toEqual({});
+    expect(validarCliente({ ...base, estrangeiro: true }, [])).toEqual({}); // país opcional
     expect(validarCliente({ ...base, cnpj: "11.222.333/0001-81" }, [{ ...base, cliente_id: "x", cnpj: "11222333000181" }]).cnpj).toMatch(/Já existe/);
   });
 });

@@ -238,7 +238,7 @@ function Clientes() {
         vazio="Nenhum cliente cadastrado."
         colunas={[
           { id: "r", titulo: "Razão social", render: (c) => <span>{c.razaoSocial}{c.nomeFantasia && c.nomeFantasia !== c.razaoSocial && <span className="block text-xs text-texto-suave">{c.nomeFantasia}</span>}</span> },
-          { id: "d", titulo: "CNPJ", render: (c) => <span className="tabular">{c.estrangeiro ? `Exterior · ${c.pais}` : formatarCnpj(c.cnpj)}</span> },
+          { id: "d", titulo: "CNPJ", render: (c) => <span className="tabular">{c.estrangeiro ? `Exterior${c.pais ? ` · ${c.pais}` : ""}` : formatarCnpj(c.cnpj)}</span> },
           { id: "cr", titulo: "Código no Contas a receber", render: (c) => c.codigoCliente ?? "—" },
           { id: "ct", titulo: "Contato", render: (c) => <span className="text-xs">{c.contato ?? "—"}<span className="block text-texto-suave">{c.email ?? ""}</span></span> },
           { id: "s", titulo: "Situação", render: (c) => <Badge tom={c.statusCadastral === "Ativo" ? "sucesso" : "neutro"}>{c.statusCadastral}</Badge> },

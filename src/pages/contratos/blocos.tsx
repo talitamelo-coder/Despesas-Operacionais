@@ -26,7 +26,7 @@ export function BlocoInformacoesGerais({ c }: { c: Contrato }) {
       <GradeValores>
         <Valor rotulo="Empresa do grupo">{nomeEmpresa(c.empresaId)}</Valor>
         <Valor rotulo="Cliente">{cl?.razaoSocial ?? "—"}</Valor>
-        <Valor rotulo={cl?.estrangeiro ? "País" : "CNPJ"}>{cl?.estrangeiro ? cl.pais : formatarCnpj(cl?.cnpj)}</Valor>
+        <Valor rotulo={cl?.estrangeiro ? "País" : "CNPJ"}>{cl?.estrangeiro ? cl.pais || "Exterior (não informado)" : formatarCnpj(cl?.cnpj)}</Valor>
         <Valor rotulo="Código no Contas a receber">{cl?.codigoCliente ?? "—"}</Valor>
         <Valor rotulo="Tipo de contrato">{nomeTipo(c.tipoContratoId)}</Valor>
         <Valor rotulo="Centro de custo">{c.centroCusto ?? "—"}</Valor>

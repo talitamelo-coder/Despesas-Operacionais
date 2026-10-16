@@ -79,10 +79,8 @@ export function validarFornecedor(f: Fornecedor): Record<string, string> {
     const d = somenteDigitos(f.telefone);
     if (d.length < 10 || d.length > 13) e.telefone = "Telefone inválido (inclua o DDD).";
   }
-  if (f.estrangeiro) {
-    if (!f.pais?.trim()) e.pais = "Informe o país do fornecedor.";
-  } else {
-    // UF e CEP brasileiros só valem para fornecedor nacional.
+  // País é opcional no exterior; UF e CEP brasileiros só valem para fornecedor nacional.
+  if (!f.estrangeiro) {
     if (f.uf?.trim() && !UFS.includes(f.uf.trim().toUpperCase())) e.uf = "UF inválida.";
     if (f.cep?.trim() && somenteDigitos(f.cep).length !== 8) e.cep = "CEP deve ter 8 dígitos.";
   }

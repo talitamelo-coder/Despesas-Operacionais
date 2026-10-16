@@ -43,7 +43,7 @@ export function FornecedorForm({ f, onChange, erros }: { f: Fornecedor; onChange
         />
         {f.estrangeiro ? (
           <>
-            <Input rotulo="País" obrigatorio placeholder="Ex.: Estados Unidos" value={f.pais ?? ""} onChange={(e) => set({ pais: e.target.value })} erro={erros.pais} />
+            <Input rotulo="País" placeholder="Ex.: Estados Unidos" value={f.pais ?? ""} onChange={(e) => set({ pais: e.target.value })} erro={erros.pais} />
             <Input rotulo="Identificação fiscal no exterior" placeholder="Opcional (Tax ID, VAT, EIN…)" value={f.identificacaoFiscalExterior ?? ""} onChange={(e) => set({ identificacaoFiscalExterior: e.target.value || undefined })} />
           </>
         ) : (

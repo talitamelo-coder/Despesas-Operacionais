@@ -237,7 +237,7 @@ CREATE TABLE aportes_saldo (
 
 -- Fornecedor no exterior: sem CNPJ, com país e identificação fiscal local opcional.
 ALTER TABLE fornecedores
-  ADD COLUMN pais VARCHAR(80) NULL COMMENT 'Obrigatório quando estrangeiro' AFTER estrangeiro,
+  ADD COLUMN pais VARCHAR(80) NULL COMMENT 'Opcional (fornecedor no exterior)' AFTER estrangeiro,
   ADD COLUMN identificacao_fiscal_exterior VARCHAR(60) NULL COMMENT 'Tax ID / VAT / EIN (opcional)' AFTER pais;
 
 -- Usuário: nome completo (relatórios) e nome e sobrenome (telas).
