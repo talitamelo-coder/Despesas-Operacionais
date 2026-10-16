@@ -6,6 +6,7 @@ import type { LinhaPrevia, TipoImportacao } from "@/domain/rules/importacaoCsv";
 import type { SaldoContrato } from "@/domain/rules/saldo";
 import type { NovoAditivo } from "@/domain/rules/receita";
 import type {
+  NaturezaContrato,
   AditivoContrato,
   Cliente,
   EmissaoFaturamento,
@@ -196,6 +197,8 @@ export interface ContratosApi {
 
   // Saldo do contrato (pedidos e aportes). Com a integração, o módulo de pedidos usa registrarPedido.
   obterSaldoContrato(contratoId: string, porId: string): Promise<DadosSaldo>;
+  /** Saldo de todos os contratos de uma natureza em uma chamada (painéis). Chave = contrato_id. */
+  listarSaldos(natureza: NaturezaContrato, porId: string): Promise<Record<string, SaldoContrato>>;
   /** Bloqueia pedido acima do saldo disponível (é preciso adicionar saldo antes). */
   registrarPedido(p: NovoPedido, porId: string): Promise<PedidoContrato>;
   /** Aprovado → Pago, ou Aprovado → Cancelado (libera o saldo). */

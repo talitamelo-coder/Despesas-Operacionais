@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { AlertTriangle, Building2, Plus, Repeat, TrendingUp, Users } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { temPerfil } from "@/domain/rules/permissoes";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
@@ -9,31 +9,30 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input, InputNumero, Select, Textarea, Toggle } from "@/components/ui/Campos";
-import { Aviso, Carregando, Kpi } from "@/components/ui/Diversos";
+import { Aviso, Carregando } from "@/components/ui/Diversos";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/status";
 import { Tabela } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatarData, hoje } from "@/domain/datas";
-import { formatarCnpj, formatarMoeda, formatarPercentual } from "@/domain/formatacao";
+import { formatarCnpj, formatarMoeda } from "@/domain/formatacao";
 import { validarCliente, novoCliente } from "@/domain/rules/clientes";
 import { prazosDoContrato } from "@/domain/rules/prazos";
 import { errosContratoReceita, receitaMensalNaData } from "@/domain/rules/receita";
+import { receitaMensalBRL } from "@/domain/rules/painelClientes";
+import { ImportacaoCsv } from "@/pages/licencas/Importacao";
+import { PainelClientes } from "./PainelClientes";
 import type { Cliente, Contrato, Moeda, TipoReceita } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api, type NovoContratoCliente } from "@/services";
 
 const ABAS = [
+  { id: "painel", rotulo: "Painel" },
   { id: "contratos", rotulo: "Contratos" },
   { id: "clientes", rotulo: "Clientes" },
+  { id: "importar", rotulo: "Importar" },
 ] as const;
-
-/** Receita mensal em BRL (contratos em moeda estrangeira pela cotação do contrato). */
-function receitaBRL(c: Contrato, data: string): number {
-  const v = c.receita ? receitaMensalNaData(c.receita, data) : 0;
-  return c.condicoes.moeda === "BRL" ? v : v * (c.condicoes.cotacao?.valor ?? 0);
-}
 
 /**
  * Contratos de clientes (receita): registro, valores contratados e saldo a faturar.
@@ -41,12 +40,18 @@ function receitaBRL(c: Contrato, data: string): number {
  */
 export function ContratosClientes() {
   const [params, setParams] = useSearchParams();
-  const aba = (params.get("aba") as (typeof ABAS)[number]["id"]) || "contratos";
+  const { pode } = useApp();
+  const abas = ABAS.filter((a) => a.id !== "importar" || pode("editar_processo"));
+  const pedida = params.get("aba") ?? (params.get("novo") ? "contratos" : "painel");
+  const aba = abas.some((a) => a.id === pedida) ? pedida : "painel";
   return (
     <>
       <PageHeader titulo="Contratos de clientes" descricao="Registro do contratado, valores e saldo a faturar. O faturamento é feito no Contas a receber, respeitando o que está registrado aqui." />
-      <Tabs className="mb-4" abas={[...ABAS]} ativa={aba} onChange={(a) => setParams({ aba: a })} />
-      {aba === "contratos" ? <Contratos /> : <Clientes />}
+      <Tabs className="mb-4" abas={[...abas]} ativa={aba} onChange={(a) => setParams({ aba: a })} />
+      {aba === "painel" && <PainelClientes />}
+      {aba === "contratos" && <Contratos />}
+      {aba === "clientes" && <Clientes />}
+      {aba === "importar" && <ImportacaoCsv tipos={["contratosClientes"]} />}
     </>
   );
 }
@@ -64,28 +69,13 @@ function Contratos() {
   const anterior = params.get("anterior") ?? undefined;
   if (carregando && !todos) return <Carregando />;
 
-  const vigentes = contratos.filter((c) => c.status === "Vigente");
-  const fixa = vigentes.reduce((a, c) => a + (c.receita ? (c.condicoes.moeda === "BRL" ? 1 : c.condicoes.cotacao?.valor ?? 0) * receitaMensalNaData({ ...c.receita, valorMensalVariavelEstimado: 0 }, h) : 0), 0);
-  const total = vigentes.reduce((a, c) => a + receitaBRL(c, h), 0);
-  const risco = vigentes.filter((c) => { const p = prazosDoContrato(c); return p.fase === "Vencido" || p.fase === "Data limite vencida" || (p.diasAteVencimento >= 0 && p.diasAteVencimento <= 90); });
-  const riscoValor = risco.reduce((a, c) => a + receitaBRL(c, h), 0);
-  const porCliente = new Map<string, number>();
-  for (const c of vigentes) porCliente.set(c.clienteId ?? "", (porCliente.get(c.clienteId ?? "") ?? 0) + receitaBRL(c, h));
-  const maior = [...porCliente.entries()].sort((a, b) => b[1] - a[1])[0];
-
   const b = busca.trim().toLowerCase();
   const linhas = contratos
     .filter((c) => (!status || c.status === status) && (!b || `${c.codigo} ${c.objeto} ${cliente(c.clienteId)?.razaoSocial ?? ""} ${cliente(c.clienteId)?.nomeFantasia ?? ""}`.toLowerCase().includes(b)))
-    .sort((x, y) => receitaBRL(y, h) - receitaBRL(x, h));
+    .sort((x, y) => receitaMensalBRL(y, h) - receitaMensalBRL(x, h));
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi rotulo="Receita mensal contratada" valor={formatarMoeda(total, "BRL", true)} detalhe={`Fixa ${formatarMoeda(fixa, "BRL", true)} · variável estimada ${formatarMoeda(total - fixa, "BRL", true)}`} icone={<TrendingUp size={18} />} />
-        <Kpi rotulo="Contratos vigentes" valor={vigentes.length} detalhe={`${contratos.length - vigentes.length} encerrado(s), cancelado(s) ou renovado(s)`} icone={<Repeat size={18} />} />
-        <Kpi rotulo="Receita em risco" valor={formatarMoeda(riscoValor, "BRL", true)} detalhe={`${risco.length} contrato(s) vencido(s) ou vencendo em até 90 dias`} icone={<AlertTriangle size={18} />} tom={risco.length ? "alerta" : "neutro"} />
-        <Kpi rotulo="Concentração no maior cliente" valor={total && maior ? formatarPercentual((maior[1] / total) * 100, 0) : "—"} detalhe={maior ? cliente(maior[0])?.nomeFantasia || cliente(maior[0])?.razaoSocial : "—"} icone={<Building2 size={18} />} tom={total && maior && maior[1] / total > 0.5 ? "alerta" : "neutro"} />
-      </div>
       <Card>
         <CardHeader
           titulo="Contratos"

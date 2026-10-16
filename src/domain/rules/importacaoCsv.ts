@@ -1,16 +1,26 @@
 import { dataBR, lerCsv, normalizarTexto, numeroBR } from "./csv";
 import { aplicarMovimentacao, chaveEmail, emailValido, errosLicenca, errosMovimentacao, posicaoNaData, valorAnualOriginal } from "./licencas";
+import { temPerfil } from "./permissoes";
+import { errosContratoReceita } from "./receita";
 import { errosLinha, somenteDigitosLinha } from "./telefonia";
 import type {
   AtribuicaoLicenca,
+  Cliente,
   Colaborador,
   Contrato,
+  Empresa,
   Fornecedor,
   Licenca,
   LinhaTelefonica,
+  Moeda,
   MovimentacaoLicenca,
   TipoMovimentacao,
+  StatusContrato,
+  TipoReceita,
+  Usuario,
   UsoLinha,
+  ValoresReceita,
+  Vigencia,
 } from "../types";
 
 /**
@@ -19,7 +29,7 @@ import type {
  * A mesma função monta a pré-visualização na tela e o plano executado pela API.
  */
 
-export type TipoImportacao = "licencas" | "atribuicoes" | "movimentacoes" | "linhas";
+export type TipoImportacao = "licencas" | "atribuicoes" | "movimentacoes" | "linhas" | "contratosClientes";
 
 export const MODELOS_CSV: Record<TipoImportacao, { titulo: string; colunas: string[]; exemplo: string[][]; ajuda: string }> = {
   licencas: {
@@ -48,12 +58,38 @@ export const MODELOS_CSV: Record<TipoImportacao, { titulo: string; colunas: stri
     exemplo: [["11987654321", "Operadora Exemplo", "Corporativo 20 GB", "20 GB", "79,90", "ativa", "", "Comercial", "CC-200", "ana.lima@empresa.com.br", "2026-01-10"]],
     ajuda: "Uma linha por número (com DDD). O e-mail do usuário precisa estar cadastrado em Pessoas ou vir antes no arquivo de atribuições.",
   },
+  contratosClientes: {
+    titulo: "Contratos de clientes",
+    colunas: ["cliente", "cliente_cnpj", "objeto", "numero_contrato_cliente", "empresa", "gestor", "data_inicio", "data_fim", "renovacao_automatica", "aviso_previo_dias", "tipo_receita", "moeda", "valor_mensal_fixo", "valor_mensal_variavel_estimado", "valor_total_contratado", "novo_valor_fixo", "novo_valor_a_partir_de", "situacao", "observacao"],
+    exemplo: [["Cliente Exemplo S.A.", "", "Plataforma WiFi", "4600000001", "", "Nome do gestor", "2025-01-01", "2027-12-31", "nao", "60", "fixa", "BRL", "100000,00", "", "3600000,00", "95000,00", "2026-11-01", "vigente", "Texto livre"]],
+    ajuda: "Uma linha por contrato. data_fim vazia ou “indeterminado” = prazo indeterminado (revisão anual). tipo_receita: fixa, variavel ou fixa + variavel. O gestor precisa estar cadastrado com o perfil Gestor. Sem data de início, o contrato entra com pendência para completar. Cliente inexistente é cadastrado (complete o CNPJ depois). Saldo e notas emitidas não vêm do arquivo: chegam do Contas a receber.",
+  },
 };
+
+/** Contrato de cliente montado pela importação; a API grava como em registrarContratoCliente. */
+export interface ContratoClienteImportado {
+  clienteId: string;
+  empresaId: string;
+  gestorId: string;
+  objeto: string;
+  external_id?: string;
+  moeda: Moeda;
+  vigencia: Vigencia;
+  receita: ValoresReceita;
+  status: StatusContrato;
+  observacoes?: string;
+  confirmacoesPendentes?: string[];
+  chaveImportacao: string;
+}
 
 export interface ContextoImportacao {
   hoje: string;
   fornecedores: Fornecedor[];
-  contratos: Pick<Contrato, "contrato_id" | "codigo">[];
+  contratos: (Pick<Contrato, "contrato_id" | "codigo"> & Partial<Pick<Contrato, "natureza" | "clienteId" | "objeto" | "external_id">>)[];
+  /** Contratos de clientes. */
+  clientes?: Cliente[];
+  usuarios?: Usuario[];
+  empresas?: Empresa[];
   licencas: Licenca[];
   movimentacoes: MovimentacaoLicenca[];
   atribuicoes: AtribuicaoLicenca[];
@@ -71,7 +107,9 @@ export type OperacaoImportacao =
   | { tipo: "atribuicao"; atribuicao: AtribuicaoLicenca }
   | { tipo: "movimentacao"; movimentacao: Omit<MovimentacaoLicenca, "id" | "registradoPorId" | "registradoEm"> }
   | { tipo: "linha"; linha: LinhaTelefonica }
-  | { tipo: "uso"; uso: UsoLinha };
+  | { tipo: "uso"; uso: UsoLinha }
+  | { tipo: "cliente"; cliente: Cliente }
+  | { tipo: "contratoCliente"; contrato: ContratoClienteImportado };
 
 export type SituacaoLinhaCsv = "Importar" | "Já existe" | "Recusada" | "Conciliação";
 
@@ -96,6 +134,31 @@ const VENCIMENTO = { data: "Data", mensal: "Mensal", sob_demanda: "Sob demanda",
 const MOEDA = { brl: "BRL", usd: "USD" } as const;
 const TIPO_MOV: Record<string, TipoMovimentacao> = { compra: "Compra", reducao: "Redução", downgrade: "Redução", renegociacao: "Renegociação", cancelamento: "Cancelamento" };
 const SITUACAO_LINHA = { ativa: "Ativa", suspensa: "Suspensa", cancelada: "Cancelada", portada: "Portada" } as const;
+const TIPO_RECEITA: Record<string, TipoReceita> = { fixa: "Fixa", fixo: "Fixa", variavel: "Variável", fixavariavel: "Fixa + variável", fixovariavel: "Fixa + variável" };
+const SITUACAO_CONTRATO = { vigente: "Vigente", cancelado: "Cancelado", encerrado: "Encerrado", suspenso: "Suspenso" } as const;
+const SIM = new Set(["sim", "s", "yes", "automatica", "x", "1"]);
+
+/** Chave de idempotência do contrato de cliente: número do contrato no cliente ou cliente + objeto. */
+export function chaveContratoCliente(clienteId: string, objeto: string, numero?: string): string {
+  return numero?.trim() ? `${clienteId}|n:${normalizarTexto(numero)}` : `${clienteId}|o:${normalizarTexto(objeto)}`;
+}
+
+export function acharCliente(ref: string, clientes: Cliente[]): Cliente | undefined {
+  const dig = ref.replace(/\D/g, "");
+  if (dig.length >= 11) {
+    const c = clientes.find((x) => x.cnpj && x.cnpj.replace(/\D/g, "") === dig);
+    if (c) return c;
+  }
+  const n = normalizarTexto(ref);
+  return clientes.find((c) => normalizarTexto(c.razaoSocial) === n || normalizarTexto(c.nomeFantasia) === n);
+}
+
+/** Gestor pelo nome completo, nome de exibição ou e-mail. Precisa estar ativo e ter o perfil Gestor. */
+export function acharGestor(ref: string, usuarios: Usuario[]): Usuario | undefined {
+  const n = normalizarTexto(ref);
+  if (!n) return undefined;
+  return usuarios.find((u) => u.ativo && temPerfil(u, "Gestor") && [u.nome, u.nomeExibicao, u.email].some((x) => x && normalizarTexto(x) === n));
+}
 
 export function chaveLicenca(fornecedorId: string, produto: string, plano?: string): string {
   return `${fornecedorId}|${normalizarTexto(produto)}|${normalizarTexto(plano)}`;
@@ -128,6 +191,8 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
   const colabs = [...ctx.colaboradores];
   const linhasTel = [...ctx.linhas];
   const usos = [...ctx.usos];
+  const clientes = [...(ctx.clientes ?? [])];
+  const contratosNovos: string[] = [];
   let n = 0;
   const novoId = (p: string) => `novo:${p}:${++n}`;
 
@@ -269,6 +334,8 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
       return previa("Importar", resumo);
     }
 
+    if (tipo === "contratosClientes") return planejarContratoCliente(r, ctx, { clientes, contratosNovos, novoId, operacoes, previa });
+
     // linhas telefônicas
     const numero = somenteDigitosLinha(r.numero ?? "");
     const resumo = `${r.numero} · ${r.operadora}`;
@@ -301,4 +368,104 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
     return previa("Importar", resumo, aviso);
   });
   return { linhas, operacoes };
+}
+
+interface EstadoPlanoCliente {
+  clientes: Cliente[];
+  /** Chaves dos contratos criados por linhas anteriores do arquivo. */
+  contratosNovos: string[];
+  novoId: (p: string) => string;
+  operacoes: OperacaoImportacao[];
+  previa: (situacao: SituacaoLinhaCsv, resumo: string, motivo?: string) => void;
+}
+
+function planejarContratoCliente(r: Record<string, string>, ctx: ContextoImportacao, e: EstadoPlanoCliente): void {
+  const resumo = [r.cliente, r.objeto].filter(Boolean).join(" · ") || "(linha vazia)";
+  const erros: string[] = [];
+  const avisos: string[] = [];
+  const pendentes: string[] = [];
+  if (!r.cliente?.trim()) erros.push("cliente vazio");
+  if (!r.objeto?.trim()) erros.push("objeto vazio");
+  const gestor = acharGestor(r.gestor ?? "", ctx.usuarios ?? []);
+  if (!gestor) erros.push(r.gestor?.trim() ? `gestor “${r.gestor.trim()}” não encontrado com perfil Gestor (cadastre em Administração → Usuários)` : "gestor vazio");
+  const empresas = ctx.empresas ?? [];
+  const empresa = r.empresa?.trim() ? empresas.find((x) => normalizarTexto(x.nome) === normalizarTexto(r.empresa)) : empresas[0];
+  if (!empresa) erros.push(r.empresa?.trim() ? `empresa “${r.empresa.trim()}” não encontrada` : "nenhuma empresa do grupo cadastrada");
+  const tipoReceita = TIPO_RECEITA[normalizarTexto(r.tipo_receita).replace(/[^a-z]/g, "")];
+  if (!tipoReceita) erros.push("tipo_receita inválido (fixa, variavel ou fixa + variavel)");
+  const moeda = (r.moeda?.trim() ? r.moeda.trim().toUpperCase() : "BRL") as ContratoClienteImportado["moeda"];
+  if (!["BRL", "USD", "EUR"].includes(moeda)) erros.push("moeda inválida (BRL, USD ou EUR)");
+  const situacao = r.situacao?.trim() ? opcao(r.situacao, SITUACAO_CONTRATO) : "Vigente";
+  if (!situacao) erros.push("situacao inválida (vigente, cancelado, encerrado ou suspenso)");
+  const di = dataBR(r.data_inicio);
+  const indeterminado = !r.data_fim?.trim() || /^indeterminad/.test(normalizarTexto(r.data_fim));
+  const df = indeterminado ? undefined : dataBR(r.data_fim);
+  const dn = dataBR(r.novo_valor_a_partir_de);
+  if (di === "invalida") erros.push("data_inicio inválida");
+  if (df === "invalida") erros.push("data_fim inválida (data ou “indeterminado”)");
+  if (dn === "invalida") erros.push("novo_valor_a_partir_de inválida");
+  const num = (v?: string) => (v && /^n\/?a$/i.test(v.trim()) ? undefined : numeroBR(v));
+  const fixo = num(r.valor_mensal_fixo);
+  const variavel = num(r.valor_mensal_variavel_estimado);
+  const total = num(r.valor_total_contratado);
+  const novoFixo = num(r.novo_valor_fixo);
+  const aviso = numeroBR(r.aviso_previo_dias);
+  if ([fixo, variavel, total, novoFixo, aviso].some((x) => Number.isNaN(x))) erros.push("número inválido");
+  if (erros.length) return e.previa("Recusada", resumo, erros.join("; "));
+
+  let cliente = acharCliente(r.cliente_cnpj || r.cliente, e.clientes) ?? acharCliente(r.cliente, e.clientes);
+  const clienteNovo = !cliente;
+  if (!cliente) {
+    const nome = r.cliente.trim();
+    const dig = (r.cliente_cnpj ?? "").replace(/\D/g, "");
+    cliente = { cliente_id: e.novoId("cl"), razaoSocial: nome, nomeFantasia: nome, cnpj: dig.length === 14 ? dig : undefined, statusCadastral: "Ativo" };
+  }
+  const chave = chaveContratoCliente(cliente.cliente_id, r.objeto, r.numero_contrato_cliente);
+  const existe = ctx.contratos.some((c) => c.natureza === "Receita" && c.clienteId && chaveContratoCliente(c.clienteId, c.objeto ?? "", c.external_id) === chave) || e.contratosNovos.includes(chave);
+  if (existe) return e.previa("Já existe", resumo, "Contrato já registrado (mesmo cliente e número, ou mesmo cliente e objeto).");
+
+  const receita: ValoresReceita = { tipoReceita: tipoReceita!, valorTotalContratado: total || undefined };
+  if (tipoReceita !== "Variável") receita.valorMensalFixo = fixo;
+  if (tipoReceita !== "Fixa") receita.valorMensalVariavelEstimado = variavel;
+  // Planilha legada costuma ter um só valor para "fixa + variável": entra no fixo e fica pendente de separar.
+  if (tipoReceita === "Fixa + variável" && fixo === undefined && variavel !== undefined) (receita.valorMensalFixo = variavel), (receita.valorMensalVariavelEstimado = undefined);
+  if (tipoReceita === "Fixa + variável" && (receita.valorMensalFixo === undefined || receita.valorMensalVariavelEstimado === undefined)) {
+    receita.valorMensalFixo ??= 0;
+    receita.valorMensalVariavelEstimado ??= 0;
+    pendentes.push("Separar receita fixa e variável");
+  }
+  if (tipoReceita === "Variável" && variavel === undefined && !total) {
+    receita.valorMensalVariavelEstimado = 0;
+    pendentes.push("Estimativa da receita variável (ou contrato em que é apurada)");
+  }
+  if (novoFixo !== undefined) {
+    if (!dn) return e.previa("Recusada", resumo, "novo_valor_fixo precisa de novo_valor_a_partir_de");
+    receita.escalonamento = [{ aPartirDe: dn, valorMensalFixo: novoFixo }];
+  }
+  const vigencia: Vigencia = {
+    dataInicio: di ?? "",
+    dataFim: df ?? "",
+    tipoVigencia: indeterminado ? "Prazo indeterminado" : "Prazo determinado",
+    avisoPrevioDias: aviso ?? 60,
+    renovacaoAutomatica: indeterminado || SIM.has(normalizarTexto(r.renovacao_automatica)),
+    prazoGestorDias: 30,
+  } as Vigencia;
+  const contrato: ContratoClienteImportado = {
+    clienteId: cliente.cliente_id, empresaId: empresa!.id, gestorId: gestor!.id, objeto: r.objeto.trim(), external_id: r.numero_contrato_cliente?.trim() || undefined,
+    moeda, vigencia, receita, status: situacao!, observacoes: r.observacao?.trim() || undefined, confirmacoesPendentes: pendentes.length ? pendentes : undefined, chaveImportacao: chave,
+  };
+  // Mesmas regras do registro manual; sem data de início entra com pendência (completa depois na capa).
+  const ev = errosContratoReceita({ ...contrato, natureza: "Receita", vigencia: { ...vigencia, dataInicio: di ?? "0000-01-01" } } as unknown as Contrato);
+  if (ev.length) return e.previa("Recusada", resumo, ev.join(" "));
+  if (!di) avisos.push("Sem data de início: entra com pendência para completar.");
+  if (moeda !== "BRL") avisos.push("Moeda estrangeira: informe a cotação no contrato.");
+  if (clienteNovo) {
+    e.clientes.push(cliente);
+    e.operacoes.push({ tipo: "cliente", cliente });
+    avisos.unshift(`Cliente “${cliente.razaoSocial}” será cadastrado.`);
+  }
+  e.contratosNovos.push(chave);
+  e.operacoes.push({ tipo: "contratoCliente", contrato });
+  if (pendentes.length) avisos.push(`Pendente: ${pendentes.join("; ")}.`);
+  return e.previa("Importar", resumo, avisos.join(" ") || undefined);
 }

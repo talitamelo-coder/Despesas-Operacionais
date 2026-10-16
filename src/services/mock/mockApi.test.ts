@@ -3,6 +3,7 @@ import csvLicencas from "../../../ferramentas/dados-teste-licencas/1-licencas.cs
 import csvMovimentacoes from "../../../ferramentas/dados-teste-licencas/2-movimentacoes.csv?raw";
 import csvAtribuicoes from "../../../ferramentas/dados-teste-licencas/3-atribuicoes.csv?raw";
 import csvLinhas from "../../../ferramentas/dados-teste-licencas/4-linhas.csv?raw";
+import csvContratosClientes from "../../../ferramentas/dados-teste-clientes/contratos-clientes.csv?raw";
 import { mockApi as api } from "./mockApi";
 
 /** Fluxos ponta a ponta na camada de serviço simulada (mesmo contrato da API futura). */
@@ -345,6 +346,24 @@ describe("contratos de clientes (receita)", () => {
     await expect(api.atualizarContrato("r-wifi", { receita: { ...c.receita!, valorMensalFixo: 1 } }, "u-sup1")).rejects.toThrow(/aditivo/);
     await api.registrarAditivo({ contrato_id: "r-wifi", numero: "2º Aditivo", data: H, tipo: "Prazo", descricao: "Prorrogação", novaDataFim: "2029-12-31" }, "u-sup1");
     expect((await api.obterContrato("r-wifi"))!.vigencia.dataFim).toBe("2029-12-31");
+  });
+
+  it("importa a planilha de contratos de clientes (idempotente) e o painel recebe os saldos", async () => {
+    await expect(api.importarCsv("contratosClientes", csvContratosClientes, "u-ges1")).rejects.toThrow();
+    const r = await api.importarCsv("contratosClientes", csvContratosClientes, "u-sup1");
+    expect([r.importadas, r.recusadas]).toEqual([4, 2]); // gestor inexistente + linha de total
+    const clientes = await api.listarClientes();
+    expect(clientes.filter((c) => c.razaoSocial === "Operadora Fictícia Norte S.A.")).toHaveLength(1);
+    const contratos = (await api.listarContratos()).filter((c) => c.external_id === "4600099001");
+    expect(contratos[0].receita?.escalonamento?.[0]).toEqual({ aPartirDe: "2026-11-01", valorMensalFixo: 110000 });
+    const cancelado = (await api.listarContratos()).find((c) => c.objeto === "Suporte legado");
+    expect(cancelado?.status).toBe("Cancelado");
+    const de2 = await api.importarCsv("contratosClientes", csvContratosClientes, "u-sup1");
+    expect(de2.importadas).toBe(0);
+    expect(de2.jaExistiam).toBe(4);
+    const saldos = await api.listarSaldos("Receita", "u-sup1");
+    expect(saldos[contratos[0].contrato_id].contratado).toBe(4320000);
+    expect(saldos["c-usd"]).toBeUndefined();
   });
 });
 

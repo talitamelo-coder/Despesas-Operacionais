@@ -69,6 +69,10 @@ Três funções: **registro do contrato, saldo e valores contratados**. Pedidos,
 
 Menu **Contratos de clientes**, com cadastro de **clientes separado** do de fornecedores (cliente no exterior sem CNPJ). Registra cliente, vigência (ou prazo indeterminado com revisão anual), tipo de receita (fixa, variável ou fixa + variável), valores previstos no contrato (ex.: "a partir de 11/2026, R$ X/mês"), contrato principal (receita apurada em outro contrato) e renovação/substituição de um ou mais contratos. O **saldo a faturar** é consumido pelas notas emitidas que chegam do Contas a receber (porta de integração pronta; nada de faturamento é feito aqui). A Central de Contratos e o Dashboard ficam com os contratos de fornecedores.
 
+Aba **Painel**: receita mensal contratada (fixa e variável estimada), receita anualizada, receita em risco (vencidos ou vencendo em até 90 dias), renovação automática/indeterminado, concentração no maior cliente, receita por cliente, por faixa de vencimento, por tipo e por gestor, lista por vencimento (exporta CSV) e alertas (vencido sem novo contrato, vencendo, revisão anual atrasada, saldo a faturar ≥ 80%, concentração > 50%, cadastro a completar). Regras em `rules/painelClientes.ts`.
+
+Aba **Importar**: CSV de contratos de clientes (modelo para download, prévia linha a linha, idempotente). Gestor precisa existir com perfil Gestor; cliente inexistente é cadastrado; sem data de início, o contrato entra com pendência. Arquivo fictício em `ferramentas/dados-teste-clientes/`.
+
 ### Saldo do contrato
 
 O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos − licenças e linhas vinculadas. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Compras de licenças e linhas vinculadas também consomem o saldo e são bloqueadas se não couberem. Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.

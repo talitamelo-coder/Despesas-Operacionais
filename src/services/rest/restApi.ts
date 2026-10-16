@@ -75,6 +75,7 @@ export const restApi: ContratosApi = {
 
   buscarDemandaJira: (jira_key) => http("GET", `/integracoes/jira/demandas/${encodeURIComponent(jira_key)}`),
   obterSaldoContrato: (contratoId, porId) => http("GET", `/contratos/${contratoId}/saldo`, undefined, porId),
+  listarSaldos: (natureza, porId) => http("GET", `/contratos/saldos?natureza=${encodeURIComponent(natureza)}`, undefined, porId),
   registrarPedido: (p, porId) => http("POST", `/contratos/${p.contrato_id}/pedidos`, p, porId),
   atualizarStatusPedido: (id, status, porId) => http("POST", `/pedidos/${id}/status`, { status }, porId),
   registrarAditivo: (a, porId) => http("POST", `/contratos/${a.contrato_id}/aditivos`, a, porId),

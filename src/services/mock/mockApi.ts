@@ -24,7 +24,7 @@ import { validarSaving } from "@/domain/rules/saving";
 import type { AditivoContrato, AporteSaldo, Cliente, EmissaoFaturamento, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
 import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
-import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao } from "../api";
+import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao, type NovoContratoCliente } from "../api";
 import { consultar, montarLinhas } from "../consultaCentral";
 import { notificarMudanca } from "../eventos";
 
@@ -157,6 +157,9 @@ function contextoImportacao(): ContextoImportacao {
     hoje: hoje(),
     fornecedores: estado.fornecedores,
     contratos: estado.contratos,
+    clientes: estado.clientes,
+    usuarios: estado.usuarios,
+    empresas: estado.empresas,
     licencas: estado.licencas,
     movimentacoes: estado.movimentacoesLicenca,
     atribuicoes: estado.atribuicoesLicenca,
@@ -164,6 +167,36 @@ function contextoImportacao(): ContextoImportacao {
     dominios: dominiosDoGrupo(estado.parametros),
     linhas: estado.linhasTelefonicas,
     usos: estado.usosLinha,
+  };
+}
+
+/** Contrato de cliente novo (registro manual ou importação). Valida em quem chama. */
+function montarContratoCliente(d: NovoContratoCliente, porId: string): Contrato {
+  return {
+    contrato_id: novoId("c"),
+    codigo: codigoNovo("CT", d.vigencia.dataInicio || hoje()),
+    natureza: "Receita",
+    clienteId: d.clienteId,
+    fornecedorId: "",
+    empresaId: d.empresaId,
+    objeto: d.objeto.trim(),
+    tipoContratoId: d.tipoContratoId || estado.tiposContrato[0]?.id || "",
+    gestorId: d.gestorId,
+    analistaId: porId,
+    centroCusto: d.centroCusto,
+    projeto: d.projeto,
+    external_id: d.external_id,
+    status: "Vigente",
+    condicoes: { moeda: d.moeda, valorAnual: valorAnualReceita(d.receita), periodicidadePagamento: "Mensal", condicaoPagamento: "" },
+    vigencia: d.vigencia,
+    reajuste: d.reajuste ?? { possui: false },
+    rescisao: { permite: true, possuiMulta: false },
+    receita: d.receita,
+    observacoes: d.observacoes,
+    execucaoFinanceira: { simulado: true },
+    origens: {},
+    criadoEm: agora(),
+    atualizadoEm: agora(),
   };
 }
 
@@ -757,6 +790,13 @@ export const mockApi: ContratosApi = {
       emissoes: estado.emissoesFaturamento.filter((e) => e.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
     });
   },
+  async listarSaldos(natureza, porId) {
+    exigir(porId, "visualizar");
+    const ctx = contextoSaldo();
+    const r: Record<string, ReturnType<typeof saldoDoContrato>> = {};
+    for (const c of estado.contratos) if ((c.natureza ?? "Despesa") === natureza) r[c.contrato_id] = saldoDoContrato(c, ctx);
+    return clone(r);
+  },
   async registrarPedido(p, porId) {
     exigir(porId, "editar_processo");
     const c = getContrato(p.contrato_id);
@@ -833,32 +873,7 @@ export const mockApi: ContratosApi = {
   },
   async registrarContratoCliente(d, porId) {
     exigir(porId, "editar_processo");
-    const base: Contrato = {
-      contrato_id: novoId("c"),
-      codigo: codigoNovo("CT", d.vigencia.dataInicio || hoje()),
-      natureza: "Receita",
-      clienteId: d.clienteId,
-      fornecedorId: "",
-      empresaId: d.empresaId,
-      objeto: d.objeto.trim(),
-      tipoContratoId: d.tipoContratoId || estado.tiposContrato[0]?.id || "",
-      gestorId: d.gestorId,
-      analistaId: porId,
-      centroCusto: d.centroCusto,
-      projeto: d.projeto,
-      external_id: d.external_id,
-      status: "Vigente",
-      condicoes: { moeda: d.moeda, valorAnual: valorAnualReceita(d.receita), periodicidadePagamento: "Mensal", condicaoPagamento: "" },
-      vigencia: d.vigencia,
-      reajuste: d.reajuste ?? { possui: false },
-      rescisao: { permite: true, possuiMulta: false },
-      receita: d.receita,
-      observacoes: d.observacoes,
-      execucaoFinanceira: { simulado: true },
-      origens: {},
-      criadoEm: agora(),
-      atualizadoEm: agora(),
-    };
+    const base = montarContratoCliente(d, porId);
     const erros = errosContratoReceita(base);
     if (!estado.clientes.some((c) => c.cliente_id === d.clienteId)) erros.push("Cliente não encontrado.");
     if (d.receita.contratoPrincipalId && !estado.contratos.some((c) => c.contrato_id === d.receita.contratoPrincipalId && c.natureza === "Receita")) erros.push("Contrato principal não encontrado.");
@@ -1072,11 +1087,11 @@ export const mockApi: ContratosApi = {
     return clone(novo);
   },
   async previsualizarCsv(tipo, conteudo, porId) {
-    exigir(porId, "gerir_licencas");
+    exigir(porId, tipo === "contratosClientes" ? "editar_processo" : "gerir_licencas");
     return planejarImportacao(tipo, conteudo, contextoImportacao()).linhas;
   },
   async importarCsv(tipo, conteudo, porId) {
-    exigir(porId, "gerir_licencas");
+    exigir(porId, tipo === "contratosClientes" ? "editar_processo" : "gerir_licencas");
     const plano = planejarImportacao(tipo, conteudo, contextoImportacao());
     const ids = new Map<string, string>();
     const real = (id?: string) => (id ? ids.get(id) ?? id : id);
@@ -1105,19 +1120,31 @@ export const mockApi: ContratosApi = {
         const id = novoId("tel");
         ids.set(op.linha.id, id);
         estado.linhasTelefonicas.push({ ...op.linha, id, criadoEm: agora(), atualizadoEm: agora() });
+      } else if (op.tipo === "cliente") {
+        const id = novoId("cl");
+        ids.set(op.cliente.cliente_id, id);
+        estado.clientes.push({ ...op.cliente, cliente_id: id });
+        registrar("configuracao", id, porId, "Cliente cadastrado pela importação", "razaoSocial", undefined, op.cliente.razaoSocial);
+      } else if (op.tipo === "contratoCliente") {
+        const { status, confirmacoesPendentes, chaveImportacao: _chave, ...d } = op.contrato;
+        const c = montarContratoCliente({ ...d, clienteId: real(d.clienteId)! }, porId);
+        c.status = status;
+        c.confirmacoesPendentes = confirmacoesPendentes;
+        estado.contratos.push(c);
+        registrar("contrato", c.contrato_id, porId, "Contrato de cliente importado", "status", undefined, status);
       } else {
         estado.usosLinha.push({ ...op.uso, id: novoId("uso"), linhaId: real(op.uso.linhaId)!, colaboradorId: real(op.uso.colaboradorId)! });
       }
     }
     const conta = (s: string) => plano.linhas.filter((l) => l.situacao === s).length;
     const r = { importadas: conta("Importar"), jaExistiam: conta("Já existe"), recusadas: conta("Recusada"), conciliacao: conta("Conciliação"), linhas: plano.linhas };
-    registrar(tipo === "linhas" ? "telefonia" : "licenca", `importacao:${tipo}`, porId, `Importação CSV (${tipo})`, "linhas", undefined, `${r.importadas} importadas, ${r.jaExistiam} já existiam, ${r.recusadas} recusadas, ${r.conciliacao} para conciliação`);
+    registrar(tipo === "linhas" ? "telefonia" : tipo === "contratosClientes" ? "contrato" : "licenca", `importacao:${tipo}`, porId, `Importação CSV (${tipo})`, "linhas", undefined, `${r.importadas} importadas, ${r.jaExistiam} já existiam, ${r.recusadas} recusadas, ${r.conciliacao} para conciliação`);
     persistir();
     return r;
   },
   async registrarExportacao(descricao, porId) {
     const u = usuario(porId);
-    if (!usuarioPode(u, "gerir_licencas") && !usuarioPode(u, "ver_licencas_da_area") && !usuarioPode(u, "ver_licencas_agregado")) throw new ErroPermissao();
+    if (!usuarioPode(u, "gerir_licencas") && !usuarioPode(u, "ver_licencas_da_area") && !usuarioPode(u, "ver_licencas_agregado") && !usuarioPode(u, "visualizar")) throw new ErroPermissao();
     registrar("licenca", "exportacao", porId, "Exportação de dados", "arquivo", undefined, descricao);
     persistir();
   },

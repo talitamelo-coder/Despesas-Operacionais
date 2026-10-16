@@ -1,0 +1,7 @@
+cliente;cliente_cnpj;objeto;numero_contrato_cliente;empresa;gestor;data_inicio;data_fim;renovacao_automatica;aviso_previo_dias;tipo_receita;moeda;valor_mensal_fixo;valor_mensal_variavel_estimado;valor_total_contratado;novo_valor_fixo;novo_valor_a_partir_de;situacao;observacao
+Operadora Fictícia Norte S.A.;;Plataforma de recompensas;4600099001;;Carlos Mendes;01/01/2025;31/12/2027;nao;90;fixa;BRL;120.000,00;;4.320.000,00;110.000,00;01/11/2026;vigente;Valor reduz a partir de 11/2026
+Operadora Fictícia Norte S.A.;;Squads de desenvolvimento;;;Fernanda Rocha;;30/06/2028;;60;fixa + variavel;BRL;;250.000,00;;;;vigente;Planilha não separa fixo e variável
+Portal Exemplo Ltda;;Mídia programática;;;Carlos Mendes;01/03/2024;indeterminado;;30;variavel;BRL;;n/a;;;;vigente;Receita considerada em outro contrato
+Cliente Encerrando Ltda;;Suporte legado;;;Carlos Mendes;01/10/2023;10/09/2026;nao;60;fixa;BRL;8.000,00;;;;;cancelado;Não será renovado
+Cliente Sem Gestor S.A.;;Serviço X;;;Pessoa Inexistente;01/01/2026;31/12/2026;nao;60;fixa;BRL;1.000,00;;;;;vigente;
+TOTAL;;;;;;;;;;;;;;;;;;

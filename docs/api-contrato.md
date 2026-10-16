@@ -44,6 +44,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/auditoria?entidadeId=` | `listarAuditoria` | |
 | GET | `/integracoes/jira/demandas/{jira_key}` | `buscarDemandaJira` | Backend consulta o JIRA |
 | GET | `/contratos/{id}/saldo` | `obterSaldoContrato` | `{ saldo, pedidos, aportes }`. Saldo calculado (rules/saldo.ts), na moeda do contrato |
+| GET | `/contratos/saldos?natureza=Receita` | `listarSaldos` | `{ [contrato_id]: saldo }` de todos os contratos da natureza (painel de clientes) — uma chamada só |
 | POST | `/contratos/{id}/pedidos` | `registrarPedido` | **Ponto de integração do módulo de pedidos.** `422` quando o valor passa do disponível: é preciso adicionar saldo antes |
 | POST | `/pedidos/{id}/status` | `atualizarStatusPedido` | Aprovado → Pago (realizado) ou Cancelado (devolve o saldo) |
 | POST | `/contratos/{id}/aditivos` · GET | `registrarAditivo` · `listarAditivos` | **Única forma de mudar valor ou prazo** depois da contratação. Guarda antes/depois; variação de valor total vira saldo. A edição direta (`PATCH /contratos/{id}`) recusa mudança de valor/vigência em contrato com cadastro completo |
@@ -61,7 +62,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | PUT | `/cotacoes/{data}` | `salvarCotacao` | PTAX de venda. Backend carrega 1x/dia do Banco Central (API Olinda/PTAX) e guarda em cache |
 | POST | `/parametros/{chave}` | `salvarParametro` | `{ valor, vigenteDesde }`. Histórico: o valor vale a partir da data; meses anteriores não mudam |
 | PUT | `/orcamentos-fornecedor/{id\|novo}` | `salvarOrcamento` | Alerta aos 90% do contratado no ano |
-| POST | `/importacoes/csv/{tipo}/previa` | `previsualizarCsv` | `tipo`: licencas, atribuicoes, movimentacoes, linhas. Não grava |
+| POST | `/importacoes/csv/{tipo}/previa` | `previsualizarCsv` | `tipo`: licencas, atribuicoes, movimentacoes, linhas (permissão gerir_licencas) ou contratosClientes (editar_processo). Não grava |
 | POST | `/importacoes/csv/{tipo}` | `importarCsv` | Só linhas válidas; idempotente (reimportar não altera totais) |
 | POST | `/auditoria/exportacoes` | `registrarExportacao` | Toda exportação CSV entra na auditoria |
 | PUT | `/telefonia/linhas/{id\|nova}` | `salvarLinha` | Número único (só dígitos, com DDD). Cancelada/portada encerra o uso |
