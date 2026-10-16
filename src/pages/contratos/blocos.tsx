@@ -62,6 +62,7 @@ export function BlocoCondicoesComerciais({ c }: { c: Contrato }) {
       <Valor rotulo="Preço unitário anual">{cc.precoUnitario ? formatarMoeda(cc.precoUnitario, cc.moeda) : "—"}</Valor>
       <Valor rotulo="Periodicidade de pagamento">{cc.periodicidadePagamento}</Valor>
       <Valor rotulo="Condição de pagamento" className="sm:col-span-2">{cc.condicaoPagamento || "—"}</Valor>
+      {c.execucaoFinanceira.pedido_id && <Valor rotulo="Pedido de referência (planilha)" origem="importado">{c.execucaoFinanceira.pedido_id}</Valor>}
     </GradeValores>
   );
 }
@@ -160,34 +161,6 @@ export function BlocoRescisao({ c }: { c: Contrato }) {
 }
 
 /** Espaço reservado para integração com o sistema atual (pedido, consumido, saldo). */
-export function BlocoExecucaoFinanceira({ c }: { c: Contrato }) {
-  const e = c.execucaoFinanceira;
-  const saldo = e.valorContratado !== undefined && e.valorConsumido !== undefined ? e.valorContratado - e.valorConsumido : undefined;
-  const pct = e.valorContratado ? ((e.valorConsumido ?? 0) / e.valorContratado) * 100 : undefined;
-  return (
-    <div className="space-y-3">
-      {e.simulado && <Aviso tom="info">Dados simulados. Pedido, consumo e saldo virão do sistema atual (fonte oficial) quando a integração estiver disponível.</Aviso>}
-      <GradeValores colunas={2}>
-        <Valor rotulo="Pedido" origem="importado">{e.pedido_id ?? "—"}</Valor>
-        <Valor rotulo="Valor contratado" origem="importado">{formatarMoeda(e.valorContratado)}</Valor>
-        <Valor rotulo="Valor consumido" origem="importado">{formatarMoeda(e.valorConsumido)}</Valor>
-        <Valor rotulo="Saldo" origem="calculado">{formatarMoeda(saldo)}</Valor>
-      </GradeValores>
-      {pct !== undefined && (
-        <div>
-          <div className="mb-1 flex justify-between text-xs text-texto-suave">
-            <span>Percentual consumido</span>
-            <span className="tabular">{formatarPercentual(pct)}</span>
-          </div>
-          <div className="h-2 rounded-full bg-fundo">
-            <div className={`h-2 rounded-full ${pct > 90 ? "bg-critico-600" : pct > 75 ? "bg-alerta-600" : "bg-primaria-600"}`} style={{ width: `${Math.min(100, pct)}%` }} />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Decomposição preço × volume × câmbio contra o contrato anterior. */
 export function BlocoVariacao({ c, anterior }: { c: Contrato; anterior?: Contrato }) {
   if (!anterior) return <p className="text-sm text-texto-suave">Sem contrato anterior para comparação.</p>;

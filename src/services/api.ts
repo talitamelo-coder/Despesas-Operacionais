@@ -3,7 +3,11 @@ import type { Pendencia } from "@/domain/rules/fluxo";
 import type { Indicadores } from "@/domain/rules/indicadores";
 import type { RegistroImportado } from "@/domain/rules/importacao";
 import type { LinhaPrevia, TipoImportacao } from "@/domain/rules/importacaoCsv";
+import type { SaldoContrato } from "@/domain/rules/saldo";
 import type {
+  AporteSaldo,
+  PedidoContrato,
+  StatusPedido,
   AtribuicaoLicenca,
   ChaveParametro,
   Colaborador,
@@ -179,6 +183,15 @@ export interface ContratosApi {
   // Integrações (gateways)
   buscarDemandaJira(jira_key: string): Promise<DemandaJira | undefined>;
 
+  // Saldo do contrato (pedidos e aportes). Com a integração, o módulo de pedidos usa registrarPedido.
+  obterSaldoContrato(contratoId: string, porId: string): Promise<DadosSaldo>;
+  /** Bloqueia pedido acima do saldo disponível (é preciso adicionar saldo antes). */
+  registrarPedido(p: NovoPedido, porId: string): Promise<PedidoContrato>;
+  /** Aprovado → Pago, ou Aprovado → Cancelado (libera o saldo). */
+  atualizarStatusPedido(id: string, status: Exclude<StatusPedido, "Aprovado">, porId: string): Promise<PedidoContrato>;
+  /** Adiciona saldo ao contrato (ex.: aditivo de valor). Nunca sobrescreve: soma ao contratado. */
+  registrarAporteSaldo(a: NovoAporte, porId: string): Promise<AporteSaldo>;
+
   // Licenças de software e telefonia (só referenciam contratos; nunca os alteram).
   /** Dados já filtrados pelo perfil: Gestor recebe só a própria área; Leitura recebe pessoas sem nome/e-mail. */
   listarLicencas(porId: string): Promise<DadosLicencas>;
@@ -213,6 +226,17 @@ export interface ContratosApi {
   importarBackup(conteudo: string, porId: string): Promise<{ contratos: number; processos: number }>;
   restaurarDadosDemonstracao(porId?: string): Promise<void>;
 }
+
+// ---------------------------------------------------------------- Saldo do contrato
+
+export interface DadosSaldo {
+  saldo: SaldoContrato;
+  pedidos: PedidoContrato[];
+  aportes: AporteSaldo[];
+}
+
+export type NovoPedido = Pick<PedidoContrato, "contrato_id" | "numero" | "data" | "valor" | "descricao">;
+export type NovoAporte = Pick<AporteSaldo, "contrato_id" | "data" | "valor" | "motivo" | "referencia">;
 
 // ---------------------------------------------------------------- Licenças e telefonia
 

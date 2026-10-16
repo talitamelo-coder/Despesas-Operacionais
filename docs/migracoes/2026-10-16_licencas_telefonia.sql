@@ -201,3 +201,36 @@ CREATE TABLE usos_linha (
   FOREIGN KEY (linha_id) REFERENCES linhas_telefonicas(id),
   FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- -----------------------------------------------------------------------------
+-- Saldo do contrato (no contrato, não no fornecedor). Saldo é calculado, nunca gravado.
+-- -----------------------------------------------------------------------------
+CREATE TABLE pedidos_contrato (
+  id              CHAR(36)      PRIMARY KEY,
+  contrato_id     CHAR(36)      NOT NULL,
+  numero          VARCHAR(60)   NOT NULL,
+  data            DATE          NOT NULL,
+  valor           DECIMAL(15,2) NOT NULL COMMENT 'Moeda do contrato',
+  descricao       VARCHAR(255)  NULL,
+  status          ENUM('Aprovado','Pago','Cancelado') NOT NULL DEFAULT 'Aprovado',
+  origem          ENUM('Registro manual','Módulo de pedidos') NOT NULL,
+  registrado_por  CHAR(36)      NOT NULL,
+  registrado_em   DATETIME      NOT NULL,
+  UNIQUE KEY uq_pedido (contrato_id, numero),
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id),
+  INDEX ix_ped_contrato (contrato_id, status, data)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE aportes_saldo (
+  id              CHAR(36)      PRIMARY KEY,
+  contrato_id     CHAR(36)      NOT NULL,
+  data            DATE          NOT NULL,
+  valor           DECIMAL(15,2) NOT NULL,
+  motivo          VARCHAR(255)  NOT NULL,
+  referencia      VARCHAR(120)  NULL,
+  registrado_por  CHAR(36)      NOT NULL,
+  registrado_em   DATETIME      NOT NULL,
+  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+-- Bloqueio: o backend valida "valor <= disponível" na mesma transação do INSERT em pedidos_contrato,
+-- com SELECT ... FOR UPDATE na linha do contrato (evita dois pedidos simultâneos estourarem o saldo).

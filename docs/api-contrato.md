@@ -43,6 +43,10 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/dashboard/indicadores` | `obterIndicadores` | Derivado (`domain/rules/indicadores.ts`) |
 | GET | `/auditoria?entidadeId=` | `listarAuditoria` | |
 | GET | `/integracoes/jira/demandas/{jira_key}` | `buscarDemandaJira` | Backend consulta o JIRA |
+| GET | `/contratos/{id}/saldo` | `obterSaldoContrato` | `{ saldo, pedidos, aportes }`. Saldo calculado (rules/saldo.ts), na moeda do contrato |
+| POST | `/contratos/{id}/pedidos` | `registrarPedido` | **Ponto de integração do módulo de pedidos.** `422` quando o valor passa do disponível: é preciso adicionar saldo antes |
+| POST | `/pedidos/{id}/status` | `atualizarStatusPedido` | Aprovado → Pago (realizado) ou Cancelado (devolve o saldo) |
+| POST | `/contratos/{id}/aportes` | `registrarAporteSaldo` | Adiciona saldo (ex.: aditivo de valor); soma ao contratado, com auditoria |
 | GET | `/licencas` | `listarLicencas` | Licenças, movimentações, atribuições, colaboradores, cotações, parâmetros, orçamentos, linhas e usos. Filtrado por perfil (`visao`: completa, area, agregada) |
 | PUT | `/licencas/{id\|novo}` | `salvarLicenca` | Corpo pode trazer `compraInicial`. `contrato_id` só vincula: **nunca altera o contrato**. Bloqueia anual com vencimento mensal |
 | POST | `/licencas/{id}/movimentacoes` | `registrarMovimentacao` | Compra, Redução, Renegociação, Cancelamento. Grava `valorAnualAntes/Depois` (registro de economia). Cancelamento encerra atribuições |
@@ -74,5 +78,6 @@ As fórmulas estão centralizadas em `src/domain/rules/` e cobertas por testes. 
 - `licencas.ts`: posição de assentos pelas movimentações, câmbio (PTAX × (1 + spread) + IOF só em USD), cobrança por competência, rateio por pessoa, ranking de ofensores (fecha com o total), ganhos e perdas, vencimentos e alertas. Impostos simulados nunca entram nos totais.
 - `importacaoCsv.ts`, `csv.ts`: modelos, leitura no padrão pt-BR, validação linha a linha e plano idempotente.
 - `telefonia.ts`: linhas, uso por pessoa, custos por operadora/pessoa/área e alertas.
+- `saldo.ts`: contratado (valor anual × anos da vigência + aportes; ciclo anual no indeterminado) − pedidos aprovados e pagos − licenças e linhas vinculadas. Bloqueio de pedido acima do saldo e de compra de licença/linha que estoure o saldo; alertas de 80% e 100%. O backend deve validar o saldo na mesma transação que grava o pedido (`SELECT ... FOR UPDATE` no contrato).
 - `avaliacao.ts`, `prazos.ts`: desfecho da avaliação (não renovar nem substituir = **Cancelado**) e revisão anual do prazo indeterminado.
 - **Pré-agregação (FinOps):** o backend mantém `custo_licenca_mensal` (competência × licença × colaborador × tipo) recalculada a cada movimentação/atribuição; o dashboard lê dela. Cotação em cache, 1 carga por dia.

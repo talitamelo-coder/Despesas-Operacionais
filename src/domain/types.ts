@@ -534,6 +534,40 @@ export interface Configuracao {
   listasAuxiliares: Record<string, string[]>;
 }
 
+// ---------------------------------------------------------------- Saldo do contrato
+
+/**
+ * Pedidos consomem o saldo do contrato. Hoje registrados aqui (simulação); com a integração,
+ * chegam do módulo de pedidos e Contas a pagar pela mesma operação da API.
+ */
+export type StatusPedido = "Aprovado" | "Pago" | "Cancelado";
+
+export interface PedidoContrato {
+  id: string;
+  contrato_id: string;
+  numero: string;
+  data: ISODate;
+  /** Na moeda do contrato. */
+  valor: number;
+  descricao?: string;
+  status: StatusPedido;
+  origem: "Registro manual" | "Módulo de pedidos";
+  registradoPorId: string;
+  registradoEm: ISODateTime;
+}
+
+/** Saldo adicionado ao contrato (ex.: aditivo de valor). Soma ao contratado; nunca sobrescreve. */
+export interface AporteSaldo {
+  id: string;
+  contrato_id: string;
+  data: ISODate;
+  valor: number;
+  motivo: string;
+  referencia?: string;
+  registradoPorId: string;
+  registradoEm: ISODateTime;
+}
+
 // ---------------------------------------------------------------- Colaboradores (quem usa)
 
 /**

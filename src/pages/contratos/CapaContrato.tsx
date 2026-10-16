@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ClipboardCheck, FilePlus2, History, Lock, Pencil, Save } from "lucide-react";
 import { useApp } from "@/app/contexto";
+import { BlocoSaldo } from "./SaldoContrato";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { DocumentosLista } from "@/components/dominio/DocumentosLista";
 import { EditarContratoModal } from "@/components/dominio/EditarContratoModal";
@@ -31,7 +32,6 @@ import { api } from "@/services";
 import {
   BlocoCambio,
   BlocoCondicoesComerciais,
-  BlocoExecucaoFinanceira,
   BlocoHistoricoContratual,
   BlocoInformacoesGerais,
   BlocoLicencas,
@@ -254,7 +254,7 @@ export function CapaContrato() {
               </Bloco>
             )}
             <Bloco titulo="Histórico contratual"><BlocoHistoricoContratual c={c} cadeia={cadeia} /></Bloco>
-            <Bloco titulo="Execução financeira"><BlocoExecucaoFinanceira c={c} /></Bloco>
+            <Bloco titulo="Saldo do contrato"><BlocoSaldo c={c} compacto /></Bloco>
             <Card>
               <CardHeader titulo="Documentos" acoes={<Button variante="fantasma" tamanho="sm" onClick={() => setParams({ aba: "Jurídico & Documentos" })}>Ver todos</Button>} />
               <DocumentosLista contrato_id={c.contrato_id} densa />
@@ -327,7 +327,7 @@ export function CapaContrato() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <Bloco titulo="Condições comerciais"><BlocoCondicoesComerciais c={c} /></Bloco>
           <Bloco titulo="Câmbio"><BlocoCambio c={c} /></Bloco>
-          <Bloco className="xl:col-span-2" titulo="Execução financeira"><BlocoExecucaoFinanceira c={c} /></Bloco>
+          <Bloco className="xl:col-span-2" titulo="Saldo do contrato"><BlocoSaldo c={c} /></Bloco>
         </div>
       )}
 

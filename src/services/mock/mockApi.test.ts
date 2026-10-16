@@ -285,6 +285,30 @@ describe("dados fictícios de teste (ferramentas/dados-teste-licencas)", () => {
   });
 });
 
+describe("saldo do contrato", () => {
+  const H = new Date().toISOString().slice(0, 10);
+
+  it("bloqueia pedido acima do saldo; adicionar saldo libera; cancelar devolve", async () => {
+    const { saldo } = await api.obterSaldoContrato("c-eixo", "u-sup1");
+    expect(saldo.percentualConsumido).toBeGreaterThan(80);
+    const acima = Math.ceil(saldo.disponivel) + 1000;
+    await expect(api.registrarPedido({ contrato_id: "c-eixo", numero: "PED-T1", data: H, valor: acima }, "u-sup1")).rejects.toThrow(/Saldo insuficiente/);
+    await api.registrarAporteSaldo({ contrato_id: "c-eixo", data: H, valor: 2000, motivo: "Aditivo de valor" }, "u-sup1");
+    const p = await api.registrarPedido({ contrato_id: "c-eixo", numero: "PED-T1", data: H, valor: acima }, "u-sup1");
+    const depois = (await api.obterSaldoContrato("c-eixo", "u-sup1")).saldo.disponivel;
+    await api.atualizarStatusPedido(p.id, "Cancelado", "u-sup1");
+    expect((await api.obterSaldoContrato("c-eixo", "u-sup1")).saldo.disponivel).toBeCloseTo(depois + acima);
+    expect((await api.listarAcoes()).some((x) => x.id === "c-eixo:saldo")).toBe(true);
+  });
+
+  it("compra de licença vinculada que estoura o saldo é bloqueada e nada é gravado", async () => {
+    const antes = await api.listarLicencas("u-sup1");
+    await expect(api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 100000, precoUnitario: 30, responsavel: "Teste" }, "u-sup1")).rejects.toThrow(/Saldo insuficiente no contrato/);
+    expect((await api.listarLicencas("u-sup1")).movimentacoes.length).toBe(antes.movimentacoes.length);
+    await api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 1, precoUnitario: 30, responsavel: "Teste" }, "u-sup1");
+  });
+});
+
 describe("telefonia", () => {
   it("uma linha tem um usuário por vez; número é único", async () => {
     const H = new Date().toISOString().slice(0, 10);

@@ -30,6 +30,8 @@ interface Contexto {
   regras?: RegrasAlerta;
   referencia?: ISODate;
   juridicoPadraoId?: string;
+  /** Contratos com saldo em alerta (80% ou 100% consumido), calculado em rules/saldo.ts. */
+  saldos?: Map<string, { faixa: 80 | 100; percentual: number }>;
 }
 
 function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], ctx: Contexto): AcaoNecessaria[] {
@@ -88,6 +90,18 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
       responsavelId: c.analistaId,
       prazo: prazos.dataLimiteManifestacao,
       link: `/contratos/${c.contrato_id}`,
+    });
+  }
+
+  const saldo = ctx.saldos?.get(c.contrato_id);
+  if (saldo) {
+    acoes.push({
+      id: `${c.contrato_id}:saldo`,
+      prioridade: saldo.faixa === 100 ? "Crítico" : "Atenção",
+      referencia: ref,
+      acao: `Saldo ${Math.round(saldo.percentual)}% consumido — ${saldo.faixa === 100 ? "novos pedidos estão bloqueados: adicionar saldo (aditivo)" : "avaliar aditivo de valor"}`,
+      responsavelId: c.analistaId,
+      link: `/contratos/${c.contrato_id}?aba=Financeiro`,
     });
   }
 

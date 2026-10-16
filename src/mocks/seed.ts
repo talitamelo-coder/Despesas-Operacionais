@@ -5,7 +5,10 @@ import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
 import { aplicarMovimentacao, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
+import { saldoDoContrato } from "@/domain/rules/saldo";
 import type {
+  AporteSaldo,
+  PedidoContrato,
   AtribuicaoLicenca,
   Colaborador,
   CotacaoDia,
@@ -56,6 +59,9 @@ export interface EstadoDados {
   orcamentosFornecedor: OrcamentoFornecedor[];
   linhasTelefonicas: LinhaTelefonica[];
   usosLinha: UsoLinha[];
+  // Saldo do contrato
+  pedidosContrato: PedidoContrato[];
+  aportesSaldo: AporteSaldo[];
 }
 
 export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLicenca", "atribuicoesLicenca", "cotacoes", "parametros", "orcamentosFornecedor", "linhasTelefonicas", "usosLinha"] as const;
@@ -70,11 +76,13 @@ export function completarEstado(e: EstadoDados): EstadoDados {
   const r = { ...resto } as EstadoDados;
   const legado = Array.isArray(_p);
   for (const k of COLECOES_LICENCAS) (r as unknown as Record<string, unknown[]>)[k] = legado && k === "colaboradores" ? [] : ((e as unknown as Record<string, unknown[]>)[k] ?? []);
+  r.pedidosContrato = e.pedidosContrato ?? [];
+  r.aportesSaldo = e.aportesSaldo ?? [];
   r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
   return r;
 }
 
-export const VERSAO_SEED = 2;
+export const VERSAO_SEED = 3;
 
 // PRNG determinístico (mulberry32) — mesmos dados a cada geração.
 function prng(seed: number) {
@@ -769,10 +777,27 @@ export function criarEstadoInicial(): EstadoDados {
   // ------------------------------------------------------------ Licenças (demonstração, fictícias)
   const licencas = licencasDemonstracao(H, agora, rnd);
 
+  // ------------------------------------------------------------ Saldo (pedidos fictícios até a integração com o módulo de pedidos)
+  const pedidosContrato: PedidoContrato[] = [];
+  const aportesSaldo: AporteSaldo[] = [];
+  const ctxSaldo = () => ({ pedidos: pedidosContrato, aportes: aportesSaldo, linhas: licencas.linhasTelefonicas, licencas: { ...licencas, movimentacoes: licencas.movimentacoesLicenca, atribuicoes: licencas.atribuicoesLicenca } });
+  const consumir = (contrato_id: string, fracoes: [number, PedidoContrato["status"]][]) => {
+    const c = contratos.find((x) => x.contrato_id === contrato_id);
+    if (!c) return;
+    const s = saldoDoContrato(c, ctxSaldo(), H);
+    fracoes.forEach(([f, status], i) =>
+      pedidosContrato.push({ id: `ped-${contrato_id}-${i}`, contrato_id, numero: `PED-${48000 + pedidosContrato.length * 7}`, data: addDias(c.vigencia.dataInicio || H, 20 + i * 45), valor: Math.round(s.contratado * f), descricao: "Pedido fictício (demonstração)", status, origem: "Registro manual", registradoPorId: "u-sup1", registradoEm: agora }),
+    );
+  };
+  consumir("c-eixo", [[0.3, "Pago"], [0.3, "Pago"], [0.27, "Aprovado"]]); // 87% consumido: alerta de saldo
+  consumir("c-usd", [[0.15, "Pago"], [0.1, "Aprovado"]]);
+
   return {
     versao: VERSAO_SEED,
     modo: "demonstracao",
     ...licencas,
+    pedidosContrato,
+    aportesSaldo,
     usuarios: USUARIOS,
     empresas: EMPRESAS,
     fornecedores: fornecedores(),
@@ -837,6 +862,8 @@ export function criarEstadoVazio(admin: { nome: string; email: string }): Estado
     orcamentosFornecedor: [],
     linhasTelefonicas: [],
     usosLinha: [],
+    pedidosContrato: [],
+    aportesSaldo: [],
     configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
 }

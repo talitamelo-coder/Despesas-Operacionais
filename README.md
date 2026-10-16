@@ -61,6 +61,10 @@ Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem 
 
 Menu próprio, separado das licenças. Linha com número, operadora, plano, franquia, valor mensal (BRL) e situação; uma pessoa por vez, com histórico. Dashboard por pessoa, área e operadora, e alertas de linha sem usuário ou de pessoa desligada com linha.
 
+### Saldo do contrato
+
+O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos − licenças e linhas vinculadas. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Compras de licenças e linhas vinculadas também consomem o saldo e são bloqueadas se não couberem. Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.
+
 ### Contratos: vigência e cancelamento
 
 - Todo contrato precisa de vigência. **Prazo indeterminado** tem revisão anual (aniversário da data de início ou data-base), com os mesmos alertas da renovação.

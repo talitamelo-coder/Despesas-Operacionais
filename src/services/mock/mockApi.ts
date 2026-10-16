@@ -4,6 +4,7 @@ import { somenteDigitos } from "@/domain/formatacao";
 import { calcularAcoes } from "@/domain/rules/acoes";
 import { desfechoAvaliacao } from "@/domain/rules/avaliacao";
 import { errosVigencia, prazosDoContrato } from "@/domain/rules/prazos";
+import { erroSaldoApos, erroSaldoPedido, faixaAlertaSaldo, saldoDoContrato, type ContextoSaldo } from "@/domain/rules/saldo";
 import { gerarAlertas } from "@/domain/rules/alertas";
 import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
@@ -17,7 +18,7 @@ import { gerarCredencial, usuarioPublico, validarUsuario } from "@/domain/rules/
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
-import type { AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
+import type { AporteSaldo, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
 import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
 import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao } from "../api";
@@ -163,8 +164,52 @@ function contextoImportacao(): ContextoImportacao {
   };
 }
 
+function contextoSaldo(e: EstadoDados = estado): ContextoSaldo {
+  return {
+    pedidos: e.pedidosContrato,
+    aportes: e.aportesSaldo,
+    linhas: e.linhasTelefonicas,
+    licencas: { licencas: e.licencas, movimentacoes: e.movimentacoesLicenca, atribuicoes: e.atribuicoesLicenca, colaboradores: e.colaboradores, cotacoes: e.cotacoes, parametros: e.parametros },
+  };
+}
+
+/** Contratos vigentes que têm algo consumindo saldo (pedidos, licenças ou linhas vinculadas). */
+function contratosComConsumo(e: EstadoDados = estado): Contrato[] {
+  const ids = new Set([...e.pedidosContrato.map((p) => p.contrato_id), ...e.licencas.map((l) => l.contrato_id), ...e.linhasTelefonicas.map((l) => l.contrato_id)]);
+  return e.contratos.filter((c) => c.status === "Vigente" && ids.has(c.contrato_id));
+}
+
+/**
+ * Compras de licença e linhas vinculadas consomem o saldo: se a operação deixar algum contrato
+ * sem saldo (ou piorar um saldo negativo), nada é gravado.
+ */
+async function comGuardaSaldo<T>(acao: () => Promise<T>): Promise<T> {
+  const copia = clone(estado);
+  const r = await acao();
+  const ctxAntes = contextoSaldo(copia);
+  const ctxDepois = contextoSaldo();
+  for (const c of contratosComConsumo()) {
+    const anterior = copia.contratos.find((x) => x.contrato_id === c.contrato_id) ?? c;
+    const erro = erroSaldoApos(saldoDoContrato(anterior, ctxAntes), saldoDoContrato(c, ctxDepois), c.codigo);
+    if (erro) {
+      estado = copia;
+      persistir();
+      throw new ErroNegocio(erro);
+    }
+  }
+  return r;
+}
+
 function acoes() {
+  const saldos = new Map<string, { faixa: 80 | 100; percentual: number }>();
+  const ctx = contextoSaldo();
+  for (const c of contratosComConsumo()) {
+    const s = saldoDoContrato(c, ctx);
+    const faixa = faixaAlertaSaldo(s);
+    if (faixa) saldos.set(c.contrato_id, { faixa, percentual: s.percentualConsumido });
+  }
   return calcularAcoes({
+    saldos,
     contratos: estado.contratos,
     processos: estado.processos,
     regras: estado.configuracao.regrasAlerta,
@@ -687,6 +732,53 @@ export const mockApi: ContratosApi = {
     return clone(novo);
   },
 
+  // ---------------------------------------------------------------- Saldo do contrato
+  async obterSaldoContrato(contratoId, porId) {
+    exigir(porId, "visualizar");
+    const c = getContrato(contratoId);
+    return clone({
+      saldo: saldoDoContrato(c, contextoSaldo()),
+      pedidos: estado.pedidosContrato.filter((p) => p.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
+      aportes: estado.aportesSaldo.filter((a) => a.contrato_id === contratoId).sort((a, b) => b.data.localeCompare(a.data)),
+    });
+  },
+  async registrarPedido(p, porId) {
+    exigir(porId, "editar_processo");
+    const c = getContrato(p.contrato_id);
+    if (!p.numero?.trim()) throw new ErroNegocio("Informe o número do pedido.");
+    if (!p.data) throw new ErroNegocio("Informe a data do pedido.");
+    if (estado.pedidosContrato.some((x) => x.contrato_id === c.contrato_id && x.numero === p.numero.trim() && x.status !== "Cancelado")) throw new ErroNegocio("Este pedido já está registrado no contrato.");
+    const erro = erroSaldoPedido(saldoDoContrato(c, contextoSaldo()), p.valor, c.status);
+    if (erro) throw new ErroNegocio(erro);
+    const novo: PedidoContrato = { ...p, numero: p.numero.trim(), id: novoId("ped"), status: "Aprovado", origem: "Registro manual", registradoPorId: porId, registradoEm: agora() };
+    estado.pedidosContrato.push(novo);
+    registrar("contrato", c.contrato_id, porId, `Pedido ${novo.numero} registrado`, "saldo", undefined, String(novo.valor));
+    persistir();
+    return clone(novo);
+  },
+  async atualizarStatusPedido(id, status, porId) {
+    exigir(porId, "editar_processo");
+    const p = estado.pedidosContrato.find((x) => x.id === id);
+    if (!p) throw new ErroNegocio("Pedido não encontrado.");
+    if (p.status !== "Aprovado") throw new ErroNegocio(`Pedido ${p.status.toLowerCase()} não muda de situação aqui (estorno é feito em Contas a pagar).`);
+    registrar("contrato", p.contrato_id, porId, `Pedido ${p.numero}: ${status.toLowerCase()}`, "status", p.status, status);
+    p.status = status;
+    persistir();
+    return clone(p);
+  },
+  async registrarAporteSaldo(a, porId) {
+    exigir(porId, "editar_processo");
+    const c = getContrato(a.contrato_id);
+    if (!(a.valor > 0)) throw new ErroNegocio("Informe o valor a adicionar.");
+    if (!a.data) throw new ErroNegocio("Informe a data.");
+    if (!a.motivo?.trim()) throw new ErroNegocio("Informe o motivo (ex.: aditivo de valor).");
+    const novo: AporteSaldo = { ...a, motivo: a.motivo.trim(), id: novoId("apt"), registradoPorId: porId, registradoEm: agora() };
+    estado.aportesSaldo.push(novo);
+    registrar("contrato", c.contrato_id, porId, "Saldo adicionado ao contrato", "saldo", undefined, `${novo.valor} · ${novo.motivo}`);
+    persistir();
+    return clone(novo);
+  },
+
   // ---------------------------------------------------------------- Licenças e telefonia (não alteram contratos)
   async listarLicencas(porId) {
     await latencia();
@@ -1024,3 +1116,9 @@ export const mockApi: ContratosApi = {
     persistir();
   },
 };
+
+// Operações que mudam o custo de licenças e linhas vinculadas passam pela guarda de saldo.
+for (const k of ["salvarLicenca", "registrarMovimentacao", "salvarLinha", "importarCsv"] as const) {
+  const original = mockApi[k] as (...a: unknown[]) => Promise<unknown>;
+  (mockApi as unknown as Record<string, unknown>)[k] = (...a: unknown[]) => comGuardaSaldo(() => original(...a));
+}

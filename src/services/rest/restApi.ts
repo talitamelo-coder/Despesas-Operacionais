@@ -74,6 +74,10 @@ export const restApi: ContratosApi = {
   listarAuditoria: (entidadeId) => http("GET", `/auditoria${q({ entidadeId })}`),
 
   buscarDemandaJira: (jira_key) => http("GET", `/integracoes/jira/demandas/${encodeURIComponent(jira_key)}`),
+  obterSaldoContrato: (contratoId, porId) => http("GET", `/contratos/${contratoId}/saldo`, undefined, porId),
+  registrarPedido: (p, porId) => http("POST", `/contratos/${p.contrato_id}/pedidos`, p, porId),
+  atualizarStatusPedido: (id, status, porId) => http("POST", `/pedidos/${id}/status`, { status }, porId),
+  registrarAporteSaldo: (a, porId) => http("POST", `/contratos/${a.contrato_id}/aportes`, a, porId),
   listarLicencas: (porId) => http("GET", "/licencas", undefined, porId),
   salvarLicenca: (l, porId, compraInicial) => http("PUT", `/licencas/${l.id || "novo"}`, { ...l, compraInicial }, porId),
   registrarMovimentacao: (m, porId) => http("POST", `/licencas/${m.licencaId}/movimentacoes`, m, porId),
