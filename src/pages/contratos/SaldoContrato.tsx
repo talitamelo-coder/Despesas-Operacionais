@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Tabela } from "@/components/ui/Tabela";
 import { formatarData, hoje } from "@/domain/datas";
 import { formatarMoeda, formatarPercentual } from "@/domain/formatacao";
-import { erroSaldoPedido } from "@/domain/rules/saldo";
+import { aceitaMovimento, erroSaldoPedido } from "@/domain/rules/saldo";
 import type { Contrato } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
@@ -28,7 +28,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
   const { saldo: s, pedidos, aportes } = dados;
   const m = (v?: number) => formatarMoeda(v, s.moeda);
   const pct = s.percentualConsumido;
-  const podeEditar = pode("editar_processo") && c.status === "Vigente";
+  const podeEditar = pode("editar_processo") && aceitaMovimento(c);
   const receita = c.natureza === "Receita";
 
   return (
@@ -138,7 +138,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
 function PedidoModal({ c, disponivel, onFechar }: { c: Contrato; disponivel: Parameters<typeof erroSaldoPedido>[0]; onFechar: () => void }) {
   const { usuario, executar } = useApp();
   const [p, setP] = useState({ numero: "", data: hoje(), valor: undefined as number | undefined, descricao: "" });
-  const erro = p.valor ? erroSaldoPedido(disponivel, p.valor, c.status) : undefined;
+  const erro = p.valor ? erroSaldoPedido(disponivel, p.valor, c) : undefined;
   return (
     <Modal aberto titulo={`Registrar pedido · ${c.codigo}`} onFechar={onFechar} rodape={<><Button variante="secundario" onClick={onFechar}>Cancelar</Button><Button disabled={!p.valor || !p.numero || Boolean(erro)} onClick={async () => (await executar(() => api.registrarPedido({ contrato_id: c.contrato_id, numero: p.numero, data: p.data, valor: p.valor ?? 0, descricao: p.descricao || undefined }, usuario.id), "Pedido registrado.")) && onFechar()}>Registrar</Button></>}>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

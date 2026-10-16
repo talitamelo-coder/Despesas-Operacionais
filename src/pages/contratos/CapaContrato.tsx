@@ -174,7 +174,7 @@ export function CapaContrato() {
                   ? ["Receita mensal", <>{formatarMoeda(receitaMensalNaData(c.receita, new Date().toISOString().slice(0, 10)), c.condicoes.moeda)}<span className="block text-xs font-normal text-texto-suave">{c.receita.tipoReceita}</span></>]
                   : ["Valor mensal", <>{formatarMoeda(valorMensalBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(valorMensal(c.condicoes), c.condicoes.moeda)}</span>}</>],
                 ["Valor anual", <>{formatarMoeda(valorAnualBRL(c.condicoes))}{c.condicoes.moeda !== "BRL" && <span className="block text-xs font-normal text-texto-suave">{formatarMoeda(c.condicoes.valorAnual, c.condicoes.moeda)}</span>}</>],
-                receita ? ["Responsável", nomeUsuario(c.gestorId)] : ["Saving anual", c.saving ? <span className="text-sucesso-600">{formatarMoeda(savingAnual(c.saving))}</span> : "—"],
+                receita ? ["Gestor do contrato", nomeUsuario(c.gestorId)] : ["Saving anual", c.saving ? <span className="text-sucesso-600">{formatarMoeda(savingAnual(c.saving))}</span> : "—"],
                 ["Vigência", c.vigencia.tipoVigencia === "Prazo indeterminado" ? <>Indeterminado<span className="block text-xs font-normal text-texto-suave">desde {formatarData(c.vigencia.dataInicio)}</span></> : `${formatarData(c.vigencia.dataInicio)} a ${formatarData(c.vigencia.dataFim)}`],
                 [prazos.proximaRevisao ? "Revisão anual" : "Data limite de manifestação", <>{formatarData(prazos.proximaRevisao ?? prazos.dataLimiteManifestacao)}<span className="block text-xs font-normal text-texto-suave">{prazos.fase}</span></>],
                 [

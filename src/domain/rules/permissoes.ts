@@ -43,6 +43,16 @@ export function pode(perfil: Perfil, permissao: Permissao): boolean {
   return MATRIZ[perfil]?.includes(permissao) ?? false;
 }
 
+/** Ordem de precedência: o perfil mais amplo marcado vira o principal (exibido nas listas). */
+const PRECEDENCIA: Perfil[] = ["Administrador", "Suprimentos", "Gestor", "Juridico", "Leitura", "Solicitante"];
+
+/** Converte a lista de perfis marcados em perfil principal + adicionais. */
+export function comPerfis(perfis: Perfil[]): { perfil: Perfil; perfisAdicionais?: Perfil[] } {
+  const ordenados = PRECEDENCIA.filter((p) => perfis.includes(p));
+  const [perfil = "Solicitante", ...resto] = ordenados;
+  return { perfil, perfisAdicionais: resto.length ? resto : undefined };
+}
+
 /** Todos os perfis do usuário (principal + adicionais), sem repetição. */
 export function perfisDo(u: { perfil: Perfil; perfisAdicionais?: Perfil[] }): Perfil[] {
   return [...new Set([u.perfil, ...(u.perfisAdicionais ?? [])])];

@@ -25,10 +25,14 @@ describe("saldo do contrato", () => {
 
   it("bloqueia pedido acima do disponível e contrato sem vigência", () => {
     const s = saldoDoContrato(contrato({}, 1200), vazio);
-    expect(erroSaldoPedido(s, 5000, "Vigente")).toMatch(/Adicione pelo menos/);
-    expect(erroSaldoPedido(s, 100, "Vigente")).toBeUndefined();
-    expect(erroSaldoPedido(s, 100, "Cancelado")).toMatch(/não aceita/);
-    expect(erroSaldoPedido(saldoDoContrato(contrato({ dataInicio: "" }), vazio), 1, "Vigente")).toMatch(/vigência/);
+    const vig = contrato();
+    expect(erroSaldoPedido(s, 5000, vig)).toMatch(/Adicione pelo menos/);
+    expect(erroSaldoPedido(s, 100, vig)).toBeUndefined();
+    // Cancelado (não renovado) segue aceitando até o fim da vigência; encerrado não.
+    expect(erroSaldoPedido(s, 100, { status: "Cancelado", vigencia: { ...vig.vigencia, dataFim: "2027-12-31" } }, "2027-06-01")).toBeUndefined();
+    expect(erroSaldoPedido(s, 100, { status: "Cancelado", vigencia: { ...vig.vigencia, dataFim: "2027-12-31" } }, "2028-01-02")).toMatch(/não aceita/);
+    expect(erroSaldoPedido(s, 100, { ...vig, status: "Encerrado" })).toMatch(/não aceita/);
+    expect(erroSaldoPedido(saldoDoContrato(contrato({ dataInicio: "" }), vazio), 1, vig)).toMatch(/vigência/);
   });
 
   it("prazo indeterminado: saldo do ciclo anual", () => {

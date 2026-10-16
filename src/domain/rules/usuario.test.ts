@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { conferirSenha, gerarCredencial, usuarioPublico, validarUsuario, nomeCurto, nomeDeExibicao } from "./usuario";
 import type { Usuario } from "../types";
-import { perfisDo, temPerfil, usuarioPode } from "./permissoes";
+import { comPerfis, perfisDo, temPerfil, usuarioPode } from "./permissoes";
 
 const u: Usuario = { id: "", nome: "Ana Souza", email: "ana@empresa.com.br", perfil: "Solicitante", area: "Comercial", ativo: true };
 
@@ -13,6 +13,8 @@ describe("vários perfis na mesma pessoa", () => {
     expect(usuarioPode({ perfil: "Solicitante" }, "avaliar_renovacao")).toBe(false);
     expect(temPerfil(u, "Gestor")).toBe(true);
     expect(perfisDo({ perfil: "Gestor", perfisAdicionais: ["Gestor", "Leitura"] })).toEqual(["Gestor", "Leitura"]);
+    expect(comPerfis(["Solicitante", "Gestor"])).toEqual({ perfil: "Gestor", perfisAdicionais: ["Solicitante"] });
+    expect(comPerfis(["Juridico"])).toEqual({ perfil: "Juridico", perfisAdicionais: undefined });
   });
 });
 

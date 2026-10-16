@@ -764,7 +764,7 @@ export const mockApi: ContratosApi = {
     if (!p.data) throw new ErroNegocio("Informe a data do pedido.");
     if (estado.pedidosContrato.some((x) => x.contrato_id === c.contrato_id && x.numero === p.numero.trim() && x.status !== "Cancelado")) throw new ErroNegocio("Este pedido já está registrado no contrato.");
     if (c.natureza === "Receita") throw new ErroNegocio("Contrato de cliente não recebe pedidos: o faturamento vem do Contas a receber.");
-    const erro = erroSaldoPedido(saldoDoContrato(c, contextoSaldo()), p.valor, c.status);
+    const erro = erroSaldoPedido(saldoDoContrato(c, contextoSaldo()), p.valor, c);
     if (erro) throw new ErroNegocio(erro);
     const novo: PedidoContrato = { ...p, numero: p.numero.trim(), id: novoId("ped"), status: "Aprovado", origem: "Registro manual", registradoPorId: porId, registradoEm: agora() };
     estado.pedidosContrato.push(novo);
@@ -888,7 +888,7 @@ export const mockApi: ContratosApi = {
     if (c.natureza !== "Receita") throw new ErroNegocio("Emissões só existem em contratos de cliente.");
     if (!e.numeroDocumento?.trim() || !e.data) throw new ErroNegocio("Informe o número do documento e a data.");
     if (estado.emissoesFaturamento.some((x) => x.contrato_id === c.contrato_id && x.numeroDocumento === e.numeroDocumento.trim() && x.status === "Emitida")) throw new ErroNegocio("Esta emissão já foi registrada (integração idempotente).");
-    const erro = erroSaldoEmissao(saldoDoContrato(c, contextoSaldo()), e.valor, c.status);
+    const erro = erroSaldoEmissao(saldoDoContrato(c, contextoSaldo()), e.valor, c);
     if (erro) throw new ErroNegocio(erro);
     const novo: EmissaoFaturamento = { ...e, numeroDocumento: e.numeroDocumento.trim(), id: novoId("nf"), status: "Emitida", origem: "Contas a receber", registradoEm: agora() };
     estado.emissoesFaturamento.push(novo);

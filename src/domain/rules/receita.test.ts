@@ -29,8 +29,8 @@ describe("contratos de receita", () => {
     expect(s.contratado).toBe(12000);
     expect(s.realizado).toBe(3000);
     expect(s.disponivel).toBe(9000);
-    expect(erroSaldoEmissao(s, 9500, "Vigente")).toMatch(/aditivo/);
-    expect(erroSaldoEmissao(s, 1000, "Vigente")).toBeUndefined();
+    expect(erroSaldoEmissao(s, 9500, c)).toMatch(/aditivo/);
+    expect(erroSaldoEmissao(s, 1000, c)).toBeUndefined();
     const total = saldoDoContrato(contrato({ tipoReceita: "Variável", valorMensalVariavelEstimado: 50, valorTotalContratado: 5000 }), vazio);
     expect(total.contratado).toBe(5000);
     expect(saldoDoContrato(contrato({ tipoReceita: "Variável", valorMensalVariavelEstimado: 50 }), vazio).indisponivel).toMatch(/variável/);

@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AlertTriangle, Building2, Plus, Repeat, TrendingUp, Users } from "lucide-react";
 import { useApp } from "@/app/contexto";
+import { temPerfil } from "@/domain/rules/permissoes";
+import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { ClienteForm } from "@/components/dominio/ClienteForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -108,7 +110,7 @@ function Contratos() {
             { id: "tipo", titulo: "Receita", render: (c) => (c.receita?.contratoPrincipalId ? <Badge>No contrato principal</Badge> : c.receita?.tipoReceita) },
             { id: "mes", titulo: "Receita mensal", alinhamento: "direita", render: (c) => (c.receita ? formatarMoeda(receitaMensalNaData(c.receita, h), c.condicoes.moeda) : "—") },
             { id: "fim", titulo: "Fim / fase", render: (c) => { const p = prazosDoContrato(c); return <span>{c.vigencia.tipoVigencia === "Prazo indeterminado" ? "Indeterminado" : formatarData(c.vigencia.dataFim)}<span className="block text-xs text-texto-suave">{p.fase}</span></span>; } },
-            { id: "resp", titulo: "Responsável", render: (c) => nomeUsuario(c.gestorId) },
+            { id: "resp", titulo: "Gestor", render: (c) => nomeUsuario(c.gestorId) },
             { id: "st", titulo: "Situação", render: (c) => <StatusBadge status={c.status} /> },
           ]}
         />
@@ -140,7 +142,8 @@ function NovoContratoModal({ contratos, anteriorId, onFechar }: { contratos: Con
   const erros = errosContratoReceita({ ...d, natureza: "Receita" } as unknown as Contrato);
   const r = d.receita;
   const anteriores = contratos.filter((c) => !c.sucessor_id);
-  const usuarios = cad.usuarios.filter((u) => u.ativo).map((u) => ({ valor: u.id, rotulo: u.nomeExibicao || u.nome }));
+  // Gestor do contrato: quem responde a avaliação de renovação e recebe os alertas (precisa do perfil Gestor).
+  const usuarios = cad.usuarios.filter((u) => u.ativo && temPerfil(u, "Gestor")).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) }));
   const salvar = async () => {
     setTentou(true);
     if (erros.length) return;
@@ -153,7 +156,7 @@ function NovoContratoModal({ contratos, anteriorId, onFechar }: { contratos: Con
         <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <Select rotulo="Cliente" obrigatorio value={d.clienteId} onChange={(e) => set({ clienteId: e.target.value })} opcoes={cad.clientes.filter((c) => c.statusCadastral === "Ativo").map((c) => ({ valor: c.cliente_id, rotulo: c.razaoSocial }))} />
           <Select rotulo="Empresa do grupo" obrigatorio vazio={false} value={d.empresaId} onChange={(e) => set({ empresaId: e.target.value })} opcoes={cad.empresas.map((e) => ({ valor: e.id, rotulo: e.nome }))} />
-          <Select rotulo="Responsável pelo contrato" obrigatorio value={d.gestorId} onChange={(e) => set({ gestorId: e.target.value })} opcoes={usuarios} />
+          <Select rotulo="Gestor do contrato" obrigatorio ajuda={usuarios.length ? "Responde a avaliação de renovação e recebe os alertas." : "Nenhum usuário com perfil Gestor: cadastre em Administração → Usuários."} value={d.gestorId} onChange={(e) => set({ gestorId: e.target.value })} opcoes={usuarios} />
           <Input className="md:col-span-2" rotulo="Objeto" obrigatorio value={d.objeto} onChange={(e) => set({ objeto: e.target.value })} />
           <Select rotulo="Tipo de contrato" value={d.tipoContratoId ?? ""} onChange={(e) => set({ tipoContratoId: e.target.value || undefined })} opcoes={cad.tipos.filter((t) => t.ativo).map((t) => ({ valor: t.id, rotulo: t.nome }))} />
         </section>

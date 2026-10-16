@@ -3,11 +3,20 @@ import { Eye, EyeOff } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { Input, Rotulo, Select, Toggle } from "@/components/ui/Campos";
 import { cn } from "@/components/ui/cn";
-import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
+import { ROTULO_PERFIL, comPerfis, perfisDo } from "@/domain/rules/permissoes";
 import { AREAS_PADRAO, SENHA_MINIMA, nomeCurto } from "@/domain/rules/usuario";
 import type { Perfil, Usuario } from "@/domain/types";
 
 export const PERFIS: Perfil[] = ["Solicitante", "Gestor", "Suprimentos", "Juridico", "Leitura", "Administrador"];
+
+const DESCRICAO_PERFIL: Record<Perfil, string> = {
+  Solicitante: "Acompanha contratos e processos",
+  Gestor: "Gestor de contratos: avalia renovação, aprova; vê licenças e linhas da área",
+  Suprimentos: "Registra contratos, processos, aditivos, licenças e telefonia",
+  Juridico: "Emite parecer jurídico",
+  Leitura: "Vê só totais de licenças e telefonia",
+  Administrador: "Acesso total, usuários e cópia de segurança",
+};
 
 /** Cadastro de usuário: nome, e-mail, senha, perfil, área e filiais com acesso. */
 export function UsuarioForm({
@@ -58,28 +67,33 @@ export function UsuarioForm({
           {verSenha ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
       </div>
-      <Select rotulo="Perfil principal" obrigatorio vazio={false} value={u.perfil} onChange={(e) => set({ perfil: e.target.value as Perfil, perfisAdicionais: (u.perfisAdicionais ?? []).filter((p) => p !== e.target.value) })} opcoes={PERFIS.map((p) => ({ valor: p, rotulo: ROTULO_PERFIL[p] }))} erro={erros.perfil} />
       <Select rotulo="Área" obrigatorio vazio="— Selecione a área —" value={u.area ?? ""} onChange={(e) => set({ area: e.target.value || undefined })} opcoes={areas.map((a) => ({ valor: a, rotulo: a }))} erro={erros.area} />
-      <div className="md:col-span-2">
-        <Rotulo rotulo="Perfis adicionais" />
-        <div className="flex flex-wrap gap-2">
-          {PERFIS.filter((p) => p !== u.perfil).map((p) => {
-            const ativo = (u.perfisAdicionais ?? []).includes(p);
+      <fieldset className="md:col-span-2">
+        <Rotulo rotulo="Perfis de acesso" obrigatorio />
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {PERFIS.map((p) => {
+            const marcados = perfisDo(u);
+            const ativo = marcados.includes(p);
+            const ultimo = ativo && marcados.length === 1;
             return (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={ativo}
-                onClick={() => set({ perfisAdicionais: ativo ? u.perfisAdicionais!.filter((x) => x !== p) : [...(u.perfisAdicionais ?? []), p] })}
-                className={cn("rounded-full border px-3 py-1 text-xs transition-colors", ativo ? "border-primaria-500 bg-primaria-50 font-medium text-primaria-800" : "border-borda-forte bg-superficie text-texto-suave hover:bg-fundo")}
-              >
-                {ROTULO_PERFIL[p]}
-              </button>
+              <label key={p} className={cn("flex items-start gap-2 rounded-md border px-3 py-2 text-sm", ativo ? "border-primaria-500 bg-primaria-50" : "border-borda-forte bg-superficie", ultimo ? "cursor-not-allowed" : "cursor-pointer hover:bg-fundo")}>
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={ativo}
+                  disabled={ultimo}
+                  onChange={() => set(comPerfis(ativo ? marcados.filter((x) => x !== p) : [...marcados, p]))}
+                />
+                <span>
+                  <span className="font-medium">{ROTULO_PERFIL[p]}</span>
+                  <span className="block text-xs text-texto-suave">{DESCRICAO_PERFIL[p]}</span>
+                </span>
+              </label>
             );
           })}
         </div>
-        <p className="mt-1 text-xs text-texto-fraco">A mesma pessoa pode ter vários perfis (ex.: Gestor e Solicitante): as permissões se somam. Não precisa cadastrar de novo.</p>
-      </div>
+        <p className="mt-1 text-xs text-texto-fraco">Marque todos os perfis da pessoa: as permissões se somam.</p>
+      </fieldset>
       <div className="md:col-span-2">
         <Rotulo rotulo="Filiais com acesso" />
         {cad.empresas.length === 0 ? (

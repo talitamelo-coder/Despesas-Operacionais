@@ -38,7 +38,7 @@ export function errosContratoReceita(c: Partial<Contrato>): string[] {
   if (!c.clienteId) e.push("Informe o cliente.");
   if (!c.empresaId) e.push("Informe a empresa do grupo.");
   if (!c.objeto?.trim()) e.push("Informe o objeto.");
-  if (!c.gestorId) e.push("Informe o responsável pelo contrato.");
+  if (!c.gestorId) e.push("Informe o gestor do contrato.");
   if (c.vigencia) e.push(...errosVigencia(c.vigencia));
   const r = c.receita;
   if (!r) return [...e, "Informe os valores contratados."];

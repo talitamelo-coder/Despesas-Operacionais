@@ -160,8 +160,17 @@ function saldoReceita(c: Contrato, ctx: ContextoSaldo, periodo: PeriodoSaldo, va
 }
 
 /** Integração Contas a receber: emissão acima do saldo a faturar é recusada (precisa de aditivo). */
-export function erroSaldoEmissao(s: SaldoContrato, valor: number, status: Contrato["status"]): string | undefined {
-  if (status !== "Vigente") return `Contrato ${status.toLowerCase()} não aceita faturamento.`;
+/**
+ * Contrato aceita pedido/faturamento: vigente, ou cancelado (não renovado) ainda dentro da vigência —
+ * o cancelamento vale para o fim do contrato, não interrompe o que está em curso.
+ */
+export function aceitaMovimento(c: Pick<Contrato, "status" | "vigencia">, referencia: ISODate = hoje()): boolean {
+  if (c.status === "Vigente") return true;
+  return c.status === "Cancelado" && Boolean(c.vigencia.dataFim) && c.vigencia.dataFim >= referencia;
+}
+
+export function erroSaldoEmissao(s: SaldoContrato, valor: number, c: Pick<Contrato, "status" | "vigencia">, referencia: ISODate = hoje()): string | undefined {
+  if (!aceitaMovimento(c, referencia)) return `Contrato ${c.status.toLowerCase()} não aceita faturamento.`;
   if (!(valor > 0)) return "Informe o valor da emissão.";
   if (s.indisponivel) return undefined; // variável sem valor total: sem limite de saldo
   if (valor > s.disponivel + 0.005) return `Emissão acima do saldo a faturar (disponível ${fmt(s.disponivel, s.moeda)}). É preciso registrar um aditivo no contrato.`;
@@ -169,8 +178,8 @@ export function erroSaldoEmissao(s: SaldoContrato, valor: number, status: Contra
 }
 
 /** Bloqueio: o pedido só entra se couber no disponível. Devolve a mensagem de bloqueio. */
-export function erroSaldoPedido(s: SaldoContrato, valor: number, status: Contrato["status"]): string | undefined {
-  if (status !== "Vigente") return `Contrato ${status.toLowerCase()} não aceita pedidos.`;
+export function erroSaldoPedido(s: SaldoContrato, valor: number, c: Pick<Contrato, "status" | "vigencia">, referencia: ISODate = hoje()): string | undefined {
+  if (!aceitaMovimento(c, referencia)) return `Contrato ${c.status.toLowerCase()} não aceita pedidos.`;
   if (!(valor > 0)) return "Informe o valor do pedido.";
   if (s.indisponivel) return s.indisponivel;
   if (valor > s.disponivel + 0.005)

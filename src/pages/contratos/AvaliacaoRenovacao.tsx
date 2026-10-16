@@ -71,7 +71,17 @@ export function AvaliacaoRenovacao() {
   const desfecho = desfechoAvaliacao(resp, c.vigencia.tipoVigencia);
   const completo = Boolean(desfecho) && PERGUNTAS.every((q) => resp[q.chave]);
   const fechada = c.status !== "Vigente" || p.fase === "Normal" || p.fase === "Sem vigência";
-  const pergunta = (q: { chave: Chave; pergunta: string }) => (indeterminado && q.chave === "desejaRenovar" ? "Deseja manter o fornecedor?" : q.pergunta);
+  const receita = c.natureza === "Receita";
+  const pergunta = (q: { chave: Chave; pergunta: string }) =>
+    q.chave === "desejaRenovar" && indeterminado
+      ? receita ? "Deseja manter o contrato com o cliente?" : "Deseja manter o fornecedor?"
+      : q.chave === "desejaRenovar" && receita
+        ? "Deseja renovar com o cliente?"
+        : q.chave === "desejaSubstituir" && receita
+          ? "Deseja substituir por um novo contrato (renegociação)?"
+          : q.chave === "problemaFornecedor" && receita
+            ? "Há problema com o cliente?"
+            : q.pergunta;
 
   const setDecisao = (chave: Chave, v: RespostaSimNao) =>
     setResp((r) => {
@@ -172,7 +182,7 @@ export function AvaliacaoRenovacao() {
             <div className="divide-y divide-borda rounded-md border border-borda">
               {PERGUNTAS.map((q) => (
                 <div key={q.chave} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <span className="text-sm">{q.pergunta}</span>
+                  <span className="text-sm">{pergunta(q)}</span>
                   <SimNao valor={resp[q.chave] as RespostaSimNao} onChange={(v) => setResp((r) => ({ ...r, [q.chave]: v }))} />
                 </div>
               ))}
