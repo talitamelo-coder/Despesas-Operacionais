@@ -1,0 +1,34 @@
+﻿email;nome;area;centro_custo;tipo_conta;responsavel_email;fornecedor;produto;plano;data_inicio
+alice.teste@empresa.exemplo;Alice Teste;Tecnologia;CC-100;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+bruno.teste@empresa.exemplo;Bruno Teste;Operações;CC-110;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+cecilia.teste@empresa.exemplo;Cecília Teste;Comercial;CC-120;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+davi.teste@empresa.exemplo;Davi Teste;Marketing;CC-130;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+eva.teste@empresa.exemplo;Eva Teste;Financeiro;CC-140;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+felipe.teste@empresa.exemplo;Felipe Teste;Tecnologia;CC-100;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+gil.teste@empresa.exemplo;Gil Teste;Operações;CC-110;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+helena.teste@empresa.exemplo;Helena Teste;Comercial;CC-120;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+icaro.teste@empresa.exemplo;Ícaro Teste;Marketing;CC-130;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+julia.teste@empresa.exemplo;Júlia Teste;Financeiro;CC-140;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+kaua.teste@empresa.exemplo;Kauã Teste;Tecnologia;CC-100;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+laura.teste@empresa.exemplo;Laura Teste;Operações;CC-110;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+mateus.teste@empresa.exemplo;Mateus Teste;Comercial;CC-120;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+nina.teste@empresa.exemplo;Nina Teste;Marketing;CC-130;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+otavio.teste@empresa.exemplo;Otávio Teste;Financeiro;CC-140;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+paula.teste@empresa.exemplo;Paula Teste;Tecnologia;CC-100;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+rui.teste@empresa.exemplo;Rui Teste;Operações;CC-110;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+sara.teste@empresa.exemplo;Sara Teste;Comercial;CC-120;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+teo.teste@empresa.exemplo;Teo Teste;Marketing;CC-130;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+vera.teste@empresa.exemplo;Vera Teste;Financeiro;CC-140;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+wagner.teste@empresa.exemplo;Wagner Teste;Tecnologia;CC-100;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+davi.teste@empresa.exemplo;Davi Teste;Marketing;CC-130;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+eva.teste@empresa.exemplo;Eva Teste;Financeiro;CC-140;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+felipe.teste@empresa.exemplo;Felipe Teste;Tecnologia;CC-100;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+gil.teste@empresa.exemplo;Gil Teste;Operações;CC-110;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+helena.teste@empresa.exemplo;Helena Teste;Comercial;CC-120;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+kaua.teste@empresa.exemplo;Kauã Teste;Tecnologia;CC-100;pessoa;;Teste Monitor Ltda;Monitor Fixo;3 operadores;2026-03-01
+laura.teste@empresa.exemplo;Laura Teste;Operações;CC-110;pessoa;;Teste Monitor Ltda;Monitor Fixo;3 operadores;2026-03-01
+mateus.teste@empresa.exemplo;Mateus Teste;Comercial;CC-120;pessoa;;Teste Monitor Ltda;Monitor Fixo;3 operadores;2026-03-01
+suporte.teste@empresa.exemplo;Suporte (compartilhada);Operações;CC-110;compartilhada;alice.teste@empresa.exemplo;Teste Chat SaaS Inc.;Chat Equipe;Pro;2026-01-10
+;Sem E-mail;Comercial;;pessoa;;Teste Chat SaaS Inc.;Chat Equipe;Pro;
+davi.teste@empresa-antiga.exemplo;Davi Teste;Tecnologia;CC-100;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10
+yara.teste@empresa.exemplo;Yara Teste;Operações;CC-110;pessoa;;Teste Design Ltda;Desenho Vetorial;Equipe;2026-02-10

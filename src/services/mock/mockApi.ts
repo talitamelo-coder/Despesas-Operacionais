@@ -9,15 +9,18 @@ import { diffAuditoria } from "@/domain/rules/auditoria";
 import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
-import { sugerirContrato } from "@/domain/rules/licencas";
+import { planejarImportacao, chaveLicenca, type ContextoImportacao } from "@/domain/rules/importacaoCsv";
+import { aplicarMovimentacao, chaveEmail, dominiosDoGrupo, emailValido, erroAtribuicao, errosLicenca, errosMovimentacao, parametroNaData, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
+import { erroParametro } from "@/domain/rules/parametros";
+import { erroUsoLinha, errosLinha, somenteDigitosLinha } from "@/domain/rules/telefonia";
 import { gerarCredencial, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { pode } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
-import type { AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, ProcessoContratacao, ProdutoLicenca, RegistroAuditoria, TipoProcesso, Usuario } from "@/domain/types";
+import type { AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
 import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
-import { ErroNegocio, ErroPermissao, type ArquivoImportacaoLicencas, type ContratosApi } from "../api";
+import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao } from "../api";
 import { consultar, montarLinhas } from "../consultaCentral";
 import { notificarMudanca } from "../eventos";
 
@@ -105,6 +108,59 @@ function codigoNovo(prefixo: "CT" | "PC", data = hoje()): string {
   const ano = anoDe(data);
   const existentes = prefixo === "CT" ? estado.contratos.map((c) => c.codigo) : estado.processos.map((p) => p.codigo);
   return gerarCodigo(prefixo, ano, proximoSequencial(existentes, prefixo, ano));
+}
+
+function getLicenca(id: string): Licenca {
+  const l = estado.licencas.find((x) => x.id === id);
+  if (!l) throw new ErroNegocio("Licença não encontrada.");
+  return l;
+}
+
+function getColaborador(id: string): Colaborador {
+  const c = estado.colaboradores.find((x) => x.id === id);
+  if (!c) throw new ErroNegocio("Colaborador não encontrado.");
+  return c;
+}
+
+/** Efeitos de uma movimentação: cancelamento encerra atribuições; compra reativa licença cancelada. */
+function aposMovimentacao(l: Licenca, tipo: MovimentacaoLicenca["tipo"], data: string) {
+  if (tipo === "Cancelamento") {
+    l.status = "Cancelada";
+    for (const a of estado.atribuicoesLicenca.filter((x) => x.licencaId === l.id && x.status === "Ativa")) (a.status = "Encerrada"), (a.dataFim = data < a.dataInicio ? a.dataInicio : data);
+  } else if (tipo === "Compra" && l.status === "Cancelada") l.status = "Ativa";
+  l.atualizadoEm = agora();
+}
+
+/** Grava a movimentação com o valor anual antes/depois (registro de economia ou aumento). */
+function gravarMovimentacao(l: Licenca, m: NovaMovimentacao, porId: string): MovimentacaoLicenca {
+  const lotes = posicaoNaData(estado.movimentacoesLicenca.filter((x) => x.licencaId === l.id), "9999-12-31").lotes;
+  const r: MovimentacaoLicenca = {
+    ...m,
+    id: novoId("mov"),
+    valorAnualAntes: valorAnualOriginal(lotes, l.periodicidade),
+    valorAnualDepois: valorAnualOriginal(aplicarMovimentacao(lotes, m), l.periodicidade),
+    registradoPorId: porId,
+    registradoEm: agora(),
+  };
+  estado.movimentacoesLicenca.push(r);
+  aposMovimentacao(l, m.tipo, m.data);
+  registrar("licenca", l.id, porId, `${m.tipo} registrada`, "valorAnual", String(r.valorAnualAntes), String(r.valorAnualDepois));
+  return r;
+}
+
+function contextoImportacao(): ContextoImportacao {
+  return {
+    hoje: hoje(),
+    fornecedores: estado.fornecedores,
+    contratos: estado.contratos,
+    licencas: estado.licencas,
+    movimentacoes: estado.movimentacoesLicenca,
+    atribuicoes: estado.atribuicoesLicenca,
+    colaboradores: estado.colaboradores,
+    dominios: dominiosDoGrupo(estado.parametros),
+    linhas: estado.linhasTelefonicas,
+    usos: estado.usosLinha,
+  };
 }
 
 function acoes() {
@@ -631,141 +687,266 @@ export const mockApi: ContratosApi = {
     return clone(novo);
   },
 
-  // ---------------------------------------------------------------- Licenças (não altera contratos)
-  async listarLicencas() {
+  // ---------------------------------------------------------------- Licenças e telefonia (não alteram contratos)
+  async listarLicencas(porId) {
     await latencia();
-    return clone({ produtos: estado.produtosLicenca, colaboradores: estado.colaboradores, atribuicoes: estado.atribuicoes });
+    const u = usuario(porId);
+    const visao = pode(u.perfil, "gerir_licencas") ? "completa" : pode(u.perfil, "ver_licencas_da_area") ? "area" : pode(u.perfil, "ver_licencas_agregado") ? "agregada" : undefined;
+    if (!visao) throw new ErroPermissao();
+    // Minimização (LGPD): fora da visão completa, pessoas de outras áreas (ou todas, na agregada)
+    // seguem só com id e área, para o rateio continuar fechando sem expor nome nem e-mail.
+    const visivel = (c: Colaborador) => visao === "completa" || (visao === "area" && Boolean(u.area) && c.area === u.area);
+    const colaboradores = estado.colaboradores.map((c) => (visivel(c) ? c : { id: c.id, email: "", nome: "", area: c.area, centroCusto: c.centroCusto, status: c.status, tipoConta: c.tipoConta }));
+    return clone({
+      visao,
+      licencas: estado.licencas,
+      movimentacoes: estado.movimentacoesLicenca,
+      atribuicoes: estado.atribuicoesLicenca,
+      colaboradores,
+      cotacoes: estado.cotacoes,
+      parametros: estado.parametros,
+      orcamentos: estado.orcamentosFornecedor,
+      linhas: estado.linhasTelefonicas,
+      usosLinha: estado.usosLinha,
+    });
   },
-  async salvarProdutoLicenca(p, porId) {
+  async salvarLicenca(l, porId, compraInicial) {
     exigir(porId, "gerir_licencas");
-    if (!p.nome.trim()) throw new ErroNegocio("Informe o nome do produto.");
-    if (p.quantidadeContratada < 0 || p.valorUnitario < 0) throw new ErroNegocio("Quantidade e valor não podem ser negativos.");
-    if (p.contrato_id && !estado.contratos.some((c) => c.contrato_id === p.contrato_id)) throw new ErroNegocio("Contrato não encontrado.");
-    const i = estado.produtosLicenca.findIndex((x) => x.id === p.id);
-    const novo: ProdutoLicenca = { ...p, nome: p.nome.trim(), atualizadoEm: agora() };
+    const erros = errosLicenca(l);
+    if (l.contrato_id && !estado.contratos.some((c) => c.contrato_id === l.contrato_id)) erros.push("Contrato não encontrado.");
+    if (!estado.fornecedores.some((f) => f.fornecedor_id === l.fornecedorId)) erros.push("Fornecedor não encontrado.");
+    const chave = chaveLicenca(l.fornecedorId, l.produto, l.plano);
+    if (estado.licencas.some((x) => x.id !== l.id && chaveLicenca(x.fornecedorId, x.produto, x.plano) === chave)) erros.push("Já existe licença deste fornecedor com o mesmo produto e plano.");
+    const i = estado.licencas.findIndex((x) => x.id === l.id);
     if (i >= 0) {
-      auditar(diffAuditoria(estado.produtosLicenca[i], novo, { entidade: "licenca", entidadeId: p.id, usuarioId: porId, data: agora(), acao: "Produto de licença alterado" }, () => novoId("a")));
-      estado.produtosLicenca[i] = novo;
-    } else {
-      novo.id = novoId("pl");
-      novo.criadoEm = agora();
-      estado.produtosLicenca.push(novo);
-      registrar("licenca", novo.id, porId, "Produto de licença cadastrado", "nome", undefined, novo.nome);
+      const ant = estado.licencas[i];
+      const temMov = estado.movimentacoesLicenca.some((m) => m.licencaId === l.id);
+      if (temMov && (ant.moeda !== l.moeda || ant.tipoCobranca !== l.tipoCobranca || ant.periodicidade !== l.periodicidade))
+        erros.push("Moeda, tipo de cobrança e periodicidade não mudam depois de haver compras: cancele e cadastre uma nova licença.");
+      if (erros.length) throw new ErroNegocio(erros.join(" "));
+      const novo: Licenca = { ...l, status: ant.status, produto: l.produto.trim(), atualizadoEm: agora() };
+      auditar(diffAuditoria(ant, novo, { entidade: "licenca", entidadeId: l.id, usuarioId: porId, data: agora(), acao: "Licença alterada" }, () => novoId("a")));
+      estado.licencas[i] = novo;
+      persistir();
+      return clone(novo);
     }
+    const novo: Licenca = { ...l, id: novoId("lic"), produto: l.produto.trim(), status: "Ativa", criadoEm: agora(), atualizadoEm: agora() };
+    if (compraInicial) {
+      const em = errosMovimentacao(novo, [], 0, { ...compraInicial, tipo: "Compra", quantidade: novo.tipoCobranca === "Assento" ? compraInicial.quantidade : 1 });
+      erros.push(...em);
+    }
+    if (erros.length) throw new ErroNegocio(erros.join(" "));
+    estado.licencas.push(novo);
+    registrar("licenca", novo.id, porId, "Licença cadastrada", "produto", undefined, `${novo.produto}${novo.plano ? ` · ${novo.plano}` : ""}`);
+    if (compraInicial) gravarMovimentacao(novo, { ...compraInicial, licencaId: novo.id, tipo: "Compra", quantidade: novo.tipoCobranca === "Assento" ? compraInicial.quantidade : 1 }, porId);
     persistir();
     return clone(novo);
+  },
+  async registrarMovimentacao(m, porId) {
+    exigir(porId, "gerir_licencas");
+    const l = getLicenca(m.licencaId);
+    const movs = estado.movimentacoesLicenca.filter((x) => x.licencaId === l.id);
+    const ativas = estado.atribuicoesLicenca.filter((a) => a.licencaId === l.id && a.status === "Ativa").length;
+    const mm = { ...m, quantidade: m.tipo === "Compra" && l.tipoCobranca !== "Assento" ? 1 : m.quantidade };
+    // Cancelamento encerra as atribuições junto; os demais tipos respeitam quem já tem assento.
+    const erros = errosMovimentacao(l, movs, m.tipo === "Cancelamento" ? 0 : ativas, mm);
+    if (erros.length) throw new ErroNegocio(erros.join(" "));
+    const r = gravarMovimentacao(l, mm, porId);
+    persistir();
+    return clone(r);
   },
   async salvarColaborador(c, porId) {
     exigir(porId, "gerir_licencas");
-    if (!c.nome.trim()) throw new ErroNegocio("Informe o nome do colaborador.");
-    const email = c.email?.trim().toLowerCase() || undefined;
-    if (email && estado.colaboradores.some((x) => x.id !== c.id && x.email?.toLowerCase() === email)) throw new ErroNegocio("Já existe colaborador com este e-mail.");
-    const novo: Colaborador = { ...c, nome: c.nome.trim(), email };
+    const email = c.email.trim().toLowerCase();
+    if (!emailValido(email)) throw new ErroNegocio("Informe um e-mail corporativo válido: ele é a identidade da pessoa.");
+    if (!c.nome.trim()) throw new ErroNegocio("Informe o nome.");
+    const dom = dominiosDoGrupo(estado.parametros);
+    const chave = chaveEmail(email, dom);
+    if (estado.colaboradores.some((x) => x.id !== c.id && chaveEmail(x.email, dom) === chave)) throw new ErroNegocio("Já existe pessoa com este e-mail (considerando os domínios do grupo).");
+    if (c.tipoConta === "Compartilhada") {
+      const resp = estado.colaboradores.find((x) => x.id === c.responsavelId);
+      if (!resp || resp.tipoConta !== "Pessoa") throw new ErroNegocio("Conta compartilhada precisa de uma pessoa responsável.");
+    }
     const i = estado.colaboradores.findIndex((x) => x.id === c.id);
+    const novo: Colaborador = { ...c, email, nome: c.nome.trim(), responsavelId: c.tipoConta === "Compartilhada" ? c.responsavelId : undefined };
     if (i >= 0) {
-      auditar(diffAuditoria(estado.colaboradores[i], novo, { entidade: "licenca", entidadeId: c.id, usuarioId: porId, data: agora(), acao: "Colaborador alterado" }, () => novoId("a")));
+      const ant = estado.colaboradores[i];
+      if (ant.status !== novo.status) throw new ErroNegocio("Use “Desligar” para registrar o desligamento.");
+      auditar(diffAuditoria(ant, novo, { entidade: "colaborador", entidadeId: c.id, usuarioId: porId, data: agora(), acao: "Colaborador alterado" }, () => novoId("a")));
       estado.colaboradores[i] = novo;
     } else {
       novo.id = novoId("col");
+      novo.status = "Ativo";
       estado.colaboradores.push(novo);
-      registrar("licenca", novo.id, porId, "Colaborador cadastrado", "nome", undefined, novo.nome);
+      registrar("colaborador", novo.id, porId, "Colaborador cadastrado", "email", undefined, novo.email);
     }
     persistir();
     return clone(novo);
   },
-  async atribuirLicenca(produtoId, colaboradorId, porId, extra) {
+  async atribuirLicenca(licencaId, colaboradorId, dataInicio, porId) {
     exigir(porId, "gerir_licencas");
-    const p = estado.produtosLicenca.find((x) => x.id === produtoId);
-    const c = estado.colaboradores.find((x) => x.id === colaboradorId);
-    if (!p || !c) throw new ErroNegocio("Produto ou colaborador não encontrado.");
-    if (p.situacao !== "Ativo") throw new ErroNegocio("Produto cancelado não recebe novas atribuições.");
-    if (estado.atribuicoes.some((a) => a.status === "Ativa" && a.produtoId === produtoId && a.colaboradorId === colaboradorId && p.categoria !== "Linha telefônica"))
-      throw new ErroNegocio(`${c.nome} já tem ${p.nome}.`);
-    const a: AtribuicaoLicenca = { id: novoId("at"), produtoId, colaboradorId, status: "Ativa", dataInicio: extra?.dataInicio ?? hoje(), ...extra };
-    estado.atribuicoes.push(a);
-    registrar("licenca", produtoId, porId, "Licença atribuída", "colaborador", undefined, c.nome);
+    const l = getLicenca(licencaId);
+    const c = getColaborador(colaboradorId);
+    if (!dataInicio) throw new ErroNegocio("Informe a data de início.");
+    const erro = erroAtribuicao(l, estado.movimentacoesLicenca.filter((m) => m.licencaId === l.id), estado.atribuicoesLicenca, c);
+    if (erro) throw new ErroNegocio(erro);
+    const a: AtribuicaoLicenca = { id: novoId("atr"), licencaId, colaboradorId, status: "Ativa", dataInicio };
+    estado.atribuicoesLicenca.push(a);
+    registrar("licenca", licencaId, porId, "Licença atribuída", "colaborador", undefined, c.email);
     persistir();
     return clone(a);
   },
-  async removerAtribuicao(id, porId) {
+  async encerrarAtribuicao(id, dataFim, porId) {
     exigir(porId, "gerir_licencas");
-    const a = estado.atribuicoes.find((x) => x.id === id);
+    const a = estado.atribuicoesLicenca.find((x) => x.id === id);
     if (!a || a.status !== "Ativa") throw new ErroNegocio("Atribuição não encontrada.");
-    // Nunca apaga: encerra a atribuição e mantém o histórico.
-    a.status = "Removida";
-    a.dataFim = hoje();
-    registrar("licenca", a.produtoId, porId, "Licença removida", "colaborador", estado.colaboradores.find((c) => c.id === a.colaboradorId)?.nome, undefined);
+    if (!dataFim || dataFim < a.dataInicio) throw new ErroNegocio("A data de fim não pode ser anterior ao início.");
+    a.status = "Encerrada";
+    a.dataFim = dataFim;
+    registrar("licenca", a.licencaId, porId, "Licença retirada", "colaborador", getColaborador(a.colaboradorId).email, undefined);
     persistir();
   },
-  async removerLicencasDoColaborador(colaboradorId, porId) {
+  async desligarColaborador(colaboradorId, data, porId) {
     exigir(porId, "gerir_licencas");
-    const ativas = estado.atribuicoes.filter((a) => a.colaboradorId === colaboradorId && a.status === "Ativa");
-    for (const a of ativas) {
-      a.status = "Removida";
-      a.dataFim = hoje();
-    }
-    registrar("licenca", colaboradorId, porId, "Todas as licenças removidas (desligamento)", "licencas", String(ativas.length), "0");
+    const c = getColaborador(colaboradorId);
+    if (!data) throw new ErroNegocio("Informe a data do desligamento.");
+    let licencas = 0;
+    let linhas = 0;
+    for (const a of estado.atribuicoesLicenca.filter((x) => x.colaboradorId === c.id && x.status === "Ativa")) (a.status = "Encerrada"), (a.dataFim = data < a.dataInicio ? a.dataInicio : data), licencas++;
+    for (const u of estado.usosLinha.filter((x) => x.colaboradorId === c.id && x.status === "Ativa")) (u.status = "Encerrada"), (u.dataFim = data < u.dataInicio ? u.dataInicio : data), linhas++;
+    c.status = "Desligado";
+    c.dataDesligamento = data;
+    registrar("colaborador", c.id, porId, `Desligamento: ${licencas} licença(s) e ${linhas} linha(s) encerradas`, "status", "Ativo", "Desligado");
     persistir();
-    return ativas.length;
+    return { licencas, linhas };
   },
-  async importarLicencas(conteudo, porId) {
+  async salvarCotacao(c, porId) {
     exigir(porId, "gerir_licencas");
-    let arq: ArquivoImportacaoLicencas;
-    try {
-      arq = JSON.parse(conteudo);
-    } catch {
-      throw new ErroNegocio("Arquivo inválido: não é uma importação de licenças.");
-    }
-    if (arq.formato !== "akross-licencas-importacao" || !Array.isArray(arq.produtos)) throw new ErroNegocio("Arquivo inválido: não é uma importação de licenças.");
-
-    // Reimportar não duplica: produtos e colaboradores são reconhecidos pela chave de importação (ou e-mail).
-    const idProduto = new Map<string, string>();
-    let vinculados = 0;
-    let semContrato = 0;
-    for (const { chave, contratoSugerido, ...dados } of arq.produtos) {
-      let p = estado.produtosLicenca.find((x) => x.chaveImportacao === chave);
-      let contrato_id = p?.contrato_id;
-      const confirmacoes = [...(dados.confirmacoesPendentes ?? [])];
-      if (!contrato_id) {
-        contrato_id = contratoSugerido && estado.contratos.some((c) => c.contrato_id === contratoSugerido) ? contratoSugerido : sugerirContrato(dados.fornecedorNome, estado.contratos, estado.fornecedores).contrato_id;
-        // Vínculo deduzido pelo nome do fornecedor: sempre pedir confirmação.
-        if (contrato_id && !confirmacoes.some((x) => x.startsWith("Confirmar contrato vinculado")))
-          confirmacoes.push("Confirmar contrato vinculado automaticamente pelo nome do fornecedor");
-      }
-      if (!contrato_id && dados.situacao === "Ativo") confirmacoes.push("Vincular ao contrato (não identificado automaticamente)");
-      if (contrato_id) vinculados++;
-      else if (dados.situacao === "Ativo") semContrato++;
-      if (p) Object.assign(p, { ...dados, contrato_id, confirmacoesPendentes: confirmacoes, atualizadoEm: agora() });
-      else {
-        p = { ...dados, id: novoId("pl"), contrato_id, confirmacoesPendentes: confirmacoes, chaveImportacao: chave, criadoEm: agora(), atualizadoEm: agora() };
-        estado.produtosLicenca.push(p);
-      }
-      idProduto.set(chave, p.id);
-    }
-    const idColab = new Map<string, string>();
-    for (const { chave, ...dados } of arq.colaboradores) {
-      const email = dados.email?.toLowerCase();
-      let c = estado.colaboradores.find((x) => x.chaveImportacao === chave || (email && x.email?.toLowerCase() === email));
-      if (c) Object.assign(c, { ...dados, ativo: c.ativo });
-      else {
-        c = { ...dados, id: novoId("col"), chaveImportacao: chave };
-        estado.colaboradores.push(c);
-      }
-      idColab.set(chave, c.id);
-    }
-    let atribs = 0;
-    for (const { produtoChave, colaboradorChave, ...dados } of arq.atribuicoes) {
-      const produtoId = idProduto.get(produtoChave);
-      const colaboradorId = idColab.get(colaboradorChave);
-      if (!produtoId || !colaboradorId) continue;
-      const existe = estado.atribuicoes.some((a) => a.status === "Ativa" && a.produtoId === produtoId && a.colaboradorId === colaboradorId && a.linha?.numero === dados.linha?.numero);
-      if (existe) continue;
-      estado.atribuicoes.push({ ...dados, id: novoId("at"), produtoId, colaboradorId });
-      atribs++;
-    }
-    registrar("licenca", "importacao", porId, "Licenças importadas de planilha", "produtos", undefined, `${arq.produtos.length} produtos, ${atribs} atribuições`);
+    if (!c.data || !(c.ptaxVenda > 0)) throw new ErroNegocio("Informe a data e a PTAX de venda.");
+    const i = estado.cotacoes.findIndex((x) => x.data === c.data);
+    registrar("configuracao", "cotacao", porId, "Cotação PTAX registrada", c.data, i >= 0 ? String(estado.cotacoes[i].ptaxVenda) : undefined, String(c.ptaxVenda));
+    if (i >= 0) estado.cotacoes[i] = { ...c };
+    else estado.cotacoes.push({ ...c });
     persistir();
-    return { produtos: arq.produtos.length, colaboradores: arq.colaboradores.length, atribuicoes: atribs, vinculadosAContrato: vinculados, semContrato };
+  },
+  async salvarParametro(chave, valor, vigenteDesde, porId) {
+    exigir(porId, "gerir_licencas");
+    const erro = erroParametro(chave, valor);
+    if (erro) throw new ErroNegocio(erro);
+    if (!vigenteDesde) throw new ErroNegocio("Informe a partir de quando o valor vale.");
+    const anterior = parametroNaData(estado.parametros, chave, vigenteDesde);
+    // Histórico: cada valor vale a partir da sua data; o mesmo dia é corrigido no lugar.
+    estado.parametros = estado.parametros.filter((p) => !(p.chave === chave && p.vigenteDesde === vigenteDesde));
+    estado.parametros.push({ chave, valor: valor.trim(), vigenteDesde, atualizadoPorId: porId, atualizadoEm: agora() });
+    registrar("configuracao", `parametro:${chave}`, porId, `Parâmetro alterado (vale desde ${vigenteDesde})`, chave, anterior, valor.trim());
+    persistir();
+  },
+  async salvarOrcamento(o, porId) {
+    exigir(porId, "gerir_licencas");
+    if (!o.fornecedorId || !o.ano || !(o.valorBRL > 0)) throw new ErroNegocio("Informe fornecedor, ano e valor do orçamento.");
+    const i = estado.orcamentosFornecedor.findIndex((x) => x.fornecedorId === o.fornecedorId && x.ano === o.ano);
+    const novo = { ...o, id: i >= 0 ? estado.orcamentosFornecedor[i].id : novoId("orc") };
+    registrar("configuracao", `orcamento:${o.fornecedorId}`, porId, `Orçamento ${o.ano}`, "valorBRL", i >= 0 ? String(estado.orcamentosFornecedor[i].valorBRL) : undefined, String(o.valorBRL));
+    if (i >= 0) estado.orcamentosFornecedor[i] = novo;
+    else estado.orcamentosFornecedor.push(novo);
+    persistir();
+    return clone(novo);
+  },
+  async previsualizarCsv(tipo, conteudo, porId) {
+    exigir(porId, "gerir_licencas");
+    return planejarImportacao(tipo, conteudo, contextoImportacao()).linhas;
+  },
+  async importarCsv(tipo, conteudo, porId) {
+    exigir(porId, "gerir_licencas");
+    const plano = planejarImportacao(tipo, conteudo, contextoImportacao());
+    const ids = new Map<string, string>();
+    const real = (id?: string) => (id ? ids.get(id) ?? id : id);
+    for (const op of plano.operacoes) {
+      if (op.tipo === "fornecedor") {
+        const id = novoId("f");
+        ids.set(op.id, id);
+        estado.fornecedores.push({ fornecedor_id: id, razaoSocial: op.nome, nomeFantasia: op.nome, statusCadastral: "Potencial" });
+      } else if (op.tipo === "licenca") {
+        const id = novoId("lic");
+        ids.set(op.licenca.id, id);
+        const l = { ...op.licenca, id, fornecedorId: real(op.licenca.fornecedorId)!, criadoEm: agora(), atualizadoEm: agora() };
+        estado.licencas.push(l);
+        if (op.compra) estado.movimentacoesLicenca.push({ ...op.compra, id: novoId("mov"), licencaId: id, registradoPorId: porId, registradoEm: agora() });
+      } else if (op.tipo === "colaborador") {
+        const id = novoId("col");
+        ids.set(op.colaborador.id, id);
+        estado.colaboradores.push({ ...op.colaborador, id, responsavelId: real(op.colaborador.responsavelId) });
+      } else if (op.tipo === "atribuicao") {
+        estado.atribuicoesLicenca.push({ ...op.atribuicao, id: novoId("atr"), licencaId: real(op.atribuicao.licencaId)!, colaboradorId: real(op.atribuicao.colaboradorId)! });
+      } else if (op.tipo === "movimentacao") {
+        const l = getLicenca(real(op.movimentacao.licencaId)!);
+        estado.movimentacoesLicenca.push({ ...op.movimentacao, id: novoId("mov"), licencaId: l.id, registradoPorId: porId, registradoEm: agora() });
+        aposMovimentacao(l, op.movimentacao.tipo, op.movimentacao.data);
+      } else if (op.tipo === "linha") {
+        const id = novoId("tel");
+        ids.set(op.linha.id, id);
+        estado.linhasTelefonicas.push({ ...op.linha, id, criadoEm: agora(), atualizadoEm: agora() });
+      } else {
+        estado.usosLinha.push({ ...op.uso, id: novoId("uso"), linhaId: real(op.uso.linhaId)!, colaboradorId: real(op.uso.colaboradorId)! });
+      }
+    }
+    const conta = (s: string) => plano.linhas.filter((l) => l.situacao === s).length;
+    const r = { importadas: conta("Importar"), jaExistiam: conta("Já existe"), recusadas: conta("Recusada"), conciliacao: conta("Conciliação"), linhas: plano.linhas };
+    registrar(tipo === "linhas" ? "telefonia" : "licenca", `importacao:${tipo}`, porId, `Importação CSV (${tipo})`, "linhas", undefined, `${r.importadas} importadas, ${r.jaExistiam} já existiam, ${r.recusadas} recusadas, ${r.conciliacao} para conciliação`);
+    persistir();
+    return r;
+  },
+  async registrarExportacao(descricao, porId) {
+    const u = usuario(porId);
+    if (!pode(u.perfil, "gerir_licencas") && !pode(u.perfil, "ver_licencas_da_area") && !pode(u.perfil, "ver_licencas_agregado")) throw new ErroPermissao();
+    registrar("licenca", "exportacao", porId, "Exportação de dados", "arquivo", undefined, descricao);
+    persistir();
+  },
+  async salvarLinha(l, porId) {
+    exigir(porId, "gerir_licencas");
+    const numero = somenteDigitosLinha(l.numero);
+    const erros = errosLinha({ ...l, numero }, estado.linhasTelefonicas);
+    if (l.contrato_id && !estado.contratos.some((c) => c.contrato_id === l.contrato_id)) erros.push("Contrato não encontrado.");
+    if (erros.length) throw new ErroNegocio(erros.join(" "));
+    const i = estado.linhasTelefonicas.findIndex((x) => x.id === l.id);
+    const novo: LinhaTelefonica = { ...l, numero, operadora: l.operadora.trim(), atualizadoEm: agora(), criadoEm: i >= 0 ? estado.linhasTelefonicas[i].criadoEm : agora() };
+    if (i >= 0) {
+      auditar(diffAuditoria(estado.linhasTelefonicas[i], novo, { entidade: "telefonia", entidadeId: l.id, usuarioId: porId, data: agora(), acao: "Linha alterada" }, () => novoId("a")));
+      estado.linhasTelefonicas[i] = novo;
+    } else {
+      novo.id = novoId("tel");
+      estado.linhasTelefonicas.push(novo);
+      registrar("telefonia", novo.id, porId, "Linha cadastrada", "numero", undefined, numero);
+    }
+    // Linha cancelada ou portada deixa de ter usuário (o histórico de uso fica).
+    if (novo.situacao === "Cancelada" || novo.situacao === "Portada")
+      for (const u of estado.usosLinha.filter((x) => x.linhaId === novo.id && x.status === "Ativa")) (u.status = "Encerrada"), (u.dataFim = hoje() < u.dataInicio ? u.dataInicio : hoje());
+    persistir();
+    return clone(novo);
+  },
+  async atribuirLinha(linhaId, colaboradorId, dataInicio, porId) {
+    exigir(porId, "gerir_licencas");
+    const l = estado.linhasTelefonicas.find((x) => x.id === linhaId);
+    if (!l) throw new ErroNegocio("Linha não encontrada.");
+    const c = getColaborador(colaboradorId);
+    if (!dataInicio) throw new ErroNegocio("Informe a data de início.");
+    const erro = erroUsoLinha(l, estado.usosLinha, c);
+    if (erro) throw new ErroNegocio(erro);
+    const u: UsoLinha = { id: novoId("uso"), linhaId, colaboradorId, status: "Ativa", dataInicio };
+    estado.usosLinha.push(u);
+    registrar("telefonia", linhaId, porId, "Linha entregue", "colaborador", undefined, c.email);
+    persistir();
+    return clone(u);
+  },
+  async encerrarUsoLinha(id, dataFim, porId) {
+    exigir(porId, "gerir_licencas");
+    const u = estado.usosLinha.find((x) => x.id === id);
+    if (!u || u.status !== "Ativa") throw new ErroNegocio("Uso não encontrado.");
+    if (!dataFim || dataFim < u.dataInicio) throw new ErroNegocio("A data de fim não pode ser anterior ao início.");
+    u.status = "Encerrada";
+    u.dataFim = dataFim;
+    registrar("telefonia", u.linhaId, porId, "Linha devolvida", "colaborador", getColaborador(u.colaboradorId).email, undefined);
+    persistir();
   },
 
   // ---------------------------------------------------------------- Derivados

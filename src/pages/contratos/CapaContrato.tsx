@@ -83,7 +83,8 @@ export function CapaContrato() {
   const { dados: processos } = useConsulta(() => api.listarProcessos(), []);
   const { dados: alertas } = useConsulta(() => api.listarAlertas(id), [id]);
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
-  const { dados: licencas } = useConsulta(() => api.listarLicencas(), []);
+  const verLicencas = pode("gerir_licencas") || pode("ver_licencas_da_area") || pode("ver_licencas_agregado");
+  const { dados: licencas } = useConsulta(() => (verLicencas ? api.listarLicencas(usuario.id) : Promise.resolve(undefined)), [usuario.id, verLicencas]);
   const [modalStatus, setModalStatus] = useState(false);
   const [editando, setEditando] = useState(false);
   const [editandoSaving, setEditandoSaving] = useState<Saving>();
@@ -247,9 +248,9 @@ export function CapaContrato() {
           </div>
           <div className="space-y-4">
             <Bloco titulo="Responsáveis"><BlocoResponsaveis c={c} /></Bloco>
-            {licencas?.produtos.some((p) => p.contrato_id === c.contrato_id) && (
-              <Bloco titulo="Licenças">
-                <BlocoLicencas c={c} produtos={licencas.produtos} atribuicoes={licencas.atribuicoes} />
+            {licencas && (licencas.licencas.some((l) => l.contrato_id === c.contrato_id) || licencas.linhas.some((l) => l.contrato_id === c.contrato_id)) && (
+              <Bloco titulo="Licenças e linhas">
+                <BlocoLicencas c={c} dados={licencas} />
               </Bloco>
             )}
             <Bloco titulo="Histórico contratual"><BlocoHistoricoContratual c={c} cadeia={cadeia} /></Bloco>

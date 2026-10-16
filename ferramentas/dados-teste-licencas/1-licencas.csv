@@ -1,0 +1,7 @@
+﻿fornecedor;produto;plano;categoria;utilizacao;tipo_cobranca;moeda;periodicidade;vencimento_tipo;data_vencimento;contrato_codigo;area;centro_custo;responsavel;justificativa_manutencao;substituto_possivel;risco_troca;limite_consumo_mensal;assentos_iniciais;preco_unitario;data_compra
+Teste Chat SaaS Inc.;Chat Equipe;Pro;Colaboração;Mensagens internas;assento;USD;mensal;mensal;;;Tecnologia;CC-100;Responsável Teste;Comunicação diária;E-mail;Perda de histórico;;20;8,75;2026-01-05
+Teste Design Ltda;Desenho Vetorial;Equipe;Design;Peças de marketing;assento;BRL;anual;data;2027-02-10;;Marketing;CC-140;Responsável Teste;Padrão do time;Ferramenta livre;Arquivos proprietários;;5;1.800,00;2026-02-10
+Teste Nuvem S.A.;Processamento;Sob consumo;Infraestrutura;Relatórios;consumo;USD;mensal;sob_demanda;;;Tecnologia;CC-100;Responsável Teste;;;Reescrever rotinas;;1;450,00;2026-01-01
+Teste Monitor Ltda;Monitor Fixo;3 operadores;Monitoramento;Painel de operação;fixo;BRL;mensal;mensal;;;Operações;CC-110;Responsável Teste;;;;;1;1.200,00;2026-03-01
+Teste Erro Ltda;Licença Inválida;Anual;;;assento;BRL;anual;mensal;;;;;;;;;;2;10;2026-01-01
+TOTAL;;;;;;;;;;;;;;;;;;;;

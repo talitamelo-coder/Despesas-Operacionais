@@ -1,0 +1,6 @@
+﻿numero;operadora;plano;franquia;valor_mensal;situacao;contrato_codigo;area;centro_custo;email_usuario;data_inicio
+11900000001;Operadora Teste;Corporativo 20 GB;20 GB;69,90;ativa;;Comercial;CC-120;cecilia.teste@empresa.exemplo;2026-01-15
+11900000002;Operadora Teste;Corporativo 20 GB;20 GB;69,90;ativa;;Comercial;CC-120;helena.teste@empresa.exemplo;2026-01-15
+21900000003;Operadora Teste;Corporativo 50 GB;50 GB;99,90;ativa;;Operações;CC-110;;
+11900000004;Operadora Teste;Corporativo 10 GB;10 GB;49,90;cancelada;;Tecnologia;CC-100;;
+119000;Operadora Teste;;;10;ativa;;;;;

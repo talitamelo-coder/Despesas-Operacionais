@@ -7,7 +7,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 ## Autenticação e permissões
 
 - A identidade vem da sessão/SSO da Akross Atende (**a definir**). O cabeçalho `X-Usuario-Id` do esboço REST serve **só para desenvolvimento** e não pode ser usado em produção.
-- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Saving e baseline só podem ser alterados por Suprimentos ou Administrador. Licenças são geridas por Administrador, Suprimentos ou TI (perfil `TI`); Gestor só consulta as da própria área.
+- Permissões são verificadas **no backend**, com a matriz de `src/domain/rules/permissoes.ts`. Saving e baseline só podem ser alterados por Suprimentos ou Administrador. Licenças e telefonia: Suprimentos e Administrador gerem tudo; Gestor vê só a própria área; perfil `Leitura` vê só totais (pessoas chegam sem nome nem e-mail). Custo por pessoa é dado pessoal (LGPD).
 - Erros: `403` para permissão (`ErroPermissao`), `422` para regra de negócio (`ErroNegocio`), com `{ "mensagem": "..." }`.
 
 ## Endpoints
@@ -43,13 +43,22 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | GET | `/dashboard/indicadores` | `obterIndicadores` | Derivado (`domain/rules/indicadores.ts`) |
 | GET | `/auditoria?entidadeId=` | `listarAuditoria` | |
 | GET | `/integracoes/jira/demandas/{jira_key}` | `buscarDemandaJira` | Backend consulta o JIRA |
-| GET | `/licencas` | `listarLicencas` | `{ produtos, colaboradores, atribuicoes }`. Gestor recebe só colaboradores da própria área |
-| PUT | `/licencas/produtos/{id\|novo}` | `salvarProdutoLicenca` | Administrador, Suprimentos ou TI. `contrato_id` só vincula: **nunca altera o contrato** |
-| PUT | `/colaboradores/{id\|novo}` | `salvarColaborador` | Colaborador é separado de usuário do sistema |
-| POST | `/licencas/atribuicoes` | `atribuirLicenca` | `{ produtoId, colaboradorId, linha?, valorMensalBRL? }` |
-| POST | `/licencas/atribuicoes/{id}/remover` | `removerAtribuicao` | Marca `Removida` com data fim; histórico mantido |
-| POST | `/colaboradores/{id}/remover-licencas` | `removerLicencasDoColaborador` | Desligamento: remove todas e inativa o colaborador |
-| POST | `/importacoes/licencas` | `importarLicencas` | Arquivo `akross-licencas-importacao`; não duplica (chave de importação / e-mail) |
+| GET | `/licencas` | `listarLicencas` | Licenças, movimentações, atribuições, colaboradores, cotações, parâmetros, orçamentos, linhas e usos. Filtrado por perfil (`visao`: completa, area, agregada) |
+| PUT | `/licencas/{id\|novo}` | `salvarLicenca` | Corpo pode trazer `compraInicial`. `contrato_id` só vincula: **nunca altera o contrato**. Bloqueia anual com vencimento mensal |
+| POST | `/licencas/{id}/movimentacoes` | `registrarMovimentacao` | Compra, Redução, Renegociação, Cancelamento. Grava `valorAnualAntes/Depois` (registro de economia). Cancelamento encerra atribuições |
+| PUT | `/colaboradores/{id\|novo}` | `salvarColaborador` | E-mail corporativo em minúsculas é a identidade; domínios do grupo contam como o mesmo e-mail |
+| POST | `/licencas/{id}/atribuicoes` | `atribuirLicenca` | `{ colaboradorId, dataInicio }`. **Recusa sem assento livre**, e-mail repetido na licença ou pessoa desligada |
+| POST | `/licencas/atribuicoes/{id}/encerrar` | `encerrarAtribuicao` | `{ dataFim }`; histórico mantido |
+| POST | `/colaboradores/{id}/desligar` | `desligarColaborador` | Encerra licenças e linhas da pessoa |
+| PUT | `/cotacoes/{data}` | `salvarCotacao` | PTAX de venda. Backend carrega 1x/dia do Banco Central (API Olinda/PTAX) e guarda em cache |
+| POST | `/parametros/{chave}` | `salvarParametro` | `{ valor, vigenteDesde }`. Histórico: o valor vale a partir da data; meses anteriores não mudam |
+| PUT | `/orcamentos-fornecedor/{id\|novo}` | `salvarOrcamento` | Alerta aos 90% do contratado no ano |
+| POST | `/importacoes/csv/{tipo}/previa` | `previsualizarCsv` | `tipo`: licencas, atribuicoes, movimentacoes, linhas. Não grava |
+| POST | `/importacoes/csv/{tipo}` | `importarCsv` | Só linhas válidas; idempotente (reimportar não altera totais) |
+| POST | `/auditoria/exportacoes` | `registrarExportacao` | Toda exportação CSV entra na auditoria |
+| PUT | `/telefonia/linhas/{id\|nova}` | `salvarLinha` | Número único (só dígitos, com DDD). Cancelada/portada encerra o uso |
+| POST | `/telefonia/linhas/{id}/usos` | `atribuirLinha` | Uma pessoa por linha por vez |
+| POST | `/telefonia/usos/{id}/encerrar` | `encerrarUsoLinha` | Devolução; histórico mantido |
 
 Métodos só do modo local (sem servidor): `obterModoDados`, `iniciarBaseVazia`, `exportarBackup`, `importarBackup` e `restaurarDadosDemonstracao`. Com a API real, a base é única, e cópia de segurança e recuperação são feitas no banco de dados.
 
@@ -62,4 +71,8 @@ As fórmulas estão centralizadas em `src/domain/rules/` e cobertas por testes. 
 - `saving.ts`, `cambio.ts`, `reajuste.ts`: saving, baseline ajustado, decomposição preço × volume × câmbio.
 - `alertas.ts`, `acoes.ts`: alertas programados, interrupção, priorização.
 - `heranca.ts`: campos herdados na renovação e na substituição.
-- `licencas.ts`: uso × contratadas, custo mensal/anual em BRL (câmbio, IOF, impostos), custo ocioso, alertas de licenças.
+- `licencas.ts`: posição de assentos pelas movimentações, câmbio (PTAX × (1 + spread) + IOF só em USD), cobrança por competência, rateio por pessoa, ranking de ofensores (fecha com o total), ganhos e perdas, vencimentos e alertas. Impostos simulados nunca entram nos totais.
+- `importacaoCsv.ts`, `csv.ts`: modelos, leitura no padrão pt-BR, validação linha a linha e plano idempotente.
+- `telefonia.ts`: linhas, uso por pessoa, custos por operadora/pessoa/área e alertas.
+- `avaliacao.ts`, `prazos.ts`: desfecho da avaliação (não renovar nem substituir = **Cancelado**) e revisão anual do prazo indeterminado.
+- **Pré-agregação (FinOps):** o backend mantém `custo_licenca_mensal` (competência × licença × colaborador × tipo) recalculada a cada movimentação/atribuição; o dashboard lê dela. Cotação em cache, 1 carga por dia.

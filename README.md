@@ -42,17 +42,30 @@ React 19 + TypeScript + Vite + Tailwind CSS 4, a mesma base que o Lovable gera. 
 | 7 | Documentos | `/documentos` |
 | 8 | Ações Necessárias (pendências, alertas e prévia de e-mail) | `/acoes` |
 | 9 | Administração (inclui a importação da planilha) | `/admin` |
-| 10 | Controle de Licenças (visão geral, por produto, por pessoa, linhas telefônicas) | `/licencas` |
+| 10 | Licenças de Software (dashboard, licenças, pessoas, importação CSV, câmbio e parâmetros) | `/licencas` |
+| 11 | Telefonia (dashboard, linhas, importação CSV) | `/telefonia` |
 
-### Controle de Licenças
+### Licenças de Software
 
-Menu lateral **Licenças**. Mostra quem usa cada licença ou linha telefônica, ligado ao contrato só por referência: **o contrato não é alterado**. A Capa do Contrato exibe um bloco somente leitura com as licenças vinculadas e avisa quando a quantidade diverge.
+Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem usa. A licença só referencia o contrato; **o contrato não é alterado**. A Capa do Contrato mostra um bloco somente leitura.
 
-- Quem administra: Administrador, Suprimentos e o perfil **TI**. Gestor vê só as pessoas da própria área.
-- Colaboradores (quem usa) são separados dos usuários do sistema.
-- Remover licença não apaga: fica no histórico como `Removida`. "Remover todas as licenças" atende desligamentos.
-- Produtos sem lista de usuários podem ficar com "uso não controlado por pessoa", para não gerar custo ocioso falso.
-- Importação: **Licenças → Importar licenças** (arquivo gerado por `ferramentas/importacao-licencas/`). Reimportar não duplica.
+- Assentos e preço vêm das **movimentações**: compra (soma assentos), redução, renegociação e cancelamento. Cada uma guarda o valor anual antes/depois: são as economias e os aumentos do dashboard.
+- **Custo:** BRL sem IOF. USD = valor × PTAX × (1 + spread) + IOF. Custo real (valor + IOF) é a base de tudo. Cenário com impostos é só simulação, em indicador separado.
+- **Sem furo na base:** atribuir sem assento livre é bloqueado; reduzir abaixo do atribuído também. E-mail corporativo é a identidade (domínios do grupo são a mesma pessoa).
+- **Rateio:** custo ÷ assentos × assentos da pessoa. Assento sem pessoa = "Disponível (ocioso)". Fixo/consumo sem usuário = "Não atribuído". O ranking de ofensores sempre fecha com o total.
+- **Perfis:** Suprimentos e Administrador gerem; Gestor vê a própria área; **Leitura** vê só totais.
+- **Parâmetros** (spread, IOF, fator de impostos, domínios) e **PTAX** ficam em "Câmbio e parâmetros", com data de vigência: mudar recalcula sem deploy e não mexe no passado.
+- **Importação CSV** com modelo para download, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
+
+### Telefonia
+
+Menu próprio, separado das licenças. Linha com número, operadora, plano, franquia, valor mensal (BRL) e situação; uma pessoa por vez, com histórico. Dashboard por pessoa, área e operadora, e alertas de linha sem usuário ou de pessoa desligada com linha.
+
+### Contratos: vigência e cancelamento
+
+- Todo contrato precisa de vigência. **Prazo indeterminado** tem revisão anual (aniversário da data de início ou data-base), com os mesmos alertas da renovação.
+- Na avaliação, **não renovar nem substituir passa o contrato para Cancelado**. Se houver renovação automática, Suprimentos recebe a ação de comunicar o fornecedor antes da data limite.
+- A capa mostra **valor mensal e anual**.
 
 ## Cenários de demonstração
 

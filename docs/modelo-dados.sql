@@ -11,7 +11,7 @@ CREATE TABLE usuarios (
   external_id   VARCHAR(64)  NULL COMMENT 'ID no SSO/Akross Atende',
   nome          VARCHAR(150) NOT NULL,
   email         VARCHAR(190) NOT NULL UNIQUE,
-  perfil        ENUM('Administrador','Suprimentos','Gestor','Juridico','Solicitante','TI') NOT NULL,
+  perfil        ENUM('Administrador','Suprimentos','Gestor','Juridico','Solicitante','Leitura') NOT NULL,
   cargo         VARCHAR(120) NULL,
   area          VARCHAR(80)  NULL,
   diretor       BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -289,7 +289,7 @@ CREATE TABLE alertas_enviados (
 -- Trilha de auditoria — append-only. Conceder apenas INSERT/SELECT ao usuário da aplicação.
 CREATE TABLE auditoria (
   id             BIGINT       AUTO_INCREMENT PRIMARY KEY,
-  entidade       ENUM('contrato','processo','documento','configuracao','licenca') NOT NULL,
+  entidade       ENUM('contrato','processo','documento','configuracao','licenca','colaborador','telefonia') NOT NULL,
   entidade_id    CHAR(36)     NOT NULL,
   usuario_id     CHAR(36)     NOT NULL,
   data           DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -300,71 +300,4 @@ CREATE TABLE auditoria (
   INDEX ix_aud_entidade (entidade_id, data)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- ---------------------------------------------------------------------------
--- Controle de licenças: ligado ao contrato só por referência (não altera o contrato).
--- ---------------------------------------------------------------------------
-CREATE TABLE produtos_licenca (
-  id                     CHAR(36)      PRIMARY KEY,
-  nome                   VARCHAR(200)  NOT NULL,
-  fornecedor_nome        VARCHAR(200)  NOT NULL,
-  categoria              ENUM('Software','Linha telefônica') NOT NULL,
-  contrato_id            CHAR(36)      NULL,
-  quantidade_contratada  INT           NOT NULL DEFAULT 0,
-  controle_por_usuario   BOOLEAN       NOT NULL DEFAULT TRUE,
-  valor_unitario         DECIMAL(15,4) NOT NULL DEFAULT 0,
-  moeda                  CHAR(3)       NOT NULL DEFAULT 'BRL',
-  periodicidade          ENUM('Mensal','Anual') NOT NULL,
-  cotacao_valor          DECIMAL(12,6) NULL,
-  cotacao_data           DATE          NULL,
-  iof_percentual         DECIMAL(6,3)  NULL,
-  impostos_percentual    DECIMAL(6,3)  NULL,
-  vencimento             DATE          NULL,
-  vencimento_texto       VARCHAR(100)  NULL,
-  responsavel            VARCHAR(150)  NULL,
-  utilizacao             TEXT          NULL,
-  manutencao             TEXT          NULL,
-  substituto             VARCHAR(200)  NULL,
-  riscos                 TEXT          NULL,
-  situacao               ENUM('Ativo','Cancelado','Downgrade') NOT NULL DEFAULT 'Ativo',
-  observacoes            TEXT          NULL,
-  chave_importacao       VARCHAR(200)  NULL UNIQUE,
-  criado_em              DATETIME      NOT NULL,
-  atualizado_em          DATETIME      NOT NULL,
-  FOREIGN KEY (contrato_id) REFERENCES contratos(contrato_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Colaborador (quem usa a licença) é separado de usuário do sistema.
-CREATE TABLE colaboradores (
-  id               CHAR(36)     PRIMARY KEY,
-  nome             VARCHAR(200) NOT NULL,
-  email            VARCHAR(200) NULL UNIQUE,
-  tipo             ENUM('Pessoa','Conta compartilhada') NOT NULL DEFAULT 'Pessoa',
-  area             VARCHAR(100) NULL,
-  centro_custo     VARCHAR(100) NULL,
-  empresa_id       CHAR(36)     NULL,
-  ativo            BOOLEAN      NOT NULL DEFAULT TRUE,
-  chave_importacao VARCHAR(200) NULL UNIQUE,
-  FOREIGN KEY (empresa_id) REFERENCES empresas(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Remoção não apaga: status 'Removida' + data_fim.
-CREATE TABLE atribuicoes_licenca (
-  id               CHAR(36)      PRIMARY KEY,
-  produto_id       CHAR(36)      NOT NULL,
-  colaborador_id   CHAR(36)      NOT NULL,
-  status           ENUM('Ativa','Removida') NOT NULL DEFAULT 'Ativa',
-  data_inicio      DATE          NULL,
-  data_fim         DATE          NULL,
-  valor_mensal_brl DECIMAL(15,2) NULL,
-  linha_numero     VARCHAR(30)   NULL,
-  linha_operadora  VARCHAR(50)   NULL,
-  linha_plano      VARCHAR(100)  NULL,
-  observacao       TEXT          NULL,
-  FOREIGN KEY (produto_id) REFERENCES produtos_licenca(id),
-  FOREIGN KEY (colaborador_id) REFERENCES colaboradores(id),
-  INDEX ix_atrib_produto (produto_id, status),
-  INDEX ix_atrib_colab (colaborador_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- Confirmações pendentes de importação (contrato vinculado automaticamente etc.)
--- podem ficar em uma tabela genérica: confirmacoes_pendentes(entidade, entidade_id, texto).
+-- Licenças de software e telefonia: ver docs/migracoes/2026-10-16_licencas_telefonia.sql

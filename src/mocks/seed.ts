@@ -4,10 +4,17 @@ import { aprovacoesPadrao } from "@/domain/rules/fluxo";
 import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
+import { aplicarMovimentacao, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import type {
   AtribuicaoLicenca,
   Colaborador,
-  ProdutoLicenca,
+  CotacaoDia,
+  Licenca,
+  LinhaTelefonica,
+  MovimentacaoLicenca,
+  OrcamentoFornecedor,
+  Parametro,
+  UsoLinha,
   Configuracao,
   Contrato,
   Documento,
@@ -39,18 +46,35 @@ export interface EstadoDados {
   documentos: Documento[];
   auditoria: RegistroAuditoria[];
   configuracao: Configuracao;
-  // Controle de licenças
-  produtosLicenca: ProdutoLicenca[];
+  // Licenças de software e telefonia (colaboradores são comuns aos dois)
   colaboradores: Colaborador[];
-  atribuicoes: AtribuicaoLicenca[];
+  licencas: Licenca[];
+  movimentacoesLicenca: MovimentacaoLicenca[];
+  atribuicoesLicenca: AtribuicaoLicenca[];
+  cotacoes: CotacaoDia[];
+  parametros: Parametro[];
+  orcamentosFornecedor: OrcamentoFornecedor[];
+  linhasTelefonicas: LinhaTelefonica[];
+  usosLinha: UsoLinha[];
 }
 
-/** Garante as coleções criadas depois da primeira versão (backups antigos não as têm). */
+export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLicenca", "atribuicoesLicenca", "cotacoes", "parametros", "orcamentosFornecedor", "linhasTelefonicas", "usosLinha"] as const;
+
+/**
+ * Garante as coleções criadas depois da primeira versão (backups antigos não as têm).
+ * O controle de licenças da versão anterior (produtosLicenca/atribuicoes) é descartado: a v1 começa vazia.
+ * O perfil "TI" deixou de existir: vira Solicitante (só consulta).
+ */
 export function completarEstado(e: EstadoDados): EstadoDados {
-  return { ...e, produtosLicenca: e.produtosLicenca ?? [], colaboradores: e.colaboradores ?? [], atribuicoes: e.atribuicoes ?? [] };
+  const { produtosLicenca: _p, atribuicoes: _a, ...resto } = e as EstadoDados & { produtosLicenca?: unknown; atribuicoes?: unknown };
+  const r = { ...resto } as EstadoDados;
+  const legado = Array.isArray(_p);
+  for (const k of COLECOES_LICENCAS) (r as unknown as Record<string, unknown[]>)[k] = legado && k === "colaboradores" ? [] : ((e as unknown as Record<string, unknown[]>)[k] ?? []);
+  r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
+  return r;
 }
 
-export const VERSAO_SEED = 1;
+export const VERSAO_SEED = 2;
 
 // PRNG determinístico (mulberry32) — mesmos dados a cada geração.
 function prng(seed: number) {
@@ -87,6 +111,7 @@ const USUARIOS: Usuario[] = [
   { id: "u-ges4", area: "Marketing", nome: "Beatriz Nunes", email: "beatriz.nunes@empresa.exemplo", perfil: "Gestor", cargo: "Gerente de Marketing", ativo: true },
   { id: "u-dir1", area: "Operações", nome: "Roberto Almeida", email: "roberto.almeida@empresa.exemplo", perfil: "Gestor", cargo: "Diretor de Operações", diretor: true, ativo: true },
   { id: "u-dir2", area: "Financeiro", nome: "Helena Vasconcelos", email: "helena.vasconcelos@empresa.exemplo", perfil: "Gestor", cargo: "Diretora Administrativo-Financeira", diretor: true, ativo: true },
+  { id: "u-leit1", area: "Financeiro", nome: "Sílvia Moraes", email: "silvia.moraes@empresa.exemplo", perfil: "Leitura", cargo: "Analista de Controladoria", ativo: true },
   { id: "u-jur1", area: "Jurídico", nome: "Luciana Ferraz", email: "luciana.ferraz@empresa.exemplo", perfil: "Juridico", cargo: "Advogada Corporativa", ativo: true },
 ];
 
@@ -803,46 +828,107 @@ export function criarEstadoVazio(admin: { nome: string; email: string }): Estado
     processos: [],
     documentos: [],
     auditoria: [],
-    produtosLicenca: [],
     colaboradores: [],
-    atribuicoes: [],
+    licencas: [],
+    movimentacoesLicenca: [],
+    atribuicoesLicenca: [],
+    cotacoes: [],
+    parametros: [],
+    orcamentosFornecedor: [],
+    linhasTelefonicas: [],
+    usosLinha: [],
     configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
 }
 
-function licencasDemonstracao(H: string, agora: string, rnd: () => number): Pick<EstadoDados, "produtosLicenca" | "colaboradores" | "atribuicoes"> {
-  const nomes = ["Ana", "Bruno", "Carla", "Daniel", "Elisa", "Fábio", "Gabriela", "Heitor", "Isabela", "João", "Karen", "Lucas", "Marina", "Nelson", "Olívia", "Pedro", "Quésia", "Rafael", "Sofia", "Tiago"];
-  const sobrenomes = ["Almeida", "Barbosa", "Cardoso", "Dias", "Esteves", "Ferraz", "Gomes", "Holanda", "Lima", "Moura", "Nogueira", "Pires", "Queiroz", "Rocha", "Siqueira"];
+function licencasDemonstracao(H: string, agora: string, rnd: () => number): Pick<EstadoDados, (typeof COLECOES_LICENCAS)[number]> {
+  const nomes = ["Ana", "Bruno", "Carla", "Daniel", "Elisa", "Fábio", "Gabriela", "Heitor", "Isabela", "João", "Karen", "Lucas"];
+  const sobrenomes = ["Almeida", "Barbosa", "Cardoso", "Dias", "Esteves", "Ferraz"];
   const areas = ["Tecnologia", "Operações", "Comercial", "Financeiro", "Marketing", "Atendimento"];
+  const semAcento = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const colaboradores: Colaborador[] = [];
-  for (let i = 0; i < 300; i++) {
-    // 20 nomes × 15 sobrenomes = 300 combinações únicas.
-    const nome = `${nomes[i % nomes.length]} ${sobrenomes[Math.floor(i / nomes.length) % sobrenomes.length]}`;
-    colaboradores.push({
-      id: `col-${i + 1}`,
-      nome,
-      email: `${nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(" ", ".")}@empresa.exemplo`,
-      tipo: "Pessoa",
-      area: areas[i % areas.length],
-      empresaId: "e-hold",
-      ativo: i !== 7 && i !== 42,
-    });
+  for (let i = 1; i <= 60; i++) {
+    const nome = `${nomes[(i - 1) % nomes.length]} ${sobrenomes[Math.floor((i - 1) / nomes.length) % sobrenomes.length]}`;
+    const area = areas[(i - 1) % areas.length];
+    colaboradores.push({ id: `col-${i}`, email: `${semAcento(nome).replace(" ", ".")}@empresa.exemplo`, nome, area, centroCusto: `CC-${100 + areas.indexOf(area) * 10}`, status: i === 60 ? "Desligado" : "Ativo", tipoConta: "Pessoa", dataDesligamento: i === 60 ? addDias(H, -10) : undefined });
   }
-  const produto = (p: Omit<ProdutoLicenca, "criadoEm" | "atualizadoEm" | "situacao"> & Partial<Pick<ProdutoLicenca, "situacao">>): ProdutoLicenca => ({ situacao: "Ativo", criadoEm: agora, atualizadoEm: agora, ...p });
-  const produtosLicenca: ProdutoLicenca[] = [
-    produto({ id: "pl-colab", nome: "Assentos de colaboração", fornecedorNome: "Global Seat Licensing Inc.", categoria: "Software", contrato_id: "c-usd", quantidadeContratada: 300, valorUnitario: 360, moeda: "USD", periodicidade: "Anual", cotacao: { valor: 5.42, data: addDias(H, -150), fonte: "PTAX" }, iofPercentual: 3.5, vencimento: addDias(H, 215), responsavel: "Carlos Mendes", utilizacao: "Chat, videoconferência e documentos compartilhados", substituto: "Ferramenta equivalente do pacote de escritório", riscos: "Migração de histórico de conversas" }),
-    produto({ id: "pl-design", nome: "Ferramenta de design", fornecedorNome: "Atlas Licenciamento de Software Ltda", categoria: "Software", quantidadeContratada: 10, valorUnitario: 190, moeda: "BRL", periodicidade: "Mensal", vencimentoTexto: "Mensal", responsavel: "Beatriz Nunes", utilizacao: "Protótipos e peças de marketing" }),
-    produto({ id: "pl-linhas", nome: "Linhas móveis corporativas", fornecedorNome: "Sigma Telecom Serviços Ltda", categoria: "Linha telefônica", quantidadeContratada: 6, valorUnitario: 0, moeda: "BRL", periodicidade: "Mensal", vencimentoTexto: "Mensal", responsavel: "Fernanda Rocha" }),
-    produto({ id: "pl-cancel", nome: "Ferramenta de pesquisa online", fornecedorNome: "Pulso Marketing Digital Ltda", categoria: "Software", quantidadeContratada: 0, valorUnitario: 0, moeda: "BRL", periodicidade: "Mensal", situacao: "Cancelado", responsavel: "Beatriz Nunes", observacoes: "Cancelado após migração para formulário interno." }),
+  colaboradores.push({ id: "col-61", email: "suporte@empresa.exemplo", nome: "Suporte (conta compartilhada)", area: "Atendimento", centroCusto: "CC-150", status: "Ativo", tipoConta: "Compartilhada", responsavelId: "col-6" });
+
+  const licenca = (l: Omit<Licenca, "status" | "criadoEm" | "atualizadoEm"> & Partial<Pick<Licenca, "status">>): Licenca => ({ status: "Ativa", criadoEm: agora, atualizadoEm: agora, ...l });
+  const licencas: Licenca[] = [
+    licenca({ id: "lic-colab", fornecedorId: "f-global", contrato_id: "c-usd", produto: "Colabora Cloud", plano: "Business", categoria: "Colaboração", utilizacao: "Chat, reuniões e documentos", tipoCobranca: "Assento", moeda: "USD", periodicidade: "Mensal", vencimentoTipo: "Mensal", area: "Tecnologia", centroCusto: "CC-100", responsavel: "Carlos Mendes", justificativaManutencao: "Ferramenta de comunicação de toda a empresa", substitutoPossivel: "Pacote de escritório já contratado", riscoTroca: "Migração do histórico de conversas" }),
+    licenca({ id: "lic-design", fornecedorId: "f-atlas", produto: "Design Pro", plano: "Equipe", categoria: "Design", utilizacao: "Peças de marketing e protótipos", tipoCobranca: "Assento", moeda: "BRL", periodicidade: "Anual", vencimentoTipo: "Data", dataVencimento: addDias(H, 45), area: "Marketing", centroCusto: "CC-140", responsavel: "Beatriz Nunes", justificativaManutencao: "Padrão do time de criação", riscoTroca: "Arquivos no formato proprietário" }),
+    licenca({ id: "lic-office", fornecedorId: "f-orbital", produto: "Office Suite", plano: "Padrão", categoria: "Produtividade", utilizacao: "E-mail, planilhas e documentos", tipoCobranca: "Assento", moeda: "BRL", periodicidade: "Mensal", vencimentoTipo: "Mensal", area: "Tecnologia", centroCusto: "CC-100", responsavel: "Carlos Mendes" }),
+    licenca({ id: "lic-nuvem", fornecedorId: "f-dataforte", produto: "Nuvem Analytics", plano: "Sob consumo", categoria: "Infraestrutura", utilizacao: "Processamento de relatórios", tipoCobranca: "Consumo", moeda: "USD", periodicidade: "Mensal", vencimentoTipo: "Sob demanda", area: "Tecnologia", centroCusto: "CC-100", responsavel: "Carlos Mendes", riscoTroca: "Reescrita das rotinas de dados" }),
+    licenca({ id: "lic-monitor", fornecedorId: "f-orbital", produto: "Orbital Monitor", plano: "Fixo 3 operadores", categoria: "Monitoramento", tipoCobranca: "Fixo", moeda: "BRL", periodicidade: "Mensal", vencimentoTipo: "Mensal", area: "Operações", centroCusto: "CC-110", responsavel: "Fernanda Rocha" }),
+    licenca({ id: "lic-projetos", fornecedorId: "f-atlas", produto: "Gestão de Projetos", plano: "Pro", categoria: "Gestão", tipoCobranca: "Assento", moeda: "USD", periodicidade: "Anual", vencimentoTipo: "Data", dataVencimento: addDias(H, 80), area: "Operações", centroCusto: "CC-110", responsavel: "Fernanda Rocha" }),
+    licenca({ id: "lic-pesquisa", fornecedorId: "f-pulso", produto: "Pesquisa Online", plano: "Básico", tipoCobranca: "Assento", moeda: "BRL", periodicidade: "Mensal", vencimentoTipo: "Mensal", area: "Marketing", centroCusto: "CC-140", responsavel: "Beatriz Nunes", status: "Cancelada" }),
   ];
-  const atribuicoes: AtribuicaoLicenca[] = [];
-  let n = 0;
-  const atribuir = (produtoId: string, colaboradorId: string, extra: Partial<AtribuicaoLicenca> = {}) =>
-    atribuicoes.push({ id: `at-${++n}`, produtoId, colaboradorId, status: "Ativa", dataInicio: addDias(H, -Math.floor(30 + rnd() * 300)), ...extra });
-  for (let i = 0; i < 286; i++) atribuir("pl-colab", colaboradores[i].id);
-  for (let i = 0; i < 11; i++) atribuir("pl-design", colaboradores[i * 6 + 4].id); // 11 para 10 licenças: excedente
-  for (let i = 0; i < 6; i++)
-    atribuir("pl-linhas", colaboradores[i * 3 + 1].id, { valorMensalBRL: Math.round((70 + rnd() * 40) * 100) / 100, linha: { numero: `(11) 9${8000 + i * 137}-${1000 + i * 211}`, operadora: "Sigma Telecom", plano: "Corporativo 20 GB" } });
-  atribuir("pl-colab", colaboradores[290].id, { status: "Removida", dataFim: addDias(H, -20) });
-  return { produtosLicenca, colaboradores, atribuicoes };
+
+  const movimentacoesLicenca: MovimentacaoLicenca[] = [];
+  let nm = 0;
+  const mov = (licencaId: string, tipo: MovimentacaoLicenca["tipo"], dias: number, quantidade?: number, precoUnitario?: number, responsavel = "Suprimentos", observacao?: string) => {
+    const l = licencas.find((x) => x.id === licencaId)!;
+    const atuais = movimentacoesLicenca.filter((m) => m.licencaId === licencaId);
+    const lotes = posicaoNaData(atuais, "9999-12-31").lotes;
+    const m = { tipo, quantidade, precoUnitario };
+    movimentacoesLicenca.push({ id: `mov-${++nm}`, licencaId, tipo, data: addDias(H, dias), quantidade, precoUnitario, responsavel, observacao, valorAnualAntes: valorAnualOriginal(lotes, l.periodicidade), valorAnualDepois: valorAnualOriginal(aplicarMovimentacao(lotes, m), l.periodicidade), registradoPorId: "u-sup1", registradoEm: agora });
+  };
+  mov("lic-colab", "Compra", -400, 40, 30, "Rafael Costa");
+  mov("lic-colab", "Compra", -120, 10, 30, "Rafael Costa", "Time novo de atendimento");
+  mov("lic-design", "Compra", -320, 8, 2400, "Beatriz Nunes");
+  mov("lic-office", "Compra", -500, 50, 55, "Carlos Mendes");
+  mov("lic-office", "Redução", -90, 5, undefined, "Rafael Costa", "Downgrade após revisão de acessos");
+  mov("lic-nuvem", "Compra", -200, 1, 1200, "Carlos Mendes");
+  mov("lic-monitor", "Compra", -365, 1, 1800, "Fernanda Rocha");
+  mov("lic-projetos", "Compra", -280, 12, 120, "Fernanda Rocha");
+  mov("lic-projetos", "Renegociação", -30, undefined, 100, "Juliana Prado", "Desconto de 16,7% na renovação");
+  mov("lic-pesquisa", "Compra", -420, 5, 90, "Beatriz Nunes");
+  mov("lic-pesquisa", "Cancelamento", -60, undefined, undefined, "Beatriz Nunes", "Substituída por formulário interno");
+
+  const atribuicoesLicenca: AtribuicaoLicenca[] = [];
+  let na = 0;
+  const atribuir = (licencaId: string, colaboradorId: string, extra: Partial<AtribuicaoLicenca> = {}) =>
+    atribuicoesLicenca.push({ id: `atr-${++na}`, licencaId, colaboradorId, status: "Ativa", dataInicio: addDias(H, -Math.floor(100 + rnd() * 250)), ...extra });
+  for (let i = 1; i <= 44; i++) atribuir("lic-colab", `col-${i}`);
+  atribuir("lic-colab", "col-60"); // desligado com licença: alerta
+  atribuir("lic-colab", "col-61"); // conta compartilhada
+  atribuir("lic-colab", "col-50", { status: "Encerrada", dataInicio: addDias(H, -300), dataFim: addDias(H, -40) });
+  for (const i of [1, 7, 13, 19, 25, 31, 37, 43]) atribuir("lic-design", `col-${i + 4}`, { dataInicio: addDias(H, -320) });
+  for (let i = 1; i <= 40; i++) atribuir("lic-office", `col-${i}`, { dataInicio: addDias(H, -480) });
+  for (const i of [2, 8, 14]) atribuir("lic-monitor", `col-${i}`);
+  for (let i = 5; i <= 14; i++) atribuir("lic-projetos", `col-${i}`, { dataInicio: addDias(H, -270) });
+
+  // PTAX fictícia: um valor por semana nos últimos 13 meses.
+  const cotacoes: CotacaoDia[] = [];
+  for (let d = -400; d <= -1; d += 7) cotacoes.push({ data: addDias(H, d), ptaxVenda: Math.round((5.3 + 0.25 * Math.sin(d / 60) + rnd() * 0.05) * 10000) / 10000 });
+  const parametro = (chave: Parametro["chave"], valor: string): Parametro => ({ chave, valor, vigenteDesde: "2020-01-01", atualizadoPorId: "u-admin", atualizadoEm: agora });
+  const parametros = [parametro("spread_cambial", "4"), parametro("aliquota_iof_usd", "3.5"), parametro("fator_impostos_simulado", "1.15"), parametro("exibir_cenario_impostos", "sim"), parametro("dominios_grupo", "empresa.exemplo, empresa-antiga.exemplo")];
+  const ano = Number(H.slice(0, 4));
+  const orcamentosFornecedor: OrcamentoFornecedor[] = [
+    { id: "orc-1", fornecedorId: "f-global", ano, valorBRL: 100000 },
+    { id: "orc-2", fornecedorId: "f-orbital", ano, valorBRL: 200000 },
+  ];
+
+  const linha = (id: string, numero: string, valorMensal: number, extra: Partial<LinhaTelefonica> = {}): LinhaTelefonica => ({ id, numero, operadora: "Sigma Telecom", fornecedorId: "f-sigma", plano: "Corporativo 20 GB", franquia: "20 GB", valorMensal, situacao: "Ativa", criadoEm: agora, atualizadoEm: agora, ...extra });
+  const linhasTelefonicas: LinhaTelefonica[] = [
+    linha("tel-1", "11987650001", 79.9),
+    linha("tel-2", "11987650002", 79.9),
+    linha("tel-3", "11987650003", 99.9, { plano: "Corporativo 50 GB", franquia: "50 GB" }),
+    linha("tel-4", "21987650004", 79.9),
+    linha("tel-5", "81987650005", 59.9, { plano: "Corporativo 10 GB", franquia: "10 GB" }),
+    linha("tel-6", "11987650006", 79.9),
+    linha("tel-7", "11987650007", 79.9, { area: "Comercial" }), // sem usuário: alerta
+    linha("tel-8", "11987650008", 59.9, { situacao: "Cancelada", observacao: "Cancelada após desligamento" }),
+  ];
+  const usosLinha: UsoLinha[] = [
+    { id: "uso-1", linhaId: "tel-1", colaboradorId: "col-3", status: "Ativa", dataInicio: addDias(H, -300) },
+    { id: "uso-2", linhaId: "tel-2", colaboradorId: "col-9", status: "Ativa", dataInicio: addDias(H, -250) },
+    { id: "uso-3", linhaId: "tel-3", colaboradorId: "col-2", status: "Ativa", dataInicio: addDias(H, -200) },
+    { id: "uso-4", linhaId: "tel-4", colaboradorId: "col-15", status: "Ativa", dataInicio: addDias(H, -180) },
+    { id: "uso-5", linhaId: "tel-5", colaboradorId: "col-21", status: "Ativa", dataInicio: addDias(H, -150) },
+    { id: "uso-6", linhaId: "tel-6", colaboradorId: "col-60", status: "Ativa", dataInicio: addDias(H, -320) }, // desligado com linha: alerta
+    { id: "uso-7", linhaId: "tel-1", colaboradorId: "col-27", status: "Encerrada", dataInicio: addDias(H, -500), dataFim: addDias(H, -301) },
+  ];
+  return { colaboradores, licencas, movimentacoesLicenca, atribuicoesLicenca, cotacoes, parametros, orcamentosFornecedor, linhasTelefonicas, usosLinha };
 }

@@ -1,0 +1,4 @@
+﻿fornecedor;produto;plano;tipo;data;quantidade;preco_unitario;responsavel;referencia_pedido;observacao
+Teste Chat SaaS Inc.;Chat Equipe;Pro;compra;2026-04-01;5;8,75;Responsável Teste;PED-T1;Novo time
+Teste Chat SaaS Inc.;Chat Equipe;Pro;reducao;2026-07-01;3;;Responsável Teste;PED-T2;Revisão de acessos
+Teste Design Ltda;Desenho Vetorial;Equipe;renegociacao;2026-08-01;;1.600,00;Responsável Teste;PED-T3;Desconto na renovação

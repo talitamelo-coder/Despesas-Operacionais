@@ -2,10 +2,18 @@ import type { AbaCentral } from "@/domain/rules/central";
 import type { Pendencia } from "@/domain/rules/fluxo";
 import type { Indicadores } from "@/domain/rules/indicadores";
 import type { RegistroImportado } from "@/domain/rules/importacao";
+import type { LinhaPrevia, TipoImportacao } from "@/domain/rules/importacaoCsv";
 import type {
   AtribuicaoLicenca,
+  ChaveParametro,
   Colaborador,
-  ProdutoLicenca,
+  CotacaoDia,
+  Licenca,
+  LinhaTelefonica,
+  MovimentacaoLicenca,
+  OrcamentoFornecedor,
+  Parametro,
+  UsoLinha,
   AcaoNecessaria,
   Alerta,
   AvaliacaoRenovacao,
@@ -171,14 +179,31 @@ export interface ContratosApi {
   // Integrações (gateways)
   buscarDemandaJira(jira_key: string): Promise<DemandaJira | undefined>;
 
-  // Controle de licenças (não altera contratos)
-  listarLicencas(): Promise<DadosLicencas>;
-  salvarProdutoLicenca(p: ProdutoLicenca, porId: string): Promise<ProdutoLicenca>;
+  // Licenças de software e telefonia (só referenciam contratos; nunca os alteram).
+  /** Dados já filtrados pelo perfil: Gestor recebe só a própria área; Leitura recebe pessoas sem nome/e-mail. */
+  listarLicencas(porId: string): Promise<DadosLicencas>;
+  /** Licença nova pode vir com a compra inicial (assentos, preço e data). */
+  salvarLicenca(l: Licenca, porId: string, compraInicial?: NovaMovimentacao): Promise<Licenca>;
+  /** Compra, redução, renegociação ou cancelamento. Calcula e grava o valor anual antes/depois. */
+  registrarMovimentacao(m: NovaMovimentacao, porId: string): Promise<MovimentacaoLicenca>;
   salvarColaborador(c: Colaborador, porId: string): Promise<Colaborador>;
-  atribuirLicenca(produtoId: string, colaboradorId: string, porId: string, extra?: ExtraAtribuicao): Promise<AtribuicaoLicenca>;
-  removerAtribuicao(id: string, porId: string): Promise<void>;
-  removerLicencasDoColaborador(colaboradorId: string, porId: string): Promise<number>;
-  importarLicencas(conteudo: string, porId: string): Promise<ResultadoImportacaoLicencas>;
+  /** Bloqueia sem assento livre, e-mail repetido na licença e colaborador desligado. */
+  atribuirLicenca(licencaId: string, colaboradorId: string, dataInicio: ISODate, porId: string): Promise<AtribuicaoLicenca>;
+  encerrarAtribuicao(id: string, dataFim: ISODate, porId: string): Promise<void>;
+  /** Desligamento: encerra licenças e usos de linha da pessoa e marca como desligada. */
+  desligarColaborador(colaboradorId: string, data: ISODate, porId: string): Promise<{ licencas: number; linhas: number }>;
+  salvarCotacao(c: CotacaoDia, porId: string): Promise<void>;
+  salvarParametro(chave: ChaveParametro, valor: string, vigenteDesde: ISODate, porId: string): Promise<void>;
+  salvarOrcamento(o: OrcamentoFornecedor, porId: string): Promise<OrcamentoFornecedor>;
+  /** Pré-visualização linha a linha (não grava). */
+  previsualizarCsv(tipo: TipoImportacao, conteudo: string, porId: string): Promise<LinhaPrevia[]>;
+  /** Importa só as linhas válidas; reimportar o mesmo arquivo não duplica. */
+  importarCsv(tipo: TipoImportacao, conteudo: string, porId: string): Promise<ResultadoImportacaoCsv>;
+  /** Exportações de dados (CSV) entram na auditoria. */
+  registrarExportacao(descricao: string, porId: string): Promise<void>;
+  salvarLinha(l: LinhaTelefonica, porId: string): Promise<LinhaTelefonica>;
+  atribuirLinha(linhaId: string, colaboradorId: string, dataInicio: ISODate, porId: string): Promise<UsoLinha>;
+  encerrarUsoLinha(id: string, dataFim: ISODate, porId: string): Promise<void>;
 
   // Base de dados (modo de uso, cópia de segurança)
   obterModoDados(): Promise<"demonstracao" | "real">;
@@ -189,31 +214,31 @@ export interface ContratosApi {
   restaurarDadosDemonstracao(porId?: string): Promise<void>;
 }
 
-// ---------------------------------------------------------------- Licenças
+// ---------------------------------------------------------------- Licenças e telefonia
 
 export interface DadosLicencas {
-  produtos: ProdutoLicenca[];
-  colaboradores: Colaborador[];
+  /** Como os dados foram filtrados para quem pediu. */
+  visao: "completa" | "area" | "agregada";
+  licencas: Licenca[];
+  movimentacoes: MovimentacaoLicenca[];
   atribuicoes: AtribuicaoLicenca[];
+  colaboradores: Colaborador[];
+  cotacoes: CotacaoDia[];
+  parametros: Parametro[];
+  orcamentos: OrcamentoFornecedor[];
+  linhas: LinhaTelefonica[];
+  usosLinha: UsoLinha[];
 }
 
-/** Arquivo de importação de licenças (gerado a partir da planilha de licenças). */
-export interface ArquivoImportacaoLicencas {
-  formato: "akross-licencas-importacao";
-  produtos: (Omit<ProdutoLicenca, "id" | "criadoEm" | "atualizadoEm" | "contrato_id"> & { chave: string; contratoSugerido?: string })[];
-  colaboradores: (Omit<Colaborador, "id"> & { chave: string })[];
-  atribuicoes: (Omit<AtribuicaoLicenca, "id" | "produtoId" | "colaboradorId"> & { produtoChave: string; colaboradorChave: string })[];
-}
+export type NovaMovimentacao = Pick<MovimentacaoLicenca, "licencaId" | "tipo" | "data" | "quantidade" | "precoUnitario" | "responsavel" | "referenciaPedido" | "observacao">;
 
-export interface ResultadoImportacaoLicencas {
-  produtos: number;
-  colaboradores: number;
-  atribuicoes: number;
-  vinculadosAContrato: number;
-  semContrato: number;
+export interface ResultadoImportacaoCsv {
+  importadas: number;
+  jaExistiam: number;
+  recusadas: number;
+  conciliacao: number;
+  linhas: LinhaPrevia[];
 }
-
-export type ExtraAtribuicao = Partial<Pick<AtribuicaoLicenca, "dataInicio" | "valorMensalBRL" | "linha" | "observacao">>;
 
 export class ErroPermissao extends Error {
   constructor(msg = "Operação não permitida para o seu perfil.") {

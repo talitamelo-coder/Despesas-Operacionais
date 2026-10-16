@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import csvLicencas from "../../../ferramentas/dados-teste-licencas/1-licencas.csv?raw";
+import csvMovimentacoes from "../../../ferramentas/dados-teste-licencas/2-movimentacoes.csv?raw";
+import csvAtribuicoes from "../../../ferramentas/dados-teste-licencas/3-atribuicoes.csv?raw";
+import csvLinhas from "../../../ferramentas/dados-teste-licencas/4-linhas.csv?raw";
 import { mockApi as api } from "./mockApi";
 
 /** Fluxos ponta a ponta na camada de serviço simulada (mesmo contrato da API futura). */
@@ -189,51 +193,103 @@ describe("cadastro de usuário", () => {
   });
 });
 
-describe("controle de licenças", () => {
-  it("atribui, remove sem apagar e nunca altera o contrato", async () => {
+describe("licenças de software", () => {
+  const H = new Date().toISOString().slice(0, 10);
+
+  it("bloqueia atribuição sem assento livre e nunca altera o contrato", async () => {
     const contratoAntes = JSON.stringify(await api.obterContrato("c-usd"));
-    const { produtos, colaboradores } = await api.listarLicencas();
-    const p = produtos.find((x) => x.id === "pl-design")!;
-    const livre = colaboradores.find((c) => c.id === "col-299")!;
-    const a = await api.atribuirLicenca(p.id, livre.id, "u-sup1");
-    await expect(api.atribuirLicenca(p.id, livre.id, "u-sup1")).rejects.toThrow(/já tem/);
-    await api.removerAtribuicao(a.id, "u-sup1");
-    const depois = await api.listarLicencas();
-    expect(depois.atribuicoes.find((x) => x.id === a.id)?.status).toBe("Removida");
+    // Design Pro: 8 assentos, 8 em uso.
+    await expect(api.atribuirLicenca("lic-design", "col-2", H, "u-sup1")).rejects.toThrow(/Sem assento livre/);
+    await api.registrarMovimentacao({ licencaId: "lic-design", tipo: "Compra", data: H, quantidade: 1, precoUnitario: 2400, responsavel: "Teste" }, "u-sup1");
+    const a = await api.atribuirLicenca("lic-design", "col-2", H, "u-sup1");
+    await expect(api.atribuirLicenca("lic-design", "col-2", H, "u-sup1")).rejects.toThrow(/já tem/);
+    await expect(api.registrarMovimentacao({ licencaId: "lic-design", tipo: "Redução", data: H, quantidade: 1, responsavel: "Teste" }, "u-sup1")).rejects.toThrow(/Encerre/);
+    await api.encerrarAtribuicao(a.id, H, "u-sup1");
+    const d = await api.listarLicencas("u-sup1");
+    expect(d.atribuicoes.find((x) => x.id === a.id)?.status).toBe("Encerrada");
     expect(JSON.stringify(await api.obterContrato("c-usd"))).toBe(contratoAntes);
   });
 
-  it("TI gerencia licenças; gestor não", async () => {
-    const ti = await api.salvarUsuario({ id: "", nome: "Equipe TI", email: "ti@empresa.exemplo", perfil: "TI", area: "Tecnologia", ativo: true }, "u-admin", "123456");
-    await api.salvarColaborador({ id: "", nome: "Nova Pessoa", email: "nova@empresa.exemplo", tipo: "Pessoa", ativo: true }, ti.id);
-    await expect(api.salvarColaborador({ id: "", nome: "X", tipo: "Pessoa", ativo: true }, "u-ges1")).rejects.toThrow();
+  it("cancelamento registra economia e encerra as atribuições", async () => {
+    const m = await api.registrarMovimentacao({ licencaId: "lic-monitor", tipo: "Cancelamento", data: H, responsavel: "Teste" }, "u-sup1");
+    expect(m.valorAnualAntes).toBe(1800 * 12);
+    expect(m.valorAnualDepois).toBe(0);
+    const d = await api.listarLicencas("u-sup1");
+    expect(d.licencas.find((l) => l.id === "lic-monitor")?.status).toBe("Cancelada");
+    expect(d.atribuicoes.filter((a) => a.licencaId === "lic-monitor" && a.status === "Ativa")).toHaveLength(0);
   });
 
-  it("desligamento remove todas as licenças da pessoa", async () => {
-    const n = await api.removerLicencasDoColaborador("col-5", "u-admin");
-    expect(n).toBeGreaterThan(0);
-    const { atribuicoes } = await api.listarLicencas();
-    expect(atribuicoes.filter((a) => a.colaboradorId === "col-5" && a.status === "Ativa")).toHaveLength(0);
+  it("só Suprimentos/Administrador gerenciam; gestor vê nomes só da própria área; leitura não vê nomes", async () => {
+    await expect(api.salvarColaborador({ id: "", email: "x@empresa.exemplo", nome: "X", status: "Ativo", tipoConta: "Pessoa" }, "u-ges1")).rejects.toThrow();
+    const g = await api.listarLicencas("u-ges1"); // Carlos Mendes, Tecnologia
+    expect(g.visao).toBe("area");
+    expect(g.colaboradores.filter((c) => c.nome).every((c) => c.area === "Tecnologia")).toBe(true);
+    expect(g.colaboradores.some((c) => c.area === "Comercial" && !c.nome && !c.email)).toBe(true);
+    const l = await api.listarLicencas("u-leit1");
+    expect(l.visao).toBe("agregada");
+    expect(l.colaboradores.every((c) => !c.nome && !c.email)).toBe(true);
   });
 
-  it("importação vincula ao contrato pelo fornecedor e não duplica ao reimportar", async () => {
-    // Só vincula sozinho quando o fornecedor tem exatamente um contrato vigente.
-    const arq = JSON.stringify({
-      formato: "akross-licencas-importacao",
-      produtos: [
-        { chave: "p:global", nome: "Colaboração extra", fornecedorNome: "Global Seat", categoria: "Software", quantidadeContratada: 2, valorUnitario: 10, moeda: "BRL", periodicidade: "Mensal", situacao: "Ativo" },
-        { chave: "p:inexistente", nome: "Ferramenta X", fornecedorNome: "Fornecedor Que Nao Existe", categoria: "Software", quantidadeContratada: 1, valorUnitario: 10, moeda: "BRL", periodicidade: "Mensal", situacao: "Ativo" },
-      ],
-      colaboradores: [{ chave: "c:ze", nome: "Zé Teste", email: "ze@x.com", tipo: "Pessoa", ativo: true }],
-      atribuicoes: [{ produtoChave: "p:global", colaboradorChave: "c:ze", status: "Ativa" }],
-    });
-    const r = await api.importarLicencas(arq, "u-admin");
-    expect(r).toMatchObject({ produtos: 2, atribuicoes: 1, vinculadosAContrato: 1, semContrato: 1 });
-    const r2 = await api.importarLicencas(arq, "u-admin");
-    expect(r2.atribuicoes).toBe(0);
-    const { produtos } = await api.listarLicencas();
-    expect(produtos.filter((p) => p.nome === "Colaboração extra")).toHaveLength(1);
-    expect(produtos.find((p) => p.nome === "Colaboração extra")?.contrato_id).toBe("c-usd");
-    expect(produtos.find((p) => p.nome === "Ferramenta X")?.confirmacoesPendentes).toContain("Vincular ao contrato (não identificado automaticamente)");
+  it("e-mail é a identidade: domínio do grupo não cria pessoa duplicada", async () => {
+    await expect(api.salvarColaborador({ id: "", email: "ana.almeida@empresa-antiga.exemplo", nome: "Ana", status: "Ativo", tipoConta: "Pessoa" }, "u-sup1")).rejects.toThrow(/Já existe/);
+  });
+
+  it("desligamento encerra licenças e linhas", async () => {
+    const r = await api.desligarColaborador("col-3", H, "u-sup1");
+    expect(r.licencas).toBeGreaterThan(0);
+    expect(r.linhas).toBe(1);
+  });
+
+  it("parâmetro inválido é recusado; novo valor vale a partir da data", async () => {
+    await expect(api.salvarParametro("spread_cambial", "abc", H, "u-sup1")).rejects.toThrow();
+    await api.salvarParametro("spread_cambial", "5", H, "u-sup1");
+    const d = await api.listarLicencas("u-sup1");
+    expect(d.parametros.filter((p) => p.chave === "spread_cambial")).toHaveLength(2);
+  });
+
+  it("importação CSV: pré-visualiza, importa e reimportar não duplica", async () => {
+    const lic = "fornecedor;produto;plano;tipo_cobranca;moeda;periodicidade;vencimento_tipo;assentos_iniciais;preco_unitario;data_compra\nNovo Fornecedor SaaS;Ferramenta Z;Pro;assento;USD;mensal;mensal;2;10,50;2026-01-10\nTOTAL;;;;;;;;;\n";
+    const prev = await api.previsualizarCsv("licencas", lic, "u-sup1");
+    expect(prev.map((l) => l.situacao)).toEqual(["Importar", "Recusada"]);
+    expect((await api.importarCsv("licencas", lic, "u-sup1")).importadas).toBe(1);
+    const atr = "email;nome;area;fornecedor;produto;plano\nzeca.souza@empresa.exemplo;Zeca Souza;Tecnologia;Novo Fornecedor SaaS;Ferramenta Z;Pro\n;Sem Email;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\nlia.reis@empresa.exemplo;Lia;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\nmax.paz@empresa.exemplo;Max;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\n";
+    const r = await api.importarCsv("atribuicoes", atr, "u-sup1");
+    expect(r).toMatchObject({ importadas: 2, conciliacao: 1, recusadas: 1 }); // 2 assentos: o terceiro é recusado
+    const antes = await api.listarLicencas("u-sup1");
+    const r2 = await api.importarCsv("licencas", lic, "u-sup1");
+    const r3 = await api.importarCsv("atribuicoes", atr, "u-sup1");
+    expect(r2.importadas + r3.importadas).toBe(0);
+    const depois = await api.listarLicencas("u-sup1");
+    expect(depois.licencas.length).toBe(antes.licencas.length);
+    expect(depois.atribuicoes.length).toBe(antes.atribuicoes.length);
+    expect(depois.movimentacoes.length).toBe(antes.movimentacoes.length);
+  });
+});
+
+describe("dados fictícios de teste (ferramentas/dados-teste-licencas)", () => {
+  it("importam com o resultado esperado e reimportar não muda nada", async () => {
+    const rodar = async () => [
+      await api.importarCsv("licencas", csvLicencas, "u-sup1"),
+      await api.importarCsv("movimentacoes", csvMovimentacoes, "u-sup1"),
+      await api.importarCsv("atribuicoes", csvAtribuicoes, "u-sup1"),
+      await api.importarCsv("linhas", csvLinhas, "u-sup1"),
+    ];
+    const [l, m, a, t] = await rodar();
+    expect(l).toMatchObject({ importadas: 4, recusadas: 2 });
+    expect(m).toMatchObject({ importadas: 3, recusadas: 0 });
+    expect(a).toMatchObject({ importadas: 30, conciliacao: 1, jaExistiam: 1, recusadas: 1 });
+    expect(t).toMatchObject({ importadas: 4, recusadas: 1 });
+    const antes = JSON.stringify(await api.listarLicencas("u-sup1"));
+    expect((await rodar()).every((r) => r.importadas === 0)).toBe(true);
+    expect(JSON.stringify(await api.listarLicencas("u-sup1"))).toBe(antes);
+  });
+});
+
+describe("telefonia", () => {
+  it("uma linha tem um usuário por vez; número é único", async () => {
+    const H = new Date().toISOString().slice(0, 10);
+    await expect(api.atribuirLinha("tel-1", "col-4", H, "u-sup1")).rejects.toThrow(/já tem usuário/);
+    await expect(api.salvarLinha({ id: "", numero: "(11) 98765-0001", operadora: "X", valorMensal: 10, situacao: "Ativa", criadoEm: "", atualizadoEm: "" }, "u-sup1")).rejects.toThrow(/já está cadastrada/);
+    await api.atribuirLinha("tel-7", "col-4", H, "u-sup1");
   });
 });

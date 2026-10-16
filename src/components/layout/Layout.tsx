@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
+import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, Smartphone, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { useConsulta } from "@/hooks/useConsulta";
@@ -15,7 +15,8 @@ const MENU = [
   { para: "/processos/novo", rotulo: "Novo Processo", icone: FilePlus2 },
   { para: "/acoes", rotulo: "Ações Necessárias", icone: ListChecks, contador: true },
   { para: "/documentos", rotulo: "Documentos", icone: FileText },
-  { para: "/licencas", rotulo: "Licenças", icone: KeyRound, permissoes: ["gerir_licencas", "ver_licencas_da_area"] as const },
+  { para: "/licencas", rotulo: "Licenças", icone: KeyRound, permissoes: ["gerir_licencas", "ver_licencas_da_area", "ver_licencas_agregado"] as const },
+  { para: "/telefonia", rotulo: "Telefonia", icone: Smartphone, permissoes: ["gerir_licencas", "ver_licencas_da_area", "ver_licencas_agregado"] as const },
   { para: "/admin", rotulo: "Administração", icone: Settings, permissao: "administrar" as const },
 ];
 

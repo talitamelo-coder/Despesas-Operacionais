@@ -17,7 +17,7 @@ export type MapaOrigens = Partial<Record<string, OrigemDado>>;
 
 // ---------------------------------------------------------------- Cadastros
 
-export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "Solicitante" | "TI";
+export type Perfil = "Administrador" | "Suprimentos" | "Gestor" | "Juridico" | "Solicitante" | "Leitura";
 
 export interface Usuario {
   id: string;
@@ -500,7 +500,7 @@ export interface AcaoNecessaria {
 
 export interface RegistroAuditoria {
   id: string;
-  entidade: "contrato" | "processo" | "documento" | "configuracao" | "licenca";
+  entidade: "contrato" | "processo" | "documento" | "configuracao" | "licenca" | "colaborador" | "telefonia";
   entidadeId: string;
   usuarioId: string;
   data: ISODateTime;
@@ -534,84 +534,159 @@ export interface Configuracao {
   listasAuxiliares: Record<string, string[]>;
 }
 
-// ---------------------------------------------------------------- Controle de licenças
+// ---------------------------------------------------------------- Colaboradores (quem usa)
 
 /**
- * O contrato registra O QUE foi comprado; o controle de licenças registra QUEM usa.
- * Um produto licenciado pode estar ligado a um contrato (ou não, ex.: compra no cartão).
- * Nada aqui altera o contrato.
+ * Quem usa licenças e linhas. Diferente de Usuario (quem acessa este sistema). Dado pessoal (LGPD):
+ * só e-mail, nome, área, centro de custo e situação. Identidade = e-mail corporativo em minúsculas.
  */
-export type CategoriaLicenca = "Software" | "Linha telefônica";
-export type SituacaoProdutoLicenca = "Ativo" | "Cancelado" | "Downgrade";
+export type TipoContaColaborador = "Pessoa" | "Compartilhada";
+export type StatusColaborador = "Ativo" | "Desligado";
 
-export interface ProdutoLicenca {
+export interface Colaborador {
   id: string;
-  nome: string; // ex.: "Power BI Pro", "Jira (Cloud) Standard"
-  fornecedorNome: string;
-  categoria: CategoriaLicenca;
+  email: string;
+  nome: string;
+  area?: string;
+  centroCusto?: string;
+  status: StatusColaborador;
+  tipoConta: TipoContaColaborador;
+  /** Conta compartilhada: pessoa responsável. */
+  responsavelId?: string;
+  dataDesligamento?: ISODate;
+}
+
+// ---------------------------------------------------------------- Licenças de software
+
+/**
+ * O contrato registra o que foi contratado; a licença detalha assentos, preço e quem usa.
+ * A licença só referencia o contrato (FK) — nunca o altera. O real pago fica em Pedidos/Contas a pagar.
+ */
+export type MoedaLicenca = "BRL" | "USD";
+export type TipoCobranca = "Assento" | "Fixo" | "Consumo";
+export type PeriodicidadeLicenca = "Mensal" | "Anual";
+export type VencimentoTipo = "Data" | "Mensal" | "Sob demanda";
+export type StatusLicenca = "Ativa" | "Cancelada";
+
+export interface Licenca {
+  id: string;
+  fornecedorId: string;
   contrato_id?: string;
-  quantidadeContratada: number;
-  /**
-   * false = o uso não é controlado por pessoa (ex.: conta única de uma ferramenta). Nesse caso
-   * as licenças são consideradas em uso e não geram custo ocioso. Padrão: true.
-   */
-  controlePorUsuario?: boolean;
-  /** Valor por licença na moeda, no período indicado (mensal ou anual). */
-  valorUnitario: number;
-  moeda: Moeda;
-  periodicidade: "Mensal" | "Anual";
-  cotacao?: Cotacao;
-  iofPercentual?: number;
-  impostosPercentual?: number;
-  vencimento?: ISODate;
-  /** Quando o vencimento é descrito em texto (ex.: "Mensal", "Por demanda"). */
-  vencimentoTexto?: string;
-  // Ficha da ferramenta
-  responsavel?: string;
+  produto: string;
+  plano?: string;
+  categoria?: string;
   utilizacao?: string;
-  manutencao?: string;
-  substituto?: string;
-  riscos?: string;
-  situacao: SituacaoProdutoLicenca;
-  observacoes?: string;
-  confirmacoesPendentes?: string[];
-  /** Chave estável usada para não duplicar em reimportações. */
+  tipoCobranca: TipoCobranca;
+  moeda: MoedaLicenca;
+  periodicidade: PeriodicidadeLicenca;
+  vencimentoTipo: VencimentoTipo;
+  dataVencimento?: ISODate;
+  /** Área dona da licença (custo sem usuário e visão do gestor). */
+  area?: string;
+  centroCusto?: string;
+  responsavel?: string;
+  justificativaManutencao?: string;
+  substitutoPossivel?: string;
+  riscoTroca?: string;
+  /** Consumo: teto mensal na moeda da licença. Sem limite = alerta FinOps. */
+  limiteConsumoMensal?: number;
+  status: StatusLicenca;
   chaveImportacao?: string;
   criadoEm: ISODateTime;
   atualizadoEm: ISODateTime;
 }
 
-export type TipoColaborador = "Pessoa" | "Conta compartilhada";
+/**
+ * Movimentações formam o histórico do contratado: os assentos e o custo atuais são SEMPRE calculados
+ * a partir delas. Compra soma assentos (com o preço daquela compra); redução tira dos lotes mais
+ * recentes; renegociação muda o preço de todos os assentos; cancelamento zera.
+ */
+export type TipoMovimentacao = "Compra" | "Redução" | "Renegociação" | "Cancelamento";
 
-/** Quem usa licenças. Diferente de Usuario (quem acessa este módulo). Dado pessoal (LGPD). */
-export interface Colaborador {
+export interface MovimentacaoLicenca {
   id: string;
-  nome: string;
-  email?: string;
-  tipo: TipoColaborador;
-  area?: string;
-  centroCusto?: string;
-  empresaId?: string;
-  ativo: boolean;
-  confirmacoesPendentes?: string[];
+  licencaId: string;
+  tipo: TipoMovimentacao;
+  data: ISODate;
+  /** Compra/Redução: assentos (positivo). Fixo/Consumo usam 1. */
+  quantidade?: number;
+  /** Compra: preço unitário por período. Renegociação: novo preço unitário. */
+  precoUnitario?: number;
+  responsavel: string;
+  referenciaPedido?: string;
+  observacao?: string;
+  /** Calculados ao registrar (registro de economia/aumento), na moeda da licença. */
+  valorAnualAntes: number;
+  valorAnualDepois: number;
+  registradoPorId: string;
+  registradoEm: ISODateTime;
   chaveImportacao?: string;
 }
 
-export interface LinhaTelefonica {
-  numero: string;
-  operadora: string;
-  plano?: string;
-}
+export type StatusAtribuicao = "Ativa" | "Encerrada";
 
 export interface AtribuicaoLicenca {
   id: string;
-  produtoId: string;
+  licencaId: string;
   colaboradorId: string;
-  status: "Ativa" | "Removida";
-  dataInicio?: ISODate;
+  status: StatusAtribuicao;
+  dataInicio: ISODate;
   dataFim?: ISODate;
-  /** Custo próprio desta atribuição (ex.: valor da fatura de uma linha telefônica). */
-  valorMensalBRL?: number;
-  linha?: LinhaTelefonica;
+}
+
+/** PTAX de venda do dia (carga diária do Banco Central no backend). Tabela única de câmbio. */
+export interface CotacaoDia {
+  data: ISODate;
+  ptaxVenda: number;
+}
+
+export type ChaveParametro = "spread_cambial" | "aliquota_iof_usd" | "fator_impostos_simulado" | "exibir_cenario_impostos" | "dominios_grupo";
+
+/** Parâmetros com histórico: vale o último com vigenteDesde <= data. Nada fixo no código. */
+export interface Parametro {
+  chave: ChaveParametro;
+  valor: string;
+  vigenteDesde: ISODate;
+  atualizadoPorId: string;
+  atualizadoEm: ISODateTime;
+}
+
+export interface OrcamentoFornecedor {
+  id: string;
+  fornecedorId: string;
+  ano: number;
+  valorBRL: number;
+}
+
+// ---------------------------------------------------------------- Telefonia (separada de licenças)
+
+export type SituacaoLinha = "Ativa" | "Suspensa" | "Cancelada" | "Portada";
+
+export interface LinhaTelefonica {
+  id: string;
+  /** Somente dígitos, com DDD. Único. */
+  numero: string;
+  operadora: string;
+  fornecedorId?: string;
+  contrato_id?: string;
+  plano?: string;
+  franquia?: string;
+  /** Valor mensal contratado (BRL). Sem câmbio e sem IOF. */
+  valorMensal: number;
+  situacao: SituacaoLinha;
+  area?: string;
+  centroCusto?: string;
   observacao?: string;
+  chaveImportacao?: string;
+  criadoEm: ISODateTime;
+  atualizadoEm: ISODateTime;
+}
+
+export interface UsoLinha {
+  id: string;
+  linhaId: string;
+  colaboradorId: string;
+  status: StatusAtribuicao;
+  dataInicio: ISODate;
+  dataFim?: ISODate;
 }

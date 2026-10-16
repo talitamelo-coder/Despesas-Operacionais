@@ -8,10 +8,12 @@ import { RiscoRenovacaoBadge, StatusBadge } from "@/components/ui/status";
 import { cenarioDe, decomporVariacao, valorAnualBRL, valorMensal, valorMensalBRL } from "@/domain/rules/cambio";
 import { prazosDoContrato } from "@/domain/rules/prazos";
 import { datasReajuste, proximoReajuste } from "@/domain/rules/reajuste";
-import { formatarData } from "@/domain/datas";
+import { formatarData, hoje } from "@/domain/datas";
 import { formatarCnpj, formatarMoeda, formatarNumero, formatarPercentual } from "@/domain/formatacao";
-import type { Alerta, AtribuicaoLicenca, Contrato, ProdutoLicenca } from "@/domain/types";
-import { divergenciaComContrato, resumoProduto } from "@/domain/rules/licencas";
+import type { Alerta, Contrato } from "@/domain/types";
+import type { DadosLicencas } from "@/services";
+import { linhaCobrada } from "@/domain/rules/telefonia";
+import { cambioNaData, divergenciaComContrato, equivalentes } from "@/domain/rules/licencas";
 
 /** Blocos da Capa do Contrato — cada bloco é independente e reaproveitável. */
 
@@ -281,28 +283,39 @@ export function ListaAlertas({ alertas }: { alertas: Alerta[] }) {
   );
 }
 
-/** Licenças ligadas ao contrato — SOMENTE LEITURA. A gestão fica no menu Licenças. */
-export function BlocoLicencas({ c, produtos, atribuicoes }: { c: Contrato; produtos: ProdutoLicenca[]; atribuicoes: AtribuicaoLicenca[] }) {
-  const doContrato = produtos.filter((p) => p.contrato_id === c.contrato_id);
-  const aviso = divergenciaComContrato(c, produtos);
+/** Licenças e linhas ligadas ao contrato — SOMENTE LEITURA. A gestão fica nos menus Licenças e Telefonia. */
+export function BlocoLicencas({ c, dados }: { c: Contrato; dados: DadosLicencas }) {
+  const licencas = dados.licencas.filter((l) => l.contrato_id === c.contrato_id);
+  const linhas = dados.linhas.filter((l) => l.contrato_id === c.contrato_id && linhaCobrada(l));
+  const aviso = divergenciaComContrato(c, dados.licencas, dados.movimentacoes);
+  const cambio = cambioNaData(dados.cotacoes, dados.parametros, hoje());
   return (
     <div className="space-y-3">
       {aviso && <Aviso tom="alerta">{aviso}</Aviso>}
       <ul className="divide-y divide-borda">
-        {doContrato.map((p) => {
-          const r = resumoProduto(p, atribuicoes);
+        {licencas.map((l) => {
+          const eq = equivalentes(l, dados.movimentacoes.filter((m) => m.licencaId === l.id), cambio);
+          const emUso = dados.atribuicoes.filter((a) => a.licencaId === l.id && a.status === "Ativa").length;
           return (
-            <li key={p.id} className="py-2">
-              <Link to={`/licencas?aba=${p.categoria === "Linha telefônica" ? "linhas" : "produto"}&item=${p.id}`} className="flex items-center justify-between gap-3 text-sm hover:underline">
-                <span className="min-w-0 truncate">{p.nome}</span>
-                <span className={`shrink-0 text-xs tabular ${r.excedente ? "font-semibold text-critico-600" : "text-texto-suave"}`}>
-                  {p.categoria === "Linha telefônica" ? `${r.emUso} linha(s)` : `${r.contratadas} contratadas · ${r.emUso} em uso · ${r.excedente ? `+${r.excedente} acima` : `${r.livres} livres`}`}
-                </span>
+            <li key={l.id} className="py-2">
+              <Link to={`/licencas?aba=licencas&item=${l.id}`} className="flex items-center justify-between gap-3 text-sm hover:underline">
+                <span className="min-w-0 truncate">{l.produto}{l.status === "Cancelada" && " (cancelada)"}</span>
+                <span className="shrink-0 text-xs text-texto-suave tabular">{l.tipoCobranca === "Assento" ? `${eq.assentos} assentos · ${emUso} em uso` : `${emUso} usuário(s)`}</span>
               </Link>
+              <p className="text-xs text-texto-suave tabular">Equivalente mensal {formatarMoeda(eq.mensalBRL?.custoRealBRL)} · anual {formatarMoeda(eq.anualBRL?.custoRealBRL)}</p>
             </li>
           );
         })}
+        {linhas.length > 0 && (
+          <li className="py-2">
+            <Link to="/telefonia?aba=linhas" className="flex items-center justify-between gap-3 text-sm hover:underline">
+              <span>Linhas telefônicas</span>
+              <span className="text-xs text-texto-suave tabular">{linhas.length} linha(s) · {formatarMoeda(linhas.reduce((a, l) => a + l.valorMensal, 0))}/mês</span>
+            </Link>
+          </li>
+        )}
       </ul>
+      <p className="text-xs text-texto-fraco">Somente leitura: o contrato não é alterado pelo controle de licenças.</p>
     </div>
   );
 }
