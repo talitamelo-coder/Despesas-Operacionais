@@ -191,7 +191,7 @@ CREATE TABLE contratos (
   moeda                 CHAR(3)      NOT NULL,
   valor_anual           DECIMAL(18,2) NOT NULL COMMENT 'Na moeda do contrato',
   quantidade            DECIMAL(18,4) NULL,
-  unidade               VARCHAR(40)  NULL,
+  unidade               VARCHAR(40)  NULL COMMENT 'Da lista auxiliar Unidades',
   preco_unitario        DECIMAL(18,6) NULL,
   periodicidade_pagamento VARCHAR(30) NOT NULL,
   condicao_pagamento    VARCHAR(200) NULL,
@@ -210,7 +210,7 @@ CREATE TABLE contratos (
   periodicidade_renovacao_meses INT  NULL,
   -- data limite e abertura da avaliação são CALCULADAS (não persistir; ver domain/rules/prazos.ts)
   reajuste              JSON         NOT NULL,
-  rescisao              JSON         NOT NULL,
+  rescisao              JSON         NOT NULL COMMENT '{permite, possuiMulta, descricaoMulta (texto livre), regra (condições de rescisão), avisoPrevioDias; percentual/valor só legado}',
   motivo_substituicao   TEXT         NULL,
   substituicao          JSON         NULL,
   avaliacao_renovacao   JSON         NULL,

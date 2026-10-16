@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { UNIDADES_PADRAO } from "@/domain/rules/cadastro";
 import { temPerfil, usuarioPode, type Permissao } from "@/domain/rules/permissoes";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 import type { Cliente, Configuracao, Contrato, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
@@ -167,6 +168,7 @@ export function useOpcoes() {
       origensSaving: cad.config.origensSaving.map((m) => ({ valor: m, rotulo: m })),
       origensOportunidade: cad.config.origensOportunidade.map((m) => ({ valor: m, rotulo: m })),
       projetos: (cad.config.listasAuxiliares["Projetos"] ?? []).map((m) => ({ valor: m, rotulo: m })),
+      unidades: (cad.config.listasAuxiliares["Unidades"]?.length ? cad.config.listasAuxiliares["Unidades"] : UNIDADES_PADRAO).map((m) => ({ valor: m, rotulo: m })),
     }),
     [cad],
   );

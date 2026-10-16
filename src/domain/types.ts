@@ -203,8 +203,13 @@ export interface Reajuste {
 export interface Rescisao {
   permite: boolean;
   possuiMulta: boolean;
+  /** Descrição livre da multa (há muitos tipos: percentual sobre saldo, meses de mensalidade, valor fixo, proporcional…). */
+  descricaoMulta?: string;
+  /** Legado: contratos antigos/importados. Novos registros usam descricaoMulta. */
   percentual?: number;
+  /** Legado: contratos antigos/importados. Novos registros usam descricaoMulta. */
   valor?: number;
+  /** Condições de rescisão em texto livre (quem pode rescindir, em que hipóteses, como comunicar). */
   regra?: string;
   avisoPrevioDias?: number;
   observacoes?: string;

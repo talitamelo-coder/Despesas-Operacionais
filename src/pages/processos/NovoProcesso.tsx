@@ -1,3 +1,4 @@
+import { descricaoMulta } from "@/domain/rules/cadastro";
 import { temPerfil } from "@/domain/rules/permissoes";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -407,7 +408,7 @@ function HerancaResumo({ c, tipo }: { c: Contrato; tipo: TipoProcesso }) {
     ["Cotação anterior", c.condicoes.cotacao ? `${formatarNumero(c.condicoes.cotacao.valor, 4)} (${c.condicoes.cotacao.fonte})` : "—"],
     ["Condição de pagamento", c.condicoes.condicaoPagamento || "—"],
     ["Reajuste", c.reajuste.possui ? `${c.reajuste.indice} ${c.reajuste.percentualPrevisto ?? ""}%` : "Não"],
-    ["Multa", c.rescisao.possuiMulta ? c.rescisao.regra ?? `${c.rescisao.percentual}%` : "Não"],
+    ["Multa", descricaoMulta(c.rescisao, (v) => formatarMoeda(v, c.condicoes.moeda))],
     ["Aviso prévio", `${c.vigencia.avisoPrevioDias} dias`],
   ];
   return (

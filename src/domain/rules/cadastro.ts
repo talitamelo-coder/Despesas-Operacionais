@@ -1,4 +1,4 @@
-import type { Contrato, Fornecedor } from "../types";
+import type { Contrato, Fornecedor, Rescisao } from "../types";
 
 /**
  * Completude do cadastro de contrato — usada para contratos importados de planilhas.
@@ -18,6 +18,17 @@ export function pendenciasCadastro(c: Contrato, fornecedor?: Fornecedor, tipoNom
 }
 
 export const TIPO_NAO_CLASSIFICADO = "Não classificado";
+
+/** Unidades da quantidade contratada (lista padrão; editável em Administração → Listas auxiliares → Unidades). */
+export const UNIDADES_PADRAO = ["Unidade", "Licença", "Usuário", "Assinatura", "Mês", "Hora", "Diária", "Posto", "Serviço", "Projeto", "Lote", "Linha", "Equipamento", "Kit", "Metro quadrado", "Quilômetro"];
+
+/** Texto da multa rescisória: descrição livre; contratos antigos podem ter só percentual/valor. */
+export function descricaoMulta(r: Pick<Rescisao, "possuiMulta" | "descricaoMulta" | "percentual" | "valor">, formatarValor: (v: number) => string): string {
+  if (!r.possuiMulta) return "Não";
+  if (r.descricaoMulta?.trim()) return r.descricaoMulta.trim();
+  const partes = [r.percentual ? `${String(r.percentual).replace(".", ",")}%` : "", r.valor ? formatarValor(r.valor) : ""].filter(Boolean);
+  return partes.length ? partes.join(" · ") : "Sim (descrição não informada)";
+}
 
 /**
  * Depois da contratação, valor e prazo só mudam por aditivo, renegociação ou novo contrato.

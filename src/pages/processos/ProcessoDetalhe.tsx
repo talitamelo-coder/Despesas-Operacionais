@@ -191,6 +191,7 @@ export function ProcessoDetalhe() {
             </GradeValores>
             {p.status === "Aguardando assinatura" && <p className="mt-3 text-xs text-texto-suave">Anexe o documento “Contrato assinado” e conclua o processo para gerar o contrato vigente.</p>}
           </Secao>
+          <SecaoVigenciaContrato edit={edit} set={set} editavel={editavel} />
           <Card>
             <CardHeader titulo="Documentos do processo" />
             <DocumentosLista processo_id={p.processo_id} />
@@ -402,14 +403,37 @@ function SecaoCotacao({ edit, set, editavel }: Props) {
   );
 }
 
+/** Vigência do contrato (não da proposta): datas do contrato assinado. Exigida só para concluir e gerar o contrato. */
+function SecaoVigenciaContrato({ edit, set, editavel }: Props) {
+  const v = edit.vigencia ?? {};
+  const o = edit.origens;
+  const setV = (p: Partial<NonNullable<ProcessoContratacao["vigencia"]>>) => set({ vigencia: { ...v, ...p } });
+  return (
+    <Secao titulo="Vigência do contrato" subtitulo="Conforme o contrato assinado. Obrigatória apenas para concluir o processo e gerar o contrato; o aviso prévio e a renovação automática definem os alertas.">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <Input rotulo="Data início" type="date" disabled={!editavel} value={v.dataInicio ?? ""} onChange={(e) => setV({ dataInicio: e.target.value })} />
+        <Select rotulo="Tipo de vigência" vazio={false} disabled={!editavel} opcoes={["Prazo determinado", "Prazo indeterminado"].map((x) => ({ valor: x, rotulo: x }))} value={v.tipoVigencia ?? "Prazo determinado"} onChange={(e) => setV({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
+        {v.tipoVigencia === "Prazo indeterminado" ? (
+          <Valor rotulo="Data fim">Indeterminado · revisão anual na data de início</Valor>
+        ) : (
+          <Input rotulo="Data fim" type="date" disabled={!editavel} value={v.dataFim ?? ""} onChange={(e) => setV({ dataFim: e.target.value })} />
+        )}
+        <InputNumero rotulo="Aviso prévio (dias)" disabled={!editavel} origem={o["vigencia.avisoPrevioDias"]} valor={v.avisoPrevioDias} onValor={(x) => setV({ avisoPrevioDias: x })} />
+        <InputNumero rotulo="Prazo do gestor (dias)" disabled={!editavel} valor={v.prazoGestorDias} onValor={(x) => setV({ prazoGestorDias: x })} placeholder="30" />
+        <div className="flex items-end pb-1 md:col-span-2">
+          <Toggle rotulo="Renovação automática" ajuda="Usada apenas para alertas — nunca renova sozinha" disabled={!editavel} checked={Boolean(v.renovacaoAutomatica)} onChange={(x) => setV({ renovacaoAutomatica: x })} />
+        </div>
+      </div>
+    </Secao>
+  );
+}
+
 function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado?: number }) {
   const op = useOpcoes();
   const c = edit.condicoes ?? {};
-  const v = edit.vigencia ?? {};
   const r = edit.reajuste ?? { possui: false };
   const rs = edit.rescisao ?? { permite: true, possuiMulta: false };
   const setC = (p: Partial<NonNullable<ProcessoContratacao["condicoes"]>>) => set({ condicoes: { ...c, ...p } });
-  const setV = (p: Partial<NonNullable<ProcessoContratacao["vigencia"]>>) => set({ vigencia: { ...v, ...p } });
   const o = edit.origens;
   return (
     <Secao titulo="Negociação e condições comerciais" subtitulo="Exigidos para aprovação: fornecedor recomendado, proposta, valor negociado, justificativa e condições comerciais">
@@ -424,9 +448,9 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
             <Valor rotulo="Valor negociado anual" origem="calculado">{negociado !== undefined ? formatarMoeda(negociado, c.moeda ?? "BRL") : "Defina a proposta recomendada"}</Valor>
             <Select rotulo="Moeda" obrigatorio disabled={!editavel} opcoes={op.moedas} origem={o["condicoes.moeda"]} value={c.moeda ?? ""} onChange={(e) => setC({ moeda: e.target.value as Moeda })} />
             <InputNumero rotulo="Quantidade" disabled={!editavel} origem={o["condicoes.quantidade"]} valor={c.quantidade} onValor={(x) => setC({ quantidade: x })} />
-            <Input rotulo="Unidade" disabled={!editavel} value={c.unidade ?? ""} onChange={(e) => setC({ unidade: e.target.value })} />
+            <Select rotulo="Unidade" disabled={!editavel} opcoes={c.unidade && !op.unidades.some((x) => x.valor === c.unidade) ? [...op.unidades, { valor: c.unidade, rotulo: c.unidade }] : op.unidades} value={c.unidade ?? ""} onChange={(e) => setC({ unidade: e.target.value || undefined })} />
             <Select rotulo="Periodicidade de pagamento" obrigatorio disabled={!editavel} opcoes={op.periodicidades} origem={o["condicoes.periodicidadePagamento"]} value={c.periodicidadePagamento ?? ""} onChange={(e) => setC({ periodicidadePagamento: e.target.value as Periodicidade })} />
-            <Input rotulo="Condição de pagamento" obrigatorio className="md:col-span-3" disabled={!editavel} origem={o["condicoes.condicaoPagamento"]} value={c.condicaoPagamento ?? ""} onChange={(e) => setC({ condicaoPagamento: e.target.value })} />
+            <Input rotulo="Condição de pagamento" obrigatorio className="md:col-span-3" placeholder="Ex.: 30 dias após emissão da nota fiscal, via boleto" ajuda="Prazo e forma de pagamento acordados com o fornecedor." disabled={!editavel} origem={o["condicoes.condicaoPagamento"]} value={c.condicaoPagamento ?? ""} onChange={(e) => setC({ condicaoPagamento: e.target.value })} />
           </div>
         </div>
         {c.moeda && c.moeda !== "BRL" && (
@@ -441,23 +465,6 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
             </div>
           </div>
         )}
-        <div>
-          <p className="mb-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Vigência proposta</p>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <Input rotulo="Data início" type="date" disabled={!editavel} value={v.dataInicio ?? ""} onChange={(e) => setV({ dataInicio: e.target.value })} />
-            <Select rotulo="Tipo de vigência" vazio={false} disabled={!editavel} opcoes={["Prazo determinado", "Prazo indeterminado"].map((x) => ({ valor: x, rotulo: x }))} value={v.tipoVigencia ?? "Prazo determinado"} onChange={(e) => setV({ tipoVigencia: e.target.value as TipoVigencia, ...(e.target.value === "Prazo indeterminado" ? { dataFim: "", renovacaoAutomatica: false } : {}) })} />
-            {v.tipoVigencia === "Prazo indeterminado" ? (
-              <Valor rotulo="Data fim">Indeterminado · revisão anual na data de início</Valor>
-            ) : (
-              <Input rotulo="Data fim" type="date" disabled={!editavel} value={v.dataFim ?? ""} onChange={(e) => setV({ dataFim: e.target.value })} />
-            )}
-            <InputNumero rotulo="Aviso prévio (dias)" disabled={!editavel} origem={o["vigencia.avisoPrevioDias"]} valor={v.avisoPrevioDias} onValor={(x) => setV({ avisoPrevioDias: x })} />
-            <InputNumero rotulo="Prazo do gestor (dias)" disabled={!editavel} valor={v.prazoGestorDias} onValor={(x) => setV({ prazoGestorDias: x })} placeholder="30" />
-            <div className="flex items-end pb-1 md:col-span-2">
-              <Toggle rotulo="Renovação automática" ajuda="Usada apenas para alertas — nunca renova sozinha" disabled={!editavel} checked={Boolean(v.renovacaoAutomatica)} onChange={(x) => setV({ renovacaoAutomatica: x })} />
-            </div>
-          </div>
-        </div>
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           <div>
             <p className="mb-2 text-xs font-semibold tracking-wide text-texto-suave uppercase">Reajuste</p>
@@ -479,13 +486,10 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
               <Toggle rotulo="Permite rescisão" disabled={!editavel} checked={rs.permite} onChange={(x) => set({ rescisao: { ...rs, permite: x } })} />
               <Toggle rotulo="Possui multa" disabled={!editavel} checked={rs.possuiMulta} onChange={(x) => set({ rescisao: { ...rs, possuiMulta: x } })} />
               {rs.possuiMulta && (
-                <>
-                  <InputNumero rotulo="Percentual (%)" disabled={!editavel} valor={rs.percentual} onValor={(x) => set({ rescisao: { ...rs, percentual: x } })} />
-                  <InputNumero rotulo="Valor" disabled={!editavel} valor={rs.valor} onValor={(x) => set({ rescisao: { ...rs, valor: x } })} />
-                </>
+                <Textarea rotulo="Multa" className="col-span-2" disabled={!editavel} placeholder="Ex.: 20% sobre o saldo remanescente; 3 mensalidades; R$ 50.000 fixos" value={rs.descricaoMulta ?? ""} onChange={(e) => set({ rescisao: { ...rs, descricaoMulta: e.target.value || undefined } })} />
               )}
-              <InputNumero rotulo="Aviso prévio (dias)" disabled={!editavel} valor={rs.avisoPrevioDias} onValor={(x) => set({ rescisao: { ...rs, avisoPrevioDias: x } })} />
-              <Input rotulo="Regra" disabled={!editavel} value={rs.regra ?? ""} onChange={(e) => set({ rescisao: { ...rs, regra: e.target.value } })} />
+              <InputNumero rotulo="Aviso prévio para rescindir (dias)" disabled={!editavel} valor={rs.avisoPrevioDias} onValor={(x) => set({ rescisao: { ...rs, avisoPrevioDias: x } })} />
+              <Textarea rotulo="Condições de rescisão" className="col-span-2" disabled={!editavel} placeholder="Quem pode rescindir, em que hipóteses e como comunicar" value={rs.regra ?? ""} onChange={(e) => set({ rescisao: { ...rs, regra: e.target.value || undefined } })} />
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { aprovacoesPadrao } from "@/domain/rules/fluxo";
 import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
+import { UNIDADES_PADRAO } from "@/domain/rules/cadastro";
 import { aplicarMovimentacao, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import { saldoDoContrato } from "@/domain/rules/saldo";
 import { valorAnualReceita } from "@/domain/rules/receita";
@@ -90,6 +91,7 @@ export function completarEstado(e: EstadoDados): EstadoDados {
   r.aditivosContrato = e.aditivosContrato ?? [];
   r.emissoesFaturamento = e.emissoesFaturamento ?? [];
   r.aportesSaldo = e.aportesSaldo ?? [];
+  if (r.configuracao && !r.configuracao.listasAuxiliares?.Unidades) r.configuracao = { ...r.configuracao, listasAuxiliares: { ...r.configuracao.listasAuxiliares, Unidades: UNIDADES_PADRAO } };
   r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
   return r;
 }
@@ -882,6 +884,7 @@ export function criarEstadoInicial(): EstadoDados {
         "Motivos de encerramento": ["Serviço não necessário", "Substituído", "Rescisão por inadimplemento", "Outro"],
         Projetos: ["Transformação Digital", "Expansão Nordeste", "Eficiência Operacional"],
         Áreas: AREAS_PADRAO,
+        Unidades: UNIDADES_PADRAO,
       },
     },
   };

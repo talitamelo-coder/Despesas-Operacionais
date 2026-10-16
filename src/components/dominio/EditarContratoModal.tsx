@@ -1,4 +1,4 @@
-import { pendenciasCadastro } from "@/domain/rules/cadastro";
+import { descricaoMulta, pendenciasCadastro } from "@/domain/rules/cadastro";
 import { useEffect, useState, type ReactNode } from "react";
 import { useApp, useOpcoes } from "@/app/contexto";
 import { Button } from "@/components/ui/Button";
@@ -106,8 +106,8 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
           <InputNumero rotulo={`Valor anual (${c.condicoes.moeda})`} obrigatorio disabled={travado} valor={c.condicoes.valorAnual || undefined} onValor={(v) => cond({ valorAnual: v ?? 0 })} />
           <Select rotulo="Periodicidade de pagamento" vazio={false} opcoes={op.periodicidades} value={c.condicoes.periodicidadePagamento} onChange={(e) => cond({ periodicidadePagamento: e.target.value as Periodicidade })} />
           <InputNumero rotulo="Quantidade" valor={c.condicoes.quantidade} onValor={(v) => cond({ quantidade: v })} />
-          <Input rotulo="Unidade" placeholder="licenças, meses, postos…" value={c.condicoes.unidade ?? ""} onChange={(e) => cond({ unidade: e.target.value || undefined })} />
-          <Input rotulo="Condição de pagamento" value={c.condicoes.condicaoPagamento} onChange={(e) => cond({ condicaoPagamento: e.target.value })} />
+          <Select rotulo="Unidade" opcoes={c.condicoes.unidade && !op.unidades.some((x) => x.valor === c.condicoes.unidade) ? [...op.unidades, { valor: c.condicoes.unidade, rotulo: c.condicoes.unidade }] : op.unidades} value={c.condicoes.unidade ?? ""} onChange={(e) => cond({ unidade: e.target.value || undefined })} />
+          <Input rotulo="Condição de pagamento" placeholder="Ex.: 30 dias após emissão da NF" value={c.condicoes.condicaoPagamento} onChange={(e) => cond({ condicaoPagamento: e.target.value })} />
           {c.condicoes.moeda !== "BRL" && (
             <>
               <InputNumero rotulo="Cotação (R$ por unidade da moeda)" obrigatorio valor={c.condicoes.cotacao?.valor} onValor={(v) => cond({ cotacao: v ? { data: c.condicoes.cotacao?.data ?? new Date().toISOString().slice(0, 10), fonte: c.condicoes.cotacao?.fonte ?? "PTAX", ...c.condicoes.cotacao, valor: v } : undefined })} />
@@ -150,9 +150,10 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
           <div className="flex items-end pb-1">
             <Toggle rotulo="Possui multa rescisória" checked={c.rescisao.possuiMulta} onChange={(v) => set({ rescisao: { ...c.rescisao, possuiMulta: v } })} />
           </div>
-          <InputNumero rotulo="Multa (%)" valor={c.rescisao.percentual} onValor={(v) => set({ rescisao: { ...c.rescisao, percentual: v } })} />
-          <InputNumero rotulo="Aviso prévio rescisão (dias)" valor={c.rescisao.avisoPrevioDias} onValor={(v) => set({ rescisao: { ...c.rescisao, avisoPrevioDias: v } })} />
-          <Textarea rotulo="Regra de rescisão / multa" className="md:col-span-3" value={c.rescisao.regra ?? ""} onChange={(e) => set({ rescisao: { ...c.rescisao, regra: e.target.value || undefined } })} />
+          <InputNumero rotulo="Aviso prévio para rescindir (dias)" valor={c.rescisao.avisoPrevioDias} onValor={(v) => set({ rescisao: { ...c.rescisao, avisoPrevioDias: v } })} />
+          <div />
+          {c.rescisao.possuiMulta && <Textarea rotulo="Multa" className="md:col-span-3" placeholder="Ex.: 20% sobre o saldo remanescente; 3 mensalidades; R$ 50.000 fixos" value={c.rescisao.descricaoMulta ?? (c.rescisao.percentual || c.rescisao.valor ? descricaoMulta(c.rescisao, String) : "")} onChange={(e) => set({ rescisao: { ...c.rescisao, descricaoMulta: e.target.value || undefined } })} />}
+          <Textarea rotulo="Condições de rescisão" className="md:col-span-3" placeholder="Quem pode rescindir, em que hipóteses e como comunicar" value={c.rescisao.regra ?? ""} onChange={(e) => set({ rescisao: { ...c.rescisao, regra: e.target.value || undefined } })} />
         </Secao>
 
         <Secao titulo="Observações">

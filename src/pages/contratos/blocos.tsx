@@ -1,3 +1,4 @@
+import { descricaoMulta } from "@/domain/rules/cadastro";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { useApp } from "@/app/contexto";
@@ -165,11 +166,9 @@ export function BlocoRescisao({ c }: { c: Contrato }) {
   return (
     <GradeValores colunas={4}>
       <Valor rotulo="Permite rescisão" origem={c.origens.rescisao}>{r.permite ? "Sim" : "Não"}</Valor>
-      <Valor rotulo="Possui multa">{r.possuiMulta ? "Sim" : "Não"}</Valor>
-      <Valor rotulo="Percentual">{formatarPercentual(r.percentual)}</Valor>
-      <Valor rotulo="Valor">{formatarMoeda(r.valor)}</Valor>
-      <Valor rotulo="Aviso prévio">{r.avisoPrevioDias ? `${r.avisoPrevioDias} dias` : "—"}</Valor>
-      <Valor rotulo="Regra" className="sm:col-span-2 lg:col-span-3">{r.regra ?? "—"}</Valor>
+      <Valor rotulo="Aviso prévio para rescindir">{r.avisoPrevioDias ? `${r.avisoPrevioDias} dias` : "—"}</Valor>
+      <Valor rotulo="Multa" className="sm:col-span-2">{descricaoMulta(r, (v) => formatarMoeda(v, c.condicoes.moeda))}</Valor>
+      <Valor rotulo="Condições de rescisão" className="sm:col-span-2 lg:col-span-4">{r.regra ?? "—"}</Valor>
       {r.observacoes && <Valor rotulo="Observações" className="sm:col-span-2 lg:col-span-4">{r.observacoes}</Valor>}
     </GradeValores>
   );
