@@ -6,13 +6,14 @@
 type Downloads = { save(r: { filename: string; data: string | Blob }): Promise<{ status: string }> };
 type ClaudeUse = { use(nome: "downloads"): Promise<Downloads | null> };
 
-export async function salvarArquivo(nome: string, conteudo: string): Promise<"salvo" | "cancelado"> {
+export async function salvarArquivo(nome: string, conteudo: string | Uint8Array): Promise<"salvo" | "cancelado"> {
+  const dados: string | Blob = typeof conteudo === "string" ? conteudo : new Blob([conteudo as BlobPart], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const claude = (window as unknown as { claude?: ClaudeUse }).claude;
   if (claude?.use) {
     const downloads = await claude.use("downloads");
     if (downloads) {
       try {
-        await downloads.save({ filename: nome, data: conteudo });
+        await downloads.save({ filename: nome, data: dados });
         return "salvo";
       } catch (e) {
         if ((e as { code?: string }).code === "declined") return "cancelado";
@@ -21,7 +22,7 @@ export async function salvarArquivo(nome: string, conteudo: string): Promise<"sa
     }
   }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([conteudo], { type: "application/octet-stream" }));
+  a.href = URL.createObjectURL(typeof dados === "string" ? new Blob([dados], { type: "application/octet-stream" }) : dados);
   a.download = nome;
   a.click();
   URL.revokeObjectURL(a.href);

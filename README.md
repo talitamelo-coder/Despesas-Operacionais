@@ -19,7 +19,7 @@ Os dados ficam no navegador (localStorage). Para recriar a demonstração: **Adm
 
 1. **Administração → Dados e backup → Começar base vazia.** Remove os dados fictícios e cria você como primeiro Administrador.
 2. **Cadastros:** Empresas, Usuários (gestores, analistas de Suprimentos, Jurídico, diretores) e Fornecedores.
-3. **Contratos atuais:** Administração → Importação da planilha (planilha salva como CSV). O relatório aponta inconsistências, registros incompletos e duplicidades antes de importar. Gestores citados na planilha e ainda não cadastrados são criados automaticamente.
+3. **Contratos atuais:** Administração → Importação da planilha → **Baixar modelo Excel**. O modelo (.xlsx) traz as colunas da carga, listas suspensas com os cadastros (empresas, gestores, analistas, tipos, moedas, unidades, periodicidades, índices) e uma aba de instruções. Preencha um contrato por linha e suba o próprio .xlsx (CSV também é aceito). O relatório aponta inconsistências, registros incompletos e duplicidades antes de gravar; reimportar não duplica. Gestores citados na planilha e ainda não cadastrados são criados automaticamente. Leitura e geração de .xlsx sem biblioteca externa (`src/app/xlsx.ts`); o formato .xls antigo não é lido (salve como .xlsx).
 4. **Novas contratações:** Novo Processo. Sem a integração com o JIRA, o número do chamado é registrado e os dados são preenchidos manualmente.
 5. **Cópia de segurança:** Administração → Dados e backup → Salvar cópia de segurança, ao fim de cada sessão de uso.
 
@@ -55,7 +55,7 @@ Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem 
 - **Rateio:** custo ÷ assentos × assentos da pessoa. Assento sem pessoa = "Disponível (ocioso)". Fixo/consumo sem usuário = "Não atribuído". O ranking de ofensores sempre fecha com o total.
 - **Perfis:** Suprimentos e Administrador gerem; Gestor vê a própria área; **Leitura** vê só totais.
 - **Parâmetros** (spread, IOF, fator de impostos, domínios) e **PTAX** ficam em "Câmbio e parâmetros", com data de vigência: mudar recalcula sem deploy e não mexe no passado.
-- **Importação CSV** com modelo para download, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
+- **Importação por planilha** (.xlsx ou .csv) com modelo Excel para download, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
 
 ### Telefonia
 

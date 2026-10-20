@@ -1,5 +1,5 @@
 import { normalizarBusca, somenteDigitos } from "../formatacao";
-import type { ISODate, Moeda } from "../types";
+import type { IndiceReajuste, ISODate, Moeda, Periodicidade } from "../types";
 
 /**
  * Importação da planilha legada de contratos: parse CSV, mapeamento de colunas,
@@ -13,20 +13,33 @@ export const CAMPOS_IMPORTACAO = [
   // CNPJ é opcional: fornecedor no exterior não tem. Sem CNPJ, o fornecedor é reconhecido pelo nome.
   { campo: "cnpj", rotulo: "CNPJ", obrigatorio: false, sinonimos: ["cnpj", "cnpj fornecedor"] },
   { campo: "pais", rotulo: "País do fornecedor", obrigatorio: false, sinonimos: ["pais", "país", "country", "pais fornecedor"] },
-  { campo: "empresa", rotulo: "Empresa", obrigatorio: true, sinonimos: ["empresa", "contratante", "unidade"] },
+  { campo: "empresa", rotulo: "Empresa", obrigatorio: true, sinonimos: ["empresa", "contratante", "unidade de negocio", "filial"] },
   { campo: "objeto", rotulo: "Objeto", obrigatorio: true, sinonimos: ["objeto", "descricao", "servico"] },
   { campo: "gestor", rotulo: "Gestor", obrigatorio: true, sinonimos: ["gestor", "responsavel", "gestor do contrato"] },
   { campo: "analista", rotulo: "Analista", obrigatorio: false, sinonimos: ["analista", "comprador", "suprimentos"] },
   { campo: "valorAnual", rotulo: "Valor anual", obrigatorio: true, sinonimos: ["valor anual", "valor", "valor total anual"] },
   { campo: "moeda", rotulo: "Moeda", obrigatorio: false, sinonimos: ["moeda"] },
   { campo: "dataInicio", rotulo: "Data início", obrigatorio: true, sinonimos: ["inicio", "data inicio", "inicio vigencia"] },
+  // Data fim: data ou "indeterminado" (prazo indeterminado com revisão anual).
   { campo: "dataFim", rotulo: "Data fim", obrigatorio: true, sinonimos: ["fim", "data fim", "termino", "vencimento", "fim vigencia"] },
   { campo: "avisoPrevioDias", rotulo: "Aviso prévio (dias)", obrigatorio: false, sinonimos: ["aviso previo", "aviso"] },
   { campo: "renovacaoAutomatica", rotulo: "Renovação automática", obrigatorio: false, sinonimos: ["renovacao automatica", "renov auto", "auto renovacao"] },
   { campo: "tipo", rotulo: "Tipo de contrato", obrigatorio: false, sinonimos: ["tipo", "categoria"] },
   { campo: "centroCusto", rotulo: "Centro de custo", obrigatorio: false, sinonimos: ["centro de custo", "cc"] },
   { campo: "projeto", rotulo: "Projeto", obrigatorio: false, sinonimos: ["projeto"] },
+  { campo: "quantidade", rotulo: "Quantidade", obrigatorio: false, sinonimos: ["quantidade", "qtd", "qtde"] },
+  { campo: "unidade", rotulo: "Unidade", obrigatorio: false, sinonimos: ["unidade", "unidade de medida", "un"] },
+  { campo: "periodicidade", rotulo: "Periodicidade de pagamento", obrigatorio: false, sinonimos: ["periodicidade de pagamento", "periodicidade", "frequencia de pagamento"] },
+  { campo: "condicaoPagamento", rotulo: "Condição de pagamento", obrigatorio: false, sinonimos: ["condicao de pagamento", "prazo de pagamento", "forma de pagamento"] },
+  { campo: "indiceReajuste", rotulo: "Índice de reajuste", obrigatorio: false, sinonimos: ["indice de reajuste", "reajuste", "indice"] },
+  { campo: "multa", rotulo: "Multa rescisória", obrigatorio: false, sinonimos: ["multa rescisoria", "multa"] },
+  { campo: "condicoesRescisao", rotulo: "Condições de rescisão", obrigatorio: false, sinonimos: ["condicoes de rescisao", "rescisao", "regra de rescisao"] },
+  { campo: "observacoes", rotulo: "Observações", obrigatorio: false, sinonimos: ["observacoes", "observacao", "obs"] },
 ] as const;
+
+const PERIODICIDADES: Periodicidade[] = ["Mensal", "Trimestral", "Semestral", "Anual", "Pagamento único"];
+const INDICES: IndiceReajuste[] = ["IPCA", "IGP-M", "INPC", "IPC-Fipe", "Dissídio", "Outro"];
+const deLista = <T extends string>(lista: T[], v: string): T | undefined => lista.find((x) => normalizarBusca(x).replace(/[^a-z0-9]/g, "") === normalizarBusca(v).replace(/[^a-z0-9]/g, ""));
 
 export type CampoImportacao = (typeof CAMPOS_IMPORTACAO)[number]["campo"];
 export type Mapeamento = Partial<Record<CampoImportacao, string>>; // campo -> cabeçalho da planilha
@@ -46,12 +59,22 @@ export interface RegistroImportado {
   valorAnual: number;
   moeda: Moeda;
   dataInicio: ISODate;
+  /** Vazio quando prazo indeterminado. */
   dataFim: ISODate;
+  indeterminado?: boolean;
   avisoPrevioDias: number;
   renovacaoAutomatica: boolean;
   tipo?: string;
   centroCusto?: string;
   projeto?: string;
+  quantidade?: number;
+  unidade?: string;
+  periodicidade?: Periodicidade;
+  condicaoPagamento?: string;
+  indiceReajuste?: IndiceReajuste;
+  multa?: string;
+  condicoesRescisao?: string;
+  observacoes?: string;
 }
 
 export interface RelatorioImportacao {
@@ -189,14 +212,21 @@ export function processarImportacao(
     if (valorAnual === undefined || valorAnual < 0) erros.push(`Valor anual inválido: "${v("valorAnual")}"`);
     const dataInicio = parseDataBR(v("dataInicio"));
     if (!dataInicio) erros.push(`Data início inválida: "${v("dataInicio")}"`);
-    const dataFim = parseDataBR(v("dataFim"));
-    if (!dataFim) erros.push(`Data fim inválida: "${v("dataFim")}"`);
+    const indeterminado = /^indeterminad/.test(normalizarBusca(v("dataFim")));
+    const dataFim = indeterminado ? "" : parseDataBR(v("dataFim"));
+    if (dataFim === undefined) erros.push(`Data fim inválida: "${v("dataFim")}" (use uma data ou "indeterminado")`);
     if (dataInicio && dataFim && dataFim < dataInicio) erros.push("Data fim anterior à data início");
     if (v("cnpj") && !cnpjValido(v("cnpj"))) erros.push(`CNPJ inválido: "${v("cnpj")}"`);
     const moedaTxt = (v("moeda") || "BRL").toUpperCase().replace("R$", "BRL").replace("US$", "USD");
     if (!["BRL", "USD", "EUR"].includes(moedaTxt)) erros.push(`Moeda não suportada: "${v("moeda")}"`);
     const aviso = v("avisoPrevioDias") ? parseNumeroBR(v("avisoPrevioDias")) : 0;
     if (aviso === undefined || aviso < 0) erros.push(`Aviso prévio inválido: "${v("avisoPrevioDias")}"`);
+    const quantidade = v("quantidade") ? parseNumeroBR(v("quantidade")) : undefined;
+    if (v("quantidade") && (quantidade === undefined || quantidade < 0)) erros.push(`Quantidade inválida: "${v("quantidade")}"`);
+    const periodicidade = v("periodicidade") ? deLista(PERIODICIDADES, v("periodicidade")) : undefined;
+    if (v("periodicidade") && !periodicidade) erros.push(`Periodicidade inválida: "${v("periodicidade")}" (${PERIODICIDADES.join(", ")})`);
+    const indice = v("indiceReajuste") && !/^(nao|n|sem|-)$/.test(normalizarBusca(v("indiceReajuste"))) ? deLista(INDICES, v("indiceReajuste")) : undefined;
+    if (v("indiceReajuste") && !indice && !/^(nao|n|sem|-)$/.test(normalizarBusca(v("indiceReajuste")))) erros.push(`Índice de reajuste inválido: "${v("indiceReajuste")}" (${INDICES.join(", ")} ou "Não")`);
     if (erros.length) {
       rel.inconsistencias.push({ linha, erros });
       return;
@@ -229,11 +259,20 @@ export function processarImportacao(
       moeda: moedaTxt as Moeda,
       dataInicio: dataInicio!,
       dataFim: dataFim!,
+      indeterminado: indeterminado || undefined,
       avisoPrevioDias: aviso ?? 0,
-      renovacaoAutomatica: parseBool(v("renovacaoAutomatica")),
+      renovacaoAutomatica: !indeterminado && parseBool(v("renovacaoAutomatica")),
       tipo: v("tipo") || undefined,
       centroCusto: v("centroCusto") || undefined,
       projeto: v("projeto") || undefined,
+      quantidade,
+      unidade: v("unidade") || undefined,
+      periodicidade,
+      condicaoPagamento: v("condicaoPagamento") || undefined,
+      indiceReajuste: indice,
+      multa: v("multa") && !/^(nao|n|sem|-)$/.test(normalizarBusca(v("multa"))) ? v("multa") : undefined,
+      condicoesRescisao: v("condicoesRescisao") || undefined,
+      observacoes: v("observacoes") || undefined,
     });
   });
   return rel;

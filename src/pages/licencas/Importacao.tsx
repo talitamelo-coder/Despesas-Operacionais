@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, FileUp } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
+import { lerPlanilha, modeloImportacao } from "@/app/modelosPlanilha";
 import { exportarCsv } from "@/app/exportar";
 import { Badge, type Tom } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -17,7 +18,7 @@ const TOM: Record<SituacaoLinhaCsv, Tom> = { Importar: "sucesso", "Já existe": 
 
 /** Importação por CSV com modelo, pré-visualização linha a linha e relatório de recusadas. Reimportar não duplica. */
 export function ImportacaoCsv({ tipos }: { tipos: TipoImportacao[] }) {
-  const { usuario, executar } = useApp();
+  const { cad, usuario, executar } = useApp();
   const [tipo, setTipo] = useState<TipoImportacao>(tipos[0]);
   const [arquivo, setArquivo] = useState<{ nome: string; conteudo: string }>();
   const [previa, setPrevia] = useState<LinhaPrevia[]>();
@@ -26,7 +27,10 @@ export function ImportacaoCsv({ tipos }: { tipos: TipoImportacao[] }) {
 
   const trocarTipo = (t: TipoImportacao) => (setTipo(t), setArquivo(undefined), setPrevia(undefined), setResultado(undefined));
   const carregar = async (f: File) => {
-    const conteudo = await f.text();
+    const lido = await executar(() => lerPlanilha(f));
+    if (!lido) return;
+    // Excel vira CSV (mesmo leitor e mesma validação da API).
+    const conteudo = "texto" in lido ? lido.texto : gerarCsv(lido.cabecalhos, lido.linhas);
     setResultado(undefined);
     setArquivo({ nome: f.name, conteudo });
     const p = await executar(() => api.previsualizarCsv(tipo, conteudo, usuario.id));
@@ -43,15 +47,15 @@ export function ImportacaoCsv({ tipos }: { tipos: TipoImportacao[] }) {
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader titulo="Importar por CSV" subtitulo="Baixe o modelo, preencha no Excel e envie. Nada é gravado antes da sua confirmação." />
+        <CardHeader titulo="Importar planilha" subtitulo="Baixe o modelo Excel, preencha e envie (.xlsx ou .csv). Nada é gravado antes da sua confirmação." />
         <CardBody className="space-y-4">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             {tipos.length > 1 && <Select rotulo="O que importar" vazio={false} value={tipo} onChange={(e) => trocarTipo(e.target.value as TipoImportacao)} opcoes={tipos.map((t) => ({ valor: t, rotulo: MODELOS_CSV[t].titulo }))} />}
             <div className="flex items-end gap-2">
-              <Button variante="secundario" icone={<Download size={16} />} onClick={() => salvarArquivo(`modelo-${tipo}.csv`, gerarCsv(modelo.colunas, modelo.exemplo))}>Baixar modelo</Button>
+              <Button variante="secundario" icone={<Download size={16} />} onClick={() => executar(() => salvarArquivo(`modelo-${tipo}.xlsx`, modeloImportacao(tipo, cad)))}>Baixar modelo Excel</Button>
               <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-primaria-800 px-4 text-sm font-medium text-white hover:bg-primaria-900">
                 <FileUp size={16} /> Escolher arquivo
-                <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => (e.target.files?.[0] && carregar(e.target.files[0]), (e.target.value = ""))} />
+                <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => (e.target.files?.[0] && carregar(e.target.files[0]), (e.target.value = ""))} />
               </label>
             </div>
           </div>

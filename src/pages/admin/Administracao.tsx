@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Download, Eraser, Plus, RotateCcw, Save, Upload, X } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
+import { lerPlanilha, modeloContratosFornecedores } from "@/app/modelosPlanilha";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { FornecedorForm } from "@/components/dominio/FornecedorForm";
@@ -484,7 +485,7 @@ function RegrasAlertas() {
 }
 
 function Importacao() {
-  const { usuario, executar } = useApp();
+  const { cad, usuario, executar } = useApp();
   const [arquivo, setArquivo] = useState<string>();
   const [csv, setCsv] = useState<{ cabecalhos: string[]; linhas: string[][] }>();
   const [map, setMap] = useState<Mapeamento>({});
@@ -492,8 +493,9 @@ function Importacao() {
   const [importados, setImportados] = useState<string[]>();
 
   async function ler(f: File) {
-    const texto = await f.text();
-    const r = parseCSV(texto);
+    const lido = await executar(() => lerPlanilha(f));
+    if (!lido) return;
+    const r = "texto" in lido ? parseCSV(lido.texto) : lido;
     setArquivo(f.name);
     setCsv(r);
     setMap(sugerirMapeamento(r.cabecalhos));
@@ -514,21 +516,17 @@ function Importacao() {
     );
   }
 
-  const modelo = () => {
-    const cab = CAMPOS_IMPORTACAO.map((c) => c.rotulo).join(";");
-    const ex = "CT-123;Fornecedor Exemplo Ltda;11.222.333/0001-81;Nome da Empresa;Serviço de exemplo;Nome do Gestor;Nome do Analista;120000,00;BRL;01/01/2026;31/12/2026;90;Sim;Serviços de TI;CC-1000;";
-    executar(() => salvarArquivo("modelo-importacao-contratos.csv", "\uFEFF" + cab + "\n" + ex));
-  };
+  const modelo = () => executar(() => salvarArquivo("modelo-carga-contratos-fornecedores.xlsx", modeloContratosFornecedores(cad)));
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader titulo="1. Arquivo" subtitulo="Exporte a planilha atual como CSV (separador ; ou ,)" acoes={<Button variante="fantasma" tamanho="sm" onClick={modelo}>Baixar modelo</Button>} />
+        <CardHeader titulo="1. Arquivo" subtitulo="Baixe o modelo Excel, preencha um contrato por linha e suba aqui (.xlsx; .csv também é aceito)" acoes={<Button variante="secundario" tamanho="sm" icone={<Download size={14} />} onClick={modelo}>Baixar modelo Excel</Button>} />
         <CardBody>
           <label className="flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-borda-forte p-4 hover:bg-fundo">
             <Upload size={18} className="text-primaria-700" />
-            <span className="text-sm">{arquivo ? `${arquivo} — ${csv?.linhas.length ?? 0} linhas` : "Selecionar arquivo CSV"}</span>
-            <input type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => e.target.files?.[0] && ler(e.target.files[0])} />
+            <span className="text-sm">{arquivo ? `${arquivo} — ${csv?.linhas.length ?? 0} linhas` : "Selecionar planilha (.xlsx ou .csv)"}</span>
+            <input type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => (e.target.files?.[0] && ler(e.target.files[0]), (e.target.value = ""))} />
           </label>
         </CardBody>
       </Card>
