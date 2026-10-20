@@ -144,6 +144,12 @@ export interface ResultadoImportacao {
   codigos: string[];
 }
 
+export interface ResultadoImportacaoFornecedores {
+  criados: number;
+  completados: number;
+  semMudanca: number;
+}
+
 export interface ContratosApi {
   // Cadastros e configuração
   listarUsuarios(): Promise<Usuario[]>;
@@ -167,6 +173,8 @@ export interface ContratosApi {
   registrarAvaliacaoRenovacao(id: string, avaliacao: AvaliacaoRenovacao, porId: string): Promise<{ contrato: Contrato; processo?: ProcessoContratacao }>;
   encerrarContrato(id: string, status: Extract<StatusContrato, "Encerrado" | "Rescindido" | "Suspenso" | "Vigente" | "Cancelado">, motivo: string, porId: string): Promise<Contrato>;
   importarContratos(registros: RegistroImportado[], porId: string): Promise<ResultadoImportacao>;
+  /** Aba Fornecedores da carga: cria os novos e só completa os já cadastrados (nunca sobrescreve). */
+  importarFornecedores(fornecedores: Fornecedor[], porId: string): Promise<ResultadoImportacaoFornecedores>;
 
   // Processos
   listarProcessos(): Promise<ProcessoContratacao[]>;

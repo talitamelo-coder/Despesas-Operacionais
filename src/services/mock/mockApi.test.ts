@@ -367,6 +367,22 @@ describe("contratos de clientes (receita)", () => {
   });
 });
 
+describe("carga de fornecedores", () => {
+  it("cria o novo, completa o existente e o contrato importado usa o cadastro completo", async () => {
+    const existente = (await api.listarFornecedores())[0];
+    const r = await api.importarFornecedores([
+      { fornecedor_id: "", razaoSocial: "Fornecedor Carga Ltda", nomeFantasia: "Carga", cnpj: "11222333000181", endereco: "Rua Z, 1", dadosBancarios: { codigoBanco: "341", agencia: "1", conta: "2" }, statusCadastral: "Ativo" },
+      { ...existente, fornecedor_id: "", razaoSocial: existente.razaoSocial, endereco: existente.endereco ?? "Rua nova" },
+    ], "u-sup1");
+    expect(r.criados).toBe(1);
+    expect(r.criados + r.completados + r.semMudanca).toBe(2);
+    await expect(api.importarFornecedores([], "u-ges1")).rejects.toThrow();
+    const antes = (await api.listarFornecedores()).length;
+    await api.importarContratos([{ linha: 2, fornecedor: "Fornecedor Carga Ltda", cnpj: "11222333000181", empresa: "Exemplo Holding S.A.", objeto: "Teste", gestor: "Carlos Mendes", valorAnual: 1000, moeda: "BRL", dataInicio: "2026-01-01", dataFim: "2026-12-31", avisoPrevioDias: 30, renovacaoAutomatica: false }], "u-sup1");
+    expect((await api.listarFornecedores()).length).toBe(antes);
+  });
+});
+
 describe("telefonia", () => {
   it("uma linha tem um usuário por vez; número é único", async () => {
     const H = new Date().toISOString().slice(0, 10);

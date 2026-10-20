@@ -1,5 +1,6 @@
 import { UNIDADES_PADRAO } from "@/domain/rules/cadastro";
 import { CAMPOS_IMPORTACAO, type CampoImportacao } from "@/domain/rules/importacao";
+import { ABA_FORNECEDORES, COLUNAS_FORNECEDORES } from "@/domain/rules/importacaoFornecedores";
 import { MODELOS_CSV, type TipoImportacao } from "@/domain/rules/importacaoCsv";
 import { temPerfil } from "@/domain/rules/permissoes";
 import type { Configuracao, Empresa, TipoContrato, Usuario } from "@/domain/types";
@@ -56,8 +57,13 @@ export function modeloContratosFornecedores(cad: Cadastros): Uint8Array {
       nome: "Contratos",
       colunas: CAMPOS_IMPORTACAO.map((c) => ({ titulo: c.rotulo, obrigatoria: c.obrigatorio, ...COLUNA_FORNECEDOR[c.campo] })),
       linhas: [],
+    }, {
+      nome: ABA_FORNECEDORES,
+      colunas: COLUNAS_FORNECEDORES.map((c) => ({ titulo: c.rotulo, obrigatoria: "obrigatorio" in c && c.obrigatorio, largura: c.campo === "razaoSocial" || c.campo === "endereco" ? 36 : 16, formato: ["cnpj", "cep", "agencia", "conta", "codigoBanco", "telefone", "inscricaoEstadual"].includes(c.campo) ? ("texto" as const) : undefined, lista: c.campo === "tipoConta" ? "Tipos de conta" : undefined })),
+      linhas: [],
     }],
     listas: {
+      "Tipos de conta": ["Corrente", "Poupança", "Pagamento"],
       Empresas: cad.empresas.filter((e) => e.ativo).map((e) => e.nome),
       Gestores: nomes(cad.usuarios.filter((u) => temPerfil(u, "Gestor"))),
       Analistas: nomes(cad.usuarios.filter((u) => temPerfil(u, "Suprimentos") || temPerfil(u, "Administrador"))),
@@ -80,6 +86,7 @@ export function modeloContratosFornecedores(cad: Cadastros): Uint8Array {
       "7. Multa e condições de rescisão são texto livre. Índice de reajuste vazio ou “Não” = sem reajuste.",
       "8. Suba o arquivo em Administração → Importação da planilha. Antes de gravar, o sistema mostra o relatório: prontos, inconsistências, incompletos e duplicidades.",
       "9. Pode subir o mesmo arquivo de novo: contratos já existentes (mesmo código, ou mesmo fornecedor + objeto + data fim + empresa) são apontados como duplicidade e não são gravados.",
+      "10. Aba Fornecedores (opcional): cadastro completo dos fornecedores (endereço, dados bancários…), um por linha. Na carga, fornecedor novo é cadastrado e o já existente (mesmo CNPJ) só é completado — nada que já está preenchido é sobrescrito. Use o mesmo CNPJ/razão social da aba Contratos.",
     ],
   });
 }
@@ -123,6 +130,21 @@ export function modeloImportacao(tipo: TipoImportacao, cad: Cadastros): Uint8Arr
       "Suba o arquivo preenchido (.xlsx ou .csv). Antes de gravar, o sistema mostra a prévia linha a linha; reimportar o mesmo arquivo não duplica.",
     ],
   });
+}
+
+/** Aba opcional de um .xlsx (ex.: "Fornecedores" na carga de contratos). Ausente = undefined. */
+export async function lerAbaOpcional(f: File, nome: string): Promise<{ cabecalhos: string[]; linhas: string[][] } | undefined> {
+  if (!/\.xlsx$/i.test(f.name)) return undefined;
+  let tabela: string[][];
+  try {
+    tabela = await lerXlsx(await f.arrayBuffer(), nome);
+  } catch (e) {
+    if (/não encontrada/.test((e as Error).message)) return undefined;
+    throw e;
+  }
+  const [cab = [], ...linhas] = tabela;
+  const cabecalhos = cab.map((c) => c.replace(/\s*\*$/, "").trim());
+  return { cabecalhos, linhas: linhas.map((l) => cabecalhos.map((_, i) => l[i] ?? "")) };
 }
 
 /** Lê .xlsx ou .csv e devolve cabeçalhos + linhas (cabeçalho sem a marca “ *” de obrigatória). */

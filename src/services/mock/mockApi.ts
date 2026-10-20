@@ -14,6 +14,7 @@ import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada,
 import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
 import { planejarImportacao, chaveLicenca, type ContextoImportacao } from "@/domain/rules/importacaoCsv";
+import { acharFornecedorCadastrado, completarFornecedor } from "@/domain/rules/importacaoFornecedores";
 import { aplicarMovimentacao, chaveEmail, dominiosDoGrupo, emailValido, erroAtribuicao, errosLicenca, errosMovimentacao, parametroNaData, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import { erroParametro } from "@/domain/rules/parametros";
 import { erroUsoLinha, errosLinha, somenteDigitosLinha } from "@/domain/rules/telefonia";
@@ -559,6 +560,30 @@ export const mockApi: ContratosApi = {
     persistir();
     return clone(c);
   },
+  async importarFornecedores(fornecedores, porId) {
+    exigir(porId, "importar_planilha");
+    const r = { criados: 0, completados: 0, semMudanca: 0 };
+    for (const f of fornecedores) {
+      const atual = acharFornecedorCadastrado(f, estado.fornecedores);
+      if (!atual) {
+        const novo = { ...f, fornecedor_id: novoId("f") };
+        estado.fornecedores.push(novo);
+        registrar("configuracao", novo.fornecedor_id, porId, "Fornecedor cadastrado pela importação", "razaoSocial", undefined, novo.razaoSocial);
+        r.criados++;
+        continue;
+      }
+      const { fornecedor, campos } = completarFornecedor(atual, f);
+      if (!campos.length) {
+        r.semMudanca++;
+        continue;
+      }
+      auditar(diffAuditoria(fornecedorMascarado(atual), fornecedorMascarado(fornecedor), { entidade: "configuracao", entidadeId: atual.fornecedor_id, usuarioId: porId, data: agora(), acao: "Fornecedor completado pela importação" }, () => novoId("a")));
+      Object.assign(atual, fornecedor);
+      r.completados++;
+    }
+    persistir();
+    return r;
+  },
   async importarContratos(registros, porId) {
     exigir(porId, "importar_planilha");
     const codigos: string[] = [];
@@ -569,7 +594,7 @@ export const mockApi: ContratosApi = {
       // Com CNPJ: reconhece pelo CNPJ. Sem CNPJ (exterior): pelo nome.
       let forn = r.cnpj
         ? estado.fornecedores.find((f) => f.cnpj && somenteDigitos(f.cnpj) === r.cnpj)
-        : estado.fornecedores.find((f) => !f.cnpj && (normalizarBusca(f.razaoSocial) === normalizarBusca(r.fornecedor) || normalizarBusca(f.nomeFantasia) === normalizarBusca(r.fornecedor)));
+        : estado.fornecedores.find((f) => normalizarBusca(f.razaoSocial) === normalizarBusca(r.fornecedor) || normalizarBusca(f.nomeFantasia) === normalizarBusca(r.fornecedor));
       if (!forn) estado.fornecedores.push((forn = { fornecedor_id: novoId("f"), razaoSocial: r.fornecedor, nomeFantasia: r.fornecedor, cnpj: r.cnpj || undefined, estrangeiro: r.pais ? true : undefined, pais: r.pais, statusCadastral: "Ativo" }));
       let gestor = porNome(estado.usuarios, r.gestor);
       if (!gestor) {

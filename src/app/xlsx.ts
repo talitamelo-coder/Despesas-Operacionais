@@ -272,8 +272,8 @@ export async function lerXlsx(buf: ArrayBuffer | Uint8Array, nome?: string): Pro
   const rels = zip.get("xl/_rels/workbook.xml.rels") ?? "";
   if (!wb) throw new Error("Arquivo não é uma planilha do Excel (.xlsx).");
   const folhas = [...wb.matchAll(/<sheet\b[^>]*?name="([^"]*)"[^>]*?r:id="([^"]*)"/g)].map((m) => ({ nome: desc(m[1]), id: m[2] }));
-  const folha = (nome && folhas.find((f) => f.nome === nome)) || folhas[0];
-  if (!folha) throw new Error("A planilha não tem abas.");
+  const folha = nome ? folhas.find((f) => f.nome.trim().toLowerCase() === nome.trim().toLowerCase()) : folhas[0];
+  if (!folha) throw new Error(nome ? `Aba "${nome}" não encontrada no arquivo.` : "A planilha não tem abas.");
   const alvo = new RegExp(`<Relationship\\b[^>]*Id="${folha.id}"[^>]*Target="([^"]*)"`).exec(rels)?.[1] ?? new RegExp(`<Relationship\\b[^>]*Target="([^"]*)"[^>]*Id="${folha.id}"`).exec(rels)?.[1];
   const caminho = alvo ? (alvo.startsWith("/") ? alvo.slice(1) : `xl/${alvo}`) : "xl/worksheets/sheet1.xml";
   const xml = zip.get(caminho);

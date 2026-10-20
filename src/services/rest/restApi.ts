@@ -51,6 +51,7 @@ export const restApi: ContratosApi = {
   registrarAvaliacaoRenovacao: (id, a, porId) => http("POST", `/contratos/${id}/avaliacao-renovacao`, a, porId),
   encerrarContrato: (id, status, motivo, porId) => http("POST", `/contratos/${id}/status`, { status, motivo }, porId),
   importarContratos: (registros, porId) => http("POST", "/importacoes/contratos", { registros }, porId),
+  importarFornecedores: (fornecedores, porId) => http("POST", "/importacoes/fornecedores", { fornecedores }, porId),
 
   listarProcessos: () => http("GET", "/processos"),
   obterProcesso: (id) => http("GET", `/processos/${id}`),

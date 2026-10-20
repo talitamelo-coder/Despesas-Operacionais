@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Download, Eraser, Plus, RotateCcw, Save, Upload, X } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
-import { lerPlanilha, modeloContratosFornecedores } from "@/app/modelosPlanilha";
+import { lerAbaOpcional, lerPlanilha, modeloContratosFornecedores } from "@/app/modelosPlanilha";
+import { ABA_FORNECEDORES, processarFornecedores, type RelatorioFornecedores } from "@/domain/rules/importacaoFornecedores";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { FornecedorForm } from "@/components/dominio/FornecedorForm";
@@ -22,7 +23,7 @@ import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { CAMPOS_IMPORTACAO, chaveDuplicidade, identificadorFornecedor, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
 import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
-import { api, fonteDados } from "@/services";
+import { api, fonteDados, type ResultadoImportacaoFornecedores } from "@/services";
 
 const ABAS = [
   { id: "dados", rotulo: "Dados e backup" },
@@ -491,11 +492,16 @@ function Importacao() {
   const [map, setMap] = useState<Mapeamento>({});
   const [rel, setRel] = useState<RelatorioImportacao>();
   const [importados, setImportados] = useState<string[]>();
+  const [forn, setForn] = useState<RelatorioFornecedores>();
+  const [fornResultado, setFornResultado] = useState<ResultadoImportacaoFornecedores>();
 
   async function ler(f: File) {
     const lido = await executar(() => lerPlanilha(f));
     if (!lido) return;
     const r = "texto" in lido ? parseCSV(lido.texto) : lido;
+    const aba = await executar(() => lerAbaOpcional(f, ABA_FORNECEDORES));
+    setForn(aba && aba.linhas.length ? processarFornecedores(aba.cabecalhos, aba.linhas) : undefined);
+    setFornResultado(undefined);
     setArquivo(f.name);
     setCsv(r);
     setMap(sugerirMapeamento(r.cabecalhos));
@@ -550,8 +556,20 @@ function Importacao() {
             titulo="3. Relatório de importação"
             subtitulo={`${rel.total} linhas analisadas`}
             acoes={
-              <Button disabled={!rel.importados.length || Boolean(importados)} onClick={async () => { const r = await executar(() => api.importarContratos(rel.importados, usuario.id), "Importação concluída."); if (r) setImportados(r.codigos); }}>
-                Importar {rel.importados.length} registro(s)
+              <Button
+                disabled={(!rel.importados.length && !forn?.fornecedores.length) || Boolean(importados)}
+                onClick={async () => {
+                  // Fornecedores primeiro: os contratos encontram o cadastro completo pelo CNPJ.
+                  if (forn?.fornecedores.length) {
+                    const f = await executar(() => api.importarFornecedores(forn.fornecedores, usuario.id));
+                    if (!f) return;
+                    setFornResultado(f);
+                  }
+                  const r = await executar(() => api.importarContratos(rel.importados, usuario.id), "Importação concluída.");
+                  if (r) setImportados(r.codigos);
+                }}
+              >
+                Importar {rel.importados.length} contrato(s){forn?.fornecedores.length ? ` e ${forn.fornecedores.length} fornecedor(es)` : ""}
               </Button>
             }
           />
@@ -569,6 +587,14 @@ function Importacao() {
                 </div>
               ))}
             </div>
+            {forn && (
+              <div className="rounded-md border border-borda p-3 text-sm">
+                <p className="font-medium">Aba Fornecedores: {forn.fornecedores.length} pronto(s){forn.erros.length ? `, ${forn.erros.length} com erro` : ""}</p>
+                <p className="text-xs text-texto-suave">Fornecedor novo é cadastrado; o já existente (mesmo CNPJ) só é completado, sem sobrescrever nada.</p>
+                {fornResultado && <p className="mt-1 text-xs text-sucesso-600">{fornResultado.criados} cadastrado(s), {fornResultado.completados} completado(s), {fornResultado.semMudanca} sem mudança.</p>}
+              </div>
+            )}
+            {forn && forn.erros.length > 0 && <ListaRelatorio titulo="Fornecedores com erro (aba Fornecedores)" itens={forn.erros.map((i) => [i.linha, i.erros.join("; ")])} />}
             {importados && <Aviso tom="sucesso" titulo={`${importados.length} contrato(s) criados`}>{importados.slice(0, 20).join(", ")}{importados.length > 20 ? "…" : ""}</Aviso>}
             {rel.inconsistencias.length > 0 && <ListaRelatorio titulo="Inconsistências" itens={rel.inconsistencias.map((i) => [i.linha, i.erros.join("; ")])} />}
             {rel.incompletos.length > 0 && <ListaRelatorio titulo="Registros incompletos" itens={rel.incompletos.map((i) => [i.linha, `Faltando: ${i.faltando.join(", ")}`])} />}

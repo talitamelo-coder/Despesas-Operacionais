@@ -20,7 +20,7 @@ describe("modelos Excel de carga", () => {
     const m = sugerirMapeamento(lido.cabecalhos);
     for (const c of CAMPOS_IMPORTACAO) expect(m[c.campo], c.campo).toBe(c.rotulo);
     const zip = await lerZip(x);
-    expect(zip.get("xl/worksheets/sheet3.xml")).toContain(e.empresas[0].nome);
+    expect(zip.get("xl/worksheets/sheet4.xml")).toContain(e.empresas[0].nome); // Contratos, Fornecedores, Instruções, Listas
   });
 
   it("linha preenchida no padrão do modelo é importada (indeterminado, multa e reajuste)", () => {

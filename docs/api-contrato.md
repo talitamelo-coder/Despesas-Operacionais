@@ -28,6 +28,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | POST | `/contratos/{id}/avaliacao-renovacao` | `registrarAvaliacaoRenovacao` | Interrompe lembretes; pode criar processo |
 | POST | `/contratos/{id}/status` | `encerrarContrato` | `{ status, motivo }` |
 | POST | `/importacoes/contratos` | `importarContratos` | Registros já validados no front |
+| POST | `/importacoes/fornecedores` | `importarFornecedores` | Aba Fornecedores da carga. Cria os novos; nos já cadastrados (CNPJ ou razão social) só preenche campos vazios. Dados bancários auditados mascarados. `{ criados, completados, semMudanca }` |
 | GET | `/processos` · `/processos/{id}` | | |
 | POST | `/processos` | `criarProcesso` | Sempre nasce em Rascunho |
 | PATCH | `/processos/{id}` | `atualizarProcesso` | Autosave do rascunho |
