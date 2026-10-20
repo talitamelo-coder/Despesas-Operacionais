@@ -31,6 +31,9 @@ import type {
 
 export type TipoImportacao = "licencas" | "atribuicoes" | "movimentacoes" | "linhas" | "contratosClientes";
 
+/** Nome da aba de uma planilha com várias cargas (ex.: "Licenças", "Atribuições"). */
+export const ABA_DO_TIPO: Record<TipoImportacao, string> = { licencas: "Licenças", atribuicoes: "Atribuições", movimentacoes: "Movimentações", linhas: "Linhas", contratosClientes: "Contratos de clientes" };
+
 export const MODELOS_CSV: Record<TipoImportacao, { titulo: string; colunas: string[]; exemplo: string[][]; ajuda: string }> = {
   licencas: {
     titulo: "Licenças",
@@ -215,7 +218,8 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
     const k = chaveEmail(email, ctx.dominios);
     return colabs.find((c) => chaveEmail(c.email, ctx.dominios) === k);
   };
-  const contratoPorCodigo = (cod?: string) => (cod ? ctx.contratos.find((c) => c.codigo.toLowerCase() === cod.trim().toLowerCase()) : undefined);
+  // Código do sistema (CT-…) ou o código da planilha de carga (external_id, ex.: "121/AKR").
+  const contratoPorCodigo = (cod?: string) => (cod ? ctx.contratos.find((c) => [c.codigo, c.external_id].some((x) => x && x.toLowerCase() === cod.trim().toLowerCase())) : undefined);
 
   registros.forEach((r, i) => {
     const linha = i + 2; // linha 1 = cabeçalho

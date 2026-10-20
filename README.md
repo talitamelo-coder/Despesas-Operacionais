@@ -55,7 +55,7 @@ Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem 
 - **Rateio:** custo ÷ assentos × assentos da pessoa. Assento sem pessoa = "Disponível (ocioso)". Fixo/consumo sem usuário = "Não atribuído". O ranking de ofensores sempre fecha com o total.
 - **Perfis:** Suprimentos e Administrador gerem; Gestor vê a própria área; **Leitura** vê só totais.
 - **Parâmetros** (spread, IOF, fator de impostos, domínios) e **PTAX** ficam em "Câmbio e parâmetros", com data de vigência: mudar recalcula sem deploy e não mexe no passado.
-- **Importação por planilha** (.xlsx ou .csv) com modelo Excel para download, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
+- **Importação por planilha** (.xlsx ou .csv) com modelo Excel para download; um mesmo .xlsx pode trazer as abas "Licenças" e "Atribuições" (cada importação usa a aba do tipo escolhido); `contrato_codigo` aceita o código do sistema ou o código da planilha de carga, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
 
 ### Telefonia
 

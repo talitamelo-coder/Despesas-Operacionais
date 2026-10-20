@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Download, FileUp } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { salvarArquivo } from "@/app/arquivos";
-import { lerPlanilha, modeloImportacao } from "@/app/modelosPlanilha";
+import { lerAbaOpcional, lerPlanilha, modeloImportacao } from "@/app/modelosPlanilha";
 import { exportarCsv } from "@/app/exportar";
 import { Badge, type Tom } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/Campos";
 import { Aviso } from "@/components/ui/Diversos";
 import { Tabela } from "@/components/ui/Tabela";
 import { gerarCsv } from "@/domain/rules/csv";
-import { MODELOS_CSV, type LinhaPrevia, type SituacaoLinhaCsv, type TipoImportacao } from "@/domain/rules/importacaoCsv";
+import { ABA_DO_TIPO, MODELOS_CSV, type LinhaPrevia, type SituacaoLinhaCsv, type TipoImportacao } from "@/domain/rules/importacaoCsv";
 import { api, type ResultadoImportacaoCsv } from "@/services";
 
 const TOM: Record<SituacaoLinhaCsv, Tom> = { Importar: "sucesso", "Já existe": "neutro", Recusada: "critico", Conciliação: "alerta" };
@@ -27,7 +27,9 @@ export function ImportacaoCsv({ tipos }: { tipos: TipoImportacao[] }) {
 
   const trocarTipo = (t: TipoImportacao) => (setTipo(t), setArquivo(undefined), setPrevia(undefined), setResultado(undefined));
   const carregar = async (f: File) => {
-    const lido = await executar(() => lerPlanilha(f));
+    // Planilha com várias abas: usa a aba do tipo escolhido (ex.: "Atribuições"); senão, a primeira.
+    const aba = await executar(() => lerAbaOpcional(f, ABA_DO_TIPO[tipo]));
+    const lido = aba ?? (await executar(() => lerPlanilha(f)));
     if (!lido) return;
     // Excel vira CSV (mesmo leitor e mesma validação da API).
     const conteudo = "texto" in lido ? lido.texto : gerarCsv(lido.cabecalhos, lido.linhas);

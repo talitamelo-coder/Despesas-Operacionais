@@ -28,3 +28,14 @@ describe("aba Fornecedores da carga", () => {
     expect(campos.sort()).toEqual(["endereco", "nomeFantasia"]);
   });
 });
+
+describe("licença vinculada pelo código da carga", () => {
+  it("contrato_codigo aceita o código do sistema ou o da planilha de carga (external_id)", async () => {
+    const { planejarImportacao } = await import("./importacaoCsv");
+    const ctx = { hoje: "2026-10-20", fornecedores: [{ fornecedor_id: "f1", razaoSocial: "Slack", nomeFantasia: "Slack", statusCadastral: "Ativo" as const }], contratos: [{ contrato_id: "c1", codigo: "CT-2026-0001", external_id: "121/AKR" }], licencas: [], movimentacoes: [], atribuicoes: [], colaboradores: [], dominios: [], linhas: [], usos: [] };
+    const csv = "fornecedor;produto;tipo_cobranca;moeda;periodicidade;vencimento_tipo;contrato_codigo\nSlack;Pro;assento;USD;anual;sob_demanda;121/akr\nSlack;Enterprise;assento;USD;anual;sob_demanda;CT-2026-0001";
+    const p = planejarImportacao("licencas", csv, ctx);
+    expect(p.linhas.map((l) => l.situacao)).toEqual(["Importar", "Importar"]);
+    expect(p.operacoes.flatMap((o) => (o.tipo === "licenca" ? [o.licenca.contrato_id] : []))).toEqual(["c1", "c1"]);
+  });
+});
