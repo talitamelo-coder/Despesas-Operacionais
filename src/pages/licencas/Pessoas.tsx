@@ -10,6 +10,9 @@ import { formatarMoeda } from "@/domain/formatacao";
 import { competenciaDe, parcelasDoPeriodo } from "@/domain/rules/licencas";
 import { formatarLinha } from "@/domain/rules/telefonia";
 import type { Colaborador } from "@/domain/types";
+import { useApp } from "@/app/contexto";
+import { Modal } from "@/components/ui/Modal";
+import { api } from "@/services";
 import { ColaboradorModal, DesligarModal, novoColaborador } from "./formularios";
 import type { ContextoLicencas } from "./Licencas";
 
@@ -41,6 +44,8 @@ export function Pessoas({ ctx }: { ctx: ContextoLicencas }) {
   const linhasDe = (id: string) => dados.usosLinha.filter((u) => u.colaboradorId === id && u.status === "Ativa").length;
 
   return (
+    <div className="space-y-4">
+    {ctx.podeGerir && <PendenciasAtribuicao ctx={ctx} />}
     <Card>
       <CardHeader
         titulo="Pessoas"
@@ -68,6 +73,7 @@ export function Pessoas({ ctx }: { ctx: ContextoLicencas }) {
       <Paginacao pagina={pagina} total={linhas.length} tamanho={TAMANHO} onPagina={setPagina} />
       {editar && <ColaboradorModal colaborador={editar} ctx={ctx} onFechar={() => setEditar(undefined)} />}
     </Card>
+    </div>
   );
 }
 
@@ -137,5 +143,55 @@ function FichaPessoa({ c, ctx, custoMes }: { c: Colaborador; ctx: ContextoLicenc
       {editar && <ColaboradorModal colaborador={c} ctx={ctx} onFechar={() => setEditar(false)} />}
       {desligar && <DesligarModal colaborador={c} ctx={ctx} onFechar={() => setDesligar(false)} />}
     </div>
+  );
+}
+
+/** Usuários que a importação não conseguiu atribuir (sem e-mail ou sem assento livre). Ficam até resolver ou descartar. */
+function PendenciasAtribuicao({ ctx }: { ctx: ContextoLicencas }) {
+  const { usuario, executar } = useApp();
+  const [emails, setEmails] = useState<Record<string, string>>({});
+  const [descartar, setDescartar] = useState<{ id: string; motivo: string }>();
+  const abertas = (ctx.dados.pendencias ?? []).filter((p) => p.status === "Aberta");
+  if (!abertas.length) return null;
+  const licenca = (id: string) => ctx.dados.licencas.find((l) => l.id === id);
+  const rotulo = (id: string) => { const l = licenca(id); return l ? `${ctx.nomeFornecedor(l.fornecedorId)} · ${l.produto}${l.plano ? ` ${l.plano}` : ""}` : "—"; };
+  const semEmail = abertas.filter((p) => p.motivo === "Sem e-mail").length;
+  return (
+    <Card>
+      <CardHeader
+        titulo={`Pendências de atribuição (${abertas.length})`}
+        subtitulo={`Vindas da importação: ${semEmail} sem e-mail, ${abertas.length - semEmail} sem assento livre. Informe o e-mail ou registre a compra do assento na licença e clique em Atribuir.`}
+      />
+      <Tabela
+        densa
+        linhas={abertas}
+        chave={(p) => p.id}
+        colunas={[
+          { id: "n", titulo: "Pessoa", render: (p) => <span className="font-medium">{p.nome}{p.area && <span className="block text-xs font-normal text-texto-suave">{p.area}</span>}</span> },
+          { id: "l", titulo: "Licença", render: (p) => <span className="text-sm">{rotulo(p.licencaId)}</span> },
+          { id: "m", titulo: "Motivo", render: (p) => <Badge tom={p.motivo === "Sem e-mail" ? "alerta" : "critico"}>{p.motivo}</Badge> },
+          {
+            id: "e",
+            titulo: "E-mail",
+            render: (p) => (p.email ? <span className="text-sm">{p.email}</span> : <Input rotulo="" aria-label={`E-mail de ${p.nome}`} placeholder="nome@empresa.com.br" value={emails[p.id] ?? ""} onChange={(e) => setEmails({ ...emails, [p.id]: e.target.value })} />),
+          },
+          {
+            id: "a",
+            titulo: "",
+            alinhamento: "direita",
+            render: (p) => (
+              <span className="flex justify-end gap-1">
+                <Button tamanho="sm" disabled={!p.email && !emails[p.id]?.trim()} onClick={() => executar(() => api.resolverPendenciaAtribuicao(p.id, p.email ? undefined : emails[p.id], usuario.id), "Licença atribuída.")}>Atribuir</Button>
+                <Button tamanho="sm" variante="fantasma" onClick={() => setDescartar({ id: p.id, motivo: "" })}>Descartar</Button>
+              </span>
+            ),
+          },
+        ]}
+      />
+      <Modal aberto={Boolean(descartar)} titulo="Descartar pendência" onFechar={() => setDescartar(undefined)} rodape={<><Button variante="secundario" onClick={() => setDescartar(undefined)}>Cancelar</Button><Button disabled={!descartar?.motivo.trim()} onClick={async () => descartar && (await executar(async () => (await api.descartarPendenciaAtribuicao(descartar.id, descartar.motivo, usuario.id), true), "Pendência descartada.")) && setDescartar(undefined)}>Descartar</Button></>}>
+        <Input rotulo="Motivo" obrigatorio placeholder="Ex.: pessoa desligada, conta duplicada" value={descartar?.motivo ?? ""} onChange={(e) => descartar && setDescartar({ ...descartar, motivo: e.target.value })} />
+        <p className="mt-2 text-xs text-texto-suave">A pendência sai da fila, mas fica registrada na auditoria.</p>
+      </Modal>
+    </Card>
   );
 }

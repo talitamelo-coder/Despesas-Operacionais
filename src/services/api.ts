@@ -7,6 +7,7 @@ import type { SaldoContrato } from "@/domain/rules/saldo";
 import type { NovoAditivo } from "@/domain/rules/receita";
 import type {
   NaturezaContrato,
+  PendenciaAtribuicao,
   AditivoContrato,
   Cliente,
   EmissaoFaturamento,
@@ -240,6 +241,13 @@ export interface ContratosApi {
   /** Bloqueia sem assento livre, e-mail repetido na licença e colaborador desligado. */
   atribuirLicenca(licencaId: string, colaboradorId: string, dataInicio: ISODate, porId: string): Promise<AtribuicaoLicenca>;
   encerrarAtribuicao(id: string, dataFim: ISODate, porId: string): Promise<void>;
+  /**
+   * Resolve um usuário da fila de pendências: completa o e-mail (se faltava) e atribui a licença.
+   * Continua recusado sem assento livre (registre a compra antes). Cria a pessoa se o e-mail for novo.
+   */
+  resolverPendenciaAtribuicao(id: string, email: string | undefined, porId: string): Promise<AtribuicaoLicenca>;
+  /** Tira da fila sem atribuir (ex.: pessoa saiu, conta duplicada). Fica no histórico. */
+  descartarPendenciaAtribuicao(id: string, observacao: string, porId: string): Promise<void>;
   /** Desligamento: encerra licenças e usos de linha da pessoa e marca como desligada. */
   desligarColaborador(colaboradorId: string, data: ISODate, porId: string): Promise<{ licencas: number; linhas: number }>;
   salvarCotacao(c: CotacaoDia, porId: string): Promise<void>;
@@ -311,6 +319,8 @@ export interface DadosLicencas {
   orcamentos: OrcamentoFornecedor[];
   linhas: LinhaTelefonica[];
   usosLinha: UsoLinha[];
+  /** Fila de usuários sem e-mail ou sem assento (só na visão completa). */
+  pendencias: PendenciaAtribuicao[];
 }
 
 export type NovaMovimentacao = Pick<MovimentacaoLicenca, "licencaId" | "tipo" | "data" | "quantidade" | "precoUnitario" | "responsavel" | "referenciaPedido" | "observacao">;

@@ -168,6 +168,7 @@ function contextoImportacao(): ContextoImportacao {
     dominios: dominiosDoGrupo(estado.parametros),
     linhas: estado.linhasTelefonicas,
     usos: estado.usosLinha,
+    pendencias: estado.pendenciasAtribuicao,
   };
 }
 
@@ -497,11 +498,13 @@ export const mockApi: ContratosApi = {
       if (erros.length) throw new ErroNegocio(erros.join(" "));
     }
     const novo = { ...c, ...patch, contrato_id: c.contrato_id, codigo: c.codigo, atualizadoEm: agora() };
-    const errosVig = errosVigencia(novo.vigencia);
-    if (errosVig.length) throw new ErroNegocio(`Todo contrato precisa de vigência. ${errosVig.join(" ")}`);
     // Valor e prazo só mudam por aditivo; edição direta apenas para completar cadastro importado.
     const alterados = camposDeValorAlterados(c, novo);
     const tipoNome = estado.tiposContrato.find((t) => t.id === c.tipoContratoId)?.nome;
+    // Cadastro importado “A completar” pode ser salvo aos poucos; contrato completo precisa de vigência.
+    const aCompletar = pendenciasCadastro(c, estado.fornecedores.find((f) => f.fornecedor_id === c.fornecedorId), tipoNome).length > 0;
+    const errosVig = errosVigencia(novo.vigencia);
+    if (errosVig.length && !aCompletar) throw new ErroNegocio(`Todo contrato precisa de vigência. ${errosVig.join(" ")}`);
     if (alterados.length && !pendenciasCadastro(c, estado.fornecedores.find((f) => f.fornecedor_id === c.fornecedorId), tipoNome).length)
       throw new ErroNegocio(`Para alterar ${alterados.join(", ")}, registre um aditivo (ou renegociação/novo contrato).`);
     auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: id, usuarioId: porId, data: agora(), acao: "Contrato alterado" }, () => novoId("a")));
@@ -596,8 +599,8 @@ export const mockApi: ContratosApi = {
         ? estado.fornecedores.find((f) => f.cnpj && somenteDigitos(f.cnpj) === r.cnpj)
         : estado.fornecedores.find((f) => normalizarBusca(f.razaoSocial) === normalizarBusca(r.fornecedor) || normalizarBusca(f.nomeFantasia) === normalizarBusca(r.fornecedor));
       if (!forn) estado.fornecedores.push((forn = { fornecedor_id: novoId("f"), razaoSocial: r.fornecedor, nomeFantasia: r.fornecedor, cnpj: r.cnpj || undefined, estrangeiro: r.pais ? true : undefined, pais: r.pais, statusCadastral: "Ativo" }));
-      let gestor = porNome(estado.usuarios, r.gestor);
-      if (!gestor) {
+      let gestor = r.gestor ? porNome(estado.usuarios, r.gestor) : undefined;
+      if (!gestor && r.gestor) {
         // Gestor citado na planilha e ainda não cadastrado: cria o usuário (e-mail a completar na Administração).
         gestor = { id: novoId("u"), nome: r.gestor, email: "", perfil: "Gestor", ativo: true };
         estado.usuarios.push(gestor);
@@ -607,22 +610,25 @@ export const mockApi: ContratosApi = {
       const tipo = (r.tipo && estado.tiposContrato.find((t) => t.nome.toLowerCase() === r.tipo!.toLowerCase())) || estado.tiposContrato[0];
       const c: Contrato = {
         contrato_id: novoId("c"),
-        codigo: codigoNovo("CT", r.dataInicio),
+        codigo: codigoNovo("CT", r.dataInicio || hoje()),
         external_id: r.codigo,
         empresaId: empresa.id,
         fornecedorId: forn.fornecedor_id,
         objeto: r.objeto,
         tipoContratoId: tipo.id,
-        gestorId: gestor.id,
+        // Sem gestor na planilha: fica pendente (“A completar”).
+        gestorId: gestor?.id ?? "",
         analistaId: analista.id,
         centroCusto: r.centroCusto,
         projeto: r.projeto,
-        status: !r.indeterminado && r.dataFim < hoje() ? "Encerrado" : "Vigente",
+        status: !r.indeterminado && r.dataFim && r.dataFim < hoje() ? "Encerrado" : "Vigente",
         condicoes: { moeda: r.moeda, valorAnual: r.valorAnual, quantidade: r.quantidade, unidade: r.unidade, periodicidadePagamento: r.periodicidade ?? "Mensal", condicaoPagamento: r.condicaoPagamento ?? "" },
         vigencia: { dataInicio: r.dataInicio, dataFim: r.dataFim, tipoVigencia: r.indeterminado ? "Prazo indeterminado" : "Prazo determinado", avisoPrevioDias: r.avisoPrevioDias, renovacaoAutomatica: r.renovacaoAutomatica, prazoGestorDias: estado.configuracao.regrasAlerta.prazoGestorPadraoDias },
         reajuste: r.indiceReajuste ? { possui: true, indice: r.indiceReajuste } : { possui: false },
         rescisao: { permite: true, possuiMulta: Boolean(r.multa), descricaoMulta: r.multa, regra: r.condicoesRescisao },
         observacoes: r.observacoes,
+        // Datas, valor e gestor faltantes viram pendência calculada; a empresa padrão precisa ser confirmada.
+        confirmacoesPendentes: r.pendencias?.filter((x) => x.startsWith("Empresa")),
         execucaoFinanceira: { simulado: true },
         origens: { "*": "importado" },
         criadoEm: agora(),
@@ -968,6 +974,8 @@ export const mockApi: ContratosApi = {
       orcamentos: estado.orcamentosFornecedor,
       linhas: estado.linhasTelefonicas,
       usosLinha: estado.usosLinha,
+      // Nome e e-mail de quem ainda não tem licença: só na visão completa (LGPD).
+      pendencias: visao === "completa" ? estado.pendenciasAtribuicao : [],
     });
   },
   async salvarLicenca(l, porId, compraInicial) {
@@ -1066,6 +1074,37 @@ export const mockApi: ContratosApi = {
     registrar("licenca", a.licencaId, porId, "Licença retirada", "colaborador", getColaborador(a.colaboradorId).email, undefined);
     persistir();
   },
+  async resolverPendenciaAtribuicao(id, email, porId) {
+    exigir(porId, "gerir_licencas");
+    const p = estado.pendenciasAtribuicao.find((x) => x.id === id);
+    if (!p || p.status !== "Aberta") throw new ErroNegocio("Pendência não encontrada ou já tratada.");
+    const e = (email ?? p.email ?? "").trim();
+    if (!e) throw new ErroNegocio("Informe o e-mail da pessoa.");
+    if (!emailValido(e)) throw new ErroNegocio("E-mail inválido.");
+    const k = chaveEmail(e, dominiosDoGrupo(estado.parametros));
+    let c = estado.colaboradores.find((x) => chaveEmail(x.email, dominiosDoGrupo(estado.parametros)) === k);
+    const l = getLicenca(p.licencaId);
+    if (!c) {
+      c = { id: novoId("col"), email: k, nome: p.nome, area: p.area, centroCusto: p.centroCusto, status: "Ativo", tipoConta: "Pessoa" };
+      const erro = erroAtribuicao(l, estado.movimentacoesLicenca.filter((m) => m.licencaId === l.id), estado.atribuicoesLicenca, c);
+      if (erro) throw new ErroNegocio(erro);
+      estado.colaboradores.push(c);
+    }
+    const a = await mockApi.atribuirLicenca(l.id, c.id, p.dataInicio ?? hoje(), porId);
+    Object.assign(p, { status: "Resolvida", email: k, atribuicaoId: a.id, resolvidoEm: agora(), resolvidoPorId: porId });
+    registrar("licenca", l.id, porId, "Pendência de atribuição resolvida", "colaborador", undefined, k);
+    persistir();
+    return a;
+  },
+  async descartarPendenciaAtribuicao(id, observacao, porId) {
+    exigir(porId, "gerir_licencas");
+    const p = estado.pendenciasAtribuicao.find((x) => x.id === id);
+    if (!p || p.status !== "Aberta") throw new ErroNegocio("Pendência não encontrada ou já tratada.");
+    if (!observacao?.trim()) throw new ErroNegocio("Informe o motivo do descarte.");
+    Object.assign(p, { status: "Descartada", observacao: observacao.trim(), resolvidoEm: agora(), resolvidoPorId: porId });
+    registrar("licenca", p.licencaId, porId, "Pendência de atribuição descartada", "colaborador", p.email ?? p.nome, observacao.trim());
+    persistir();
+  },
   async desligarColaborador(colaboradorId, data, porId) {
     exigir(porId, "gerir_licencas");
     const c = getColaborador(colaboradorId);
@@ -1158,6 +1197,8 @@ export const mockApi: ContratosApi = {
         c.confirmacoesPendentes = confirmacoesPendentes;
         estado.contratos.push(c);
         registrar("contrato", c.contrato_id, porId, "Contrato de cliente importado", "status", undefined, status);
+      } else if (op.tipo === "pendencia") {
+        estado.pendenciasAtribuicao.push({ ...op.pendencia, id: novoId("pend"), licencaId: real(op.pendencia.licencaId)!, chave: op.pendencia.chave.replace(op.pendencia.licencaId, real(op.pendencia.licencaId)!), criadoEm: agora() });
       } else {
         estado.usosLinha.push({ ...op.uso, id: novoId("uso"), linhaId: real(op.uso.linhaId)!, colaboradorId: real(op.uso.colaboradorId)! });
       }

@@ -616,7 +616,7 @@ export function vencimentosProximos(licencas: Licenca[], contratos: Contrato[], 
   return r.sort((a, b) => a.dias - b.dias);
 }
 
-export type TipoAlertaLicenca = "Desligado com licença" | "Consumo sem limite" | "Orçamento acima de 90%" | "Sem câmbio configurado" | "Sem contrato e sem vencimento";
+export type TipoAlertaLicenca = "Desligado com licença" | "Consumo sem limite" | "Orçamento acima de 90%" | "Sem câmbio configurado" | "Sem contrato e sem vencimento" | "Sem data de vencimento";
 
 export interface AlertaLicenca {
   tipo: TipoAlertaLicenca;
@@ -648,6 +648,8 @@ export function alertasLicencas(
   for (const l of ativasLic) {
     if (l.tipoCobranca === "Consumo" && !l.limiteConsumoMensal)
       a.push({ tipo: "Consumo sem limite", gravidade: "Atenção", licencaId: l.id, mensagem: `${l.produto}: cobrança por consumo sem limite mensal definido` });
+    if (l.vencimentoTipo === "Data" && !l.dataVencimento)
+      a.push({ tipo: "Sem data de vencimento", gravidade: "Atenção", licencaId: l.id, mensagem: `${l.produto}${l.plano ? ` ${l.plano}` : ""}: cadastro a completar — informe a data de vencimento` });
     if (!l.contrato_id && l.vencimentoTipo === "Sob demanda")
       a.push({ tipo: "Sem contrato e sem vencimento", gravidade: "Atenção", licencaId: l.id, mensagem: `${l.produto}: sem contrato e sem data de vencimento` });
   }

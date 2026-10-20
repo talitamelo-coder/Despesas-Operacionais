@@ -17,7 +17,7 @@ const ABAS = [
   { id: "dashboard", rotulo: "Dashboard" },
   { id: "licencas", rotulo: "Licenças" },
   { id: "pessoas", rotulo: "Pessoas" },
-  { id: "importar", rotulo: "Importar CSV" },
+  { id: "importar", rotulo: "Importar planilha" },
   { id: "configuracao", rotulo: "Câmbio e parâmetros" },
 ] as const;
 export type AbaLicencas = (typeof ABAS)[number]["id"];

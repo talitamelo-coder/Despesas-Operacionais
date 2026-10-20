@@ -49,3 +49,25 @@ Telmex;Mobicare;Multicloud;Ana;1000;01/01/2026;31/12/2026`;
     expect(r.duplicidades[0].motivo).toContain("CT-OLD-1");
   });
 });
+
+describe("carga com dados faltando e valor mensal", () => {
+  it("linha sem datas, valor ou gestor entra com pendências; sem fornecedor/objeto não entra; empresa padrão", () => {
+    const csv = `Fornecedor;Empresa;Objeto;Gestor;Valor anual;Valor mensal;Data início;Data fim
+Fornecedor A;;Licenças;;;1.000,00;;
+Fornecedor B;Matriz;Suporte;Ana;12000;1000;01/01/2026;31/12/2026
+Fornecedor C;Matriz;Outro;Ana;12000;900;01/01/2026;31/12/2026
+;Matriz;Sem fornecedor;Ana;1;;01/01/2026;31/12/2026`;
+    const { cabecalhos, linhas } = parseCSV(csv);
+    const m = sugerirMapeamento(cabecalhos);
+    expect([m.valorAnual, m.valorMensal]).toEqual(["Valor anual", "Valor mensal"]);
+    const r = processarImportacao(cabecalhos, linhas, m, undefined, { empresaPadrao: "Akross Plataformas" });
+    const a = r.importados.find((x) => x.fornecedor === "Fornecedor A")!;
+    expect(a).toMatchObject({ empresa: "Akross Plataformas", valorAnual: 12000, dataInicio: "", dataFim: "" });
+    expect(a.pendencias).toEqual(["Empresa (usada a padrão: confira)", "Gestor", "Data de início", "Data de fim (ou indeterminado)"]);
+    expect(r.importados.find((x) => x.fornecedor === "Fornecedor B")?.pendencias).toBeUndefined();
+    expect(r.inconsistencias[0].erros[0]).toMatch(/não bate/);
+    expect(r.incompletos[0].faltando).toEqual(["Fornecedor (razão social)"]);
+    const sem = processarImportacao(cabecalhos, linhas.slice(0, 1), m);
+    expect(sem.incompletos[0].faltando).toEqual(["Empresa"]);
+  });
+});

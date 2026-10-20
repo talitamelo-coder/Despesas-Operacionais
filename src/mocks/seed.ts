@@ -9,6 +9,7 @@ import { aplicarMovimentacao, posicaoNaData, valorAnualOriginal } from "@/domain
 import { saldoDoContrato } from "@/domain/rules/saldo";
 import { valorAnualReceita } from "@/domain/rules/receita";
 import type {
+  PendenciaAtribuicao,
   AditivoContrato,
   Cliente,
   EmissaoFaturamento,
@@ -72,6 +73,8 @@ export interface EstadoDados {
   aditivosContrato: AditivoContrato[];
   /** Notas emitidas: chegam do Contas a receber (integração). */
   emissoesFaturamento: EmissaoFaturamento[];
+  /** Usuários de licença à espera de e-mail ou assento (vindos da importação). */
+  pendenciasAtribuicao: PendenciaAtribuicao[];
 }
 
 export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLicenca", "atribuicoesLicenca", "cotacoes", "parametros", "orcamentosFornecedor", "linhasTelefonicas", "usosLinha"] as const;
@@ -90,6 +93,7 @@ export function completarEstado(e: EstadoDados): EstadoDados {
   r.clientes = e.clientes ?? [];
   r.aditivosContrato = e.aditivosContrato ?? [];
   r.emissoesFaturamento = e.emissoesFaturamento ?? [];
+  r.pendenciasAtribuicao = e.pendenciasAtribuicao ?? [];
   r.aportesSaldo = e.aportesSaldo ?? [];
   if (r.configuracao && !r.configuracao.listasAuxiliares?.Unidades) r.configuracao = { ...r.configuracao, listasAuxiliares: { ...r.configuracao.listasAuxiliares, Unidades: UNIDADES_PADRAO } };
   r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
@@ -851,6 +855,7 @@ export function criarEstadoInicial(): EstadoDados {
     clientes,
     aditivosContrato,
     emissoesFaturamento,
+    pendenciasAtribuicao: [],
     usuarios: USUARIOS,
     empresas: EMPRESAS,
     fornecedores: fornecedores(),
@@ -921,6 +926,7 @@ export function criarEstadoVazio(admin: { nome: string; email: string }): Estado
     clientes: [],
     aditivosContrato: [],
     emissoesFaturamento: [],
+    pendenciasAtribuicao: [],
     configuracao: { ...demo.configuracao, listasAuxiliares: { ...demo.configuracao.listasAuxiliares, Projetos: [] } },
   };
 }

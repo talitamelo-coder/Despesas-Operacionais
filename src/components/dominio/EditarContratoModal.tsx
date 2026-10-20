@@ -96,7 +96,7 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
           <Select rotulo="Tipo de contrato" vazio={false} opcoes={op.tipos} value={c.tipoContratoId} onChange={(e) => set({ tipoContratoId: e.target.value })} />
           <Input rotulo="Centro de custo" value={c.centroCusto ?? ""} onChange={(e) => set({ centroCusto: e.target.value || undefined })} />
           <Input rotulo="Projeto" value={c.projeto ?? ""} onChange={(e) => set({ projeto: e.target.value || undefined })} />
-          <Select rotulo="Gestor" vazio={false} opcoes={comAtual(op.gestores, c.gestorId)} value={c.gestorId} onChange={(e) => set({ gestorId: e.target.value })} />
+          <Select rotulo="Gestor" obrigatorio vazio={c.gestorId ? false : "Selecione o gestor"} opcoes={comAtual(op.gestores, c.gestorId)} value={c.gestorId} onChange={(e) => set({ gestorId: e.target.value })} />
           <Select rotulo="Diretor" opcoes={comAtual(op.diretores, c.diretorId)} value={c.diretorId ?? ""} onChange={(e) => set({ diretorId: e.target.value || undefined })} />
           <Select rotulo="Analista de Suprimentos" vazio={false} opcoes={comAtual(op.analistas, c.analistaId)} value={c.analistaId} onChange={(e) => set({ analistaId: e.target.value })} />
         </Secao>

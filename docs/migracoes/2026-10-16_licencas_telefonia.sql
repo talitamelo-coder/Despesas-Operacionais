@@ -344,3 +344,26 @@ CREATE TABLE usuarios_perfis_adicionais (
   PRIMARY KEY (usuario_id, perfil),
   FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Fila de pendências de atribuição de licença (importação sem e-mail ou sem assento livre).
+-- Nunca é apagada: resolve (vira atribuição) ou descarta (com motivo).
+CREATE TABLE IF NOT EXISTS pendencias_atribuicao_licenca (
+  id                VARCHAR(36)  NOT NULL PRIMARY KEY,
+  licenca_id        VARCHAR(36)  NOT NULL,
+  email             VARCHAR(254) NULL,
+  nome              VARCHAR(160) NOT NULL,
+  area              VARCHAR(80)  NULL,
+  centro_custo      VARCHAR(40)  NULL,
+  motivo            ENUM('Sem e-mail','Sem assento livre') NOT NULL,
+  status            ENUM('Aberta','Resolvida','Descartada') NOT NULL DEFAULT 'Aberta',
+  data_inicio       DATE         NULL,
+  chave             VARCHAR(300) NOT NULL COMMENT 'licença + e-mail ou nome: idempotência da importação',
+  atribuicao_id     VARCHAR(36)  NULL,
+  observacao        VARCHAR(500) NULL,
+  criado_em         DATETIME     NOT NULL,
+  resolvido_em      DATETIME     NULL,
+  resolvido_por_id  VARCHAR(36)  NULL,
+  KEY ix_pend_licenca (licenca_id, status),
+  KEY ix_pend_chave (chave),
+  CONSTRAINT fk_pend_licenca FOREIGN KEY (licenca_id) REFERENCES licencas (id)
+) COMMENT 'Dado pessoal (LGPD): visível só para quem gere licenças';

@@ -18,6 +18,8 @@ export const CAMPOS_IMPORTACAO = [
   { campo: "gestor", rotulo: "Gestor", obrigatorio: true, sinonimos: ["gestor", "responsavel", "gestor do contrato"] },
   { campo: "analista", rotulo: "Analista", obrigatorio: false, sinonimos: ["analista", "comprador", "suprimentos"] },
   { campo: "valorAnual", rotulo: "Valor anual", obrigatorio: true, sinonimos: ["valor anual", "valor", "valor total anual"] },
+  // Opcional: só o mensal preenchido → anual = mensal × 12; os dois preenchidos precisam bater.
+  { campo: "valorMensal", rotulo: "Valor mensal", obrigatorio: false, sinonimos: ["valor mensal", "mensalidade"] },
   { campo: "moeda", rotulo: "Moeda", obrigatorio: false, sinonimos: ["moeda"] },
   { campo: "dataInicio", rotulo: "Data início", obrigatorio: true, sinonimos: ["inicio", "data inicio", "inicio vigencia"] },
   // Data fim: data ou "indeterminado" (prazo indeterminado com revisão anual).
@@ -58,9 +60,12 @@ export interface RegistroImportado {
   analista?: string;
   valorAnual: number;
   moeda: Moeda;
+  /** Vazio = pendência (contrato entra “A completar”). */
   dataInicio: ISODate;
-  /** Vazio quando prazo indeterminado. */
+  /** Vazio quando prazo indeterminado ou quando falta (pendência). */
   dataFim: ISODate;
+  /** O que faltou na planilha: o contrato entra e fica “A completar” até ser preenchido. */
+  pendencias?: string[];
   indeterminado?: boolean;
   avisoPrevioDias: number;
   renovacaoAutomatica: boolean;
@@ -125,13 +130,15 @@ export function sugerirMapeamento(cabecalhos: string[]): Mapeamento {
   const m: Mapeamento = {};
   const usados = new Set<string>();
   const norm = cabecalhos.map((c) => ({ original: c, n: normalizarBusca(c).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim() }));
-  for (const def of CAMPOS_IMPORTACAO) {
-    // Correspondência exata primeiro, depois parcial.
-    const exato = norm.find((h) => !usados.has(h.original) && def.sinonimos.some((s) => h.n === s));
-    const parcial = exato ?? norm.find((h) => !usados.has(h.original) && def.sinonimos.some((s) => h.n.includes(s)));
-    if (parcial) {
-      m[def.campo] = parcial.original;
-      usados.add(parcial.original);
+  // Correspondência exata para todos os campos primeiro; depois parcial (evita "valor" pegar "Valor mensal").
+  for (const exata of [true, false]) {
+    for (const def of CAMPOS_IMPORTACAO) {
+      if (m[def.campo]) continue;
+      const h = norm.find((x) => !usados.has(x.original) && def.sinonimos.some((s) => (exata ? x.n === s : x.n.includes(s))));
+      if (h) {
+        m[def.campo] = h.original;
+        usados.add(h.original);
+      }
     }
   }
   return m;
@@ -190,6 +197,7 @@ export function processarImportacao(
   linhas: string[][],
   mapeamento: Mapeamento,
   existentes: { codigos: string[]; chaves: string[] } = { codigos: [], chaves: [] },
+  opcoes: { empresaPadrao?: string } = {},
 ): RelatorioImportacao {
   const idx = (campo: CampoImportacao) => (mapeamento[campo] ? cabecalhos.indexOf(mapeamento[campo]!) : -1);
   const indices = Object.fromEntries(CAMPOS_IMPORTACAO.map((c) => [c.campo, idx(c.campo)])) as Record<CampoImportacao, number>;
@@ -201,20 +209,35 @@ export function processarImportacao(
     const linha = i + 2; // +1 cabeçalho, +1 base 1
     const v = (campo: CampoImportacao) => (indices[campo] >= 0 ? (cols[indices[campo]] ?? "").trim() : "");
 
-    const faltando = CAMPOS_IMPORTACAO.filter((c) => c.obrigatorio && !v(c.campo)).map((c) => c.rotulo);
+    // Mínimo para existir: fornecedor, objeto e empresa (ou a empresa padrão escolhida na importação).
+    const empresa = v("empresa") || opcoes.empresaPadrao || "";
+    const faltando = [!v("fornecedor") && "Fornecedor (razão social)", !v("objeto") && "Objeto", !empresa && "Empresa"].filter(Boolean) as string[];
     if (faltando.length) {
       rel.incompletos.push({ linha, faltando });
       return;
     }
+    const pendencias: string[] = [];
+    if (!v("empresa")) pendencias.push("Empresa (usada a padrão: confira)");
+    if (!v("gestor")) pendencias.push("Gestor");
 
     const erros: string[] = [];
-    const valorAnual = parseNumeroBR(v("valorAnual"));
-    if (valorAnual === undefined || valorAnual < 0) erros.push(`Valor anual inválido: "${v("valorAnual")}"`);
-    const dataInicio = parseDataBR(v("dataInicio"));
-    if (!dataInicio) erros.push(`Data início inválida: "${v("dataInicio")}"`);
+    const anualTxt = v("valorAnual");
+    const mensalTxt = v("valorMensal");
+    let valorAnual = anualTxt ? parseNumeroBR(anualTxt) : undefined;
+    const valorMensal = mensalTxt ? parseNumeroBR(mensalTxt) : undefined;
+    if (anualTxt && (valorAnual === undefined || valorAnual < 0)) erros.push(`Valor anual inválido: "${anualTxt}"`);
+    if (mensalTxt && (valorMensal === undefined || valorMensal < 0)) erros.push(`Valor mensal inválido: "${mensalTxt}"`);
+    if (valorAnual === undefined && valorMensal !== undefined && valorMensal >= 0) valorAnual = Math.round(valorMensal * 12 * 100) / 100;
+    else if (valorAnual !== undefined && valorMensal !== undefined && Math.abs(valorMensal * 12 - valorAnual) > Math.max(1, valorAnual * 0.01))
+      erros.push(`Valor mensal (${mensalTxt}) × 12 não bate com o valor anual (${anualTxt})`);
+    if (!anualTxt && !mensalTxt) pendencias.push("Valor anual");
+    const dataInicio = v("dataInicio") ? parseDataBR(v("dataInicio")) : "";
+    if (dataInicio === undefined) erros.push(`Data início inválida: "${v("dataInicio")}"`);
+    if (!v("dataInicio")) pendencias.push("Data de início");
     const indeterminado = /^indeterminad/.test(normalizarBusca(v("dataFim")));
-    const dataFim = indeterminado ? "" : parseDataBR(v("dataFim"));
+    const dataFim = indeterminado || !v("dataFim") ? "" : parseDataBR(v("dataFim"));
     if (dataFim === undefined) erros.push(`Data fim inválida: "${v("dataFim")}" (use uma data ou "indeterminado")`);
+    if (!v("dataFim")) pendencias.push("Data de fim (ou indeterminado)");
     if (dataInicio && dataFim && dataFim < dataInicio) erros.push("Data fim anterior à data início");
     if (v("cnpj") && !cnpjValido(v("cnpj"))) erros.push(`CNPJ inválido: "${v("cnpj")}"`);
     const moedaTxt = (v("moeda") || "BRL").toUpperCase().replace("R$", "BRL").replace("US$", "USD");
@@ -233,7 +256,7 @@ export function processarImportacao(
     }
 
     const codigo = v("codigo") || undefined;
-    const chave = chaveDuplicidade(identificadorFornecedor(v("cnpj"), v("fornecedor")), v("objeto"), dataFim!, v("empresa"));
+    const chave = chaveDuplicidade(identificadorFornecedor(v("cnpj"), v("fornecedor")), v("objeto"), dataFim!, empresa);
     if (codigo && codigosVistos.has(codigo.toUpperCase())) {
       rel.duplicidades.push({ linha, motivo: `Código ${codigo} já existe` });
       return;
@@ -251,13 +274,13 @@ export function processarImportacao(
       fornecedor: v("fornecedor"),
       cnpj: somenteDigitos(v("cnpj")),
       pais: paisExterior(v("pais")),
-      empresa: v("empresa"),
+      empresa,
       objeto: v("objeto"),
       gestor: v("gestor"),
       analista: v("analista") || undefined,
-      valorAnual: valorAnual!,
+      valorAnual: valorAnual ?? 0,
       moeda: moedaTxt as Moeda,
-      dataInicio: dataInicio!,
+      dataInicio: dataInicio ?? "",
       dataFim: dataFim!,
       indeterminado: indeterminado || undefined,
       avisoPrevioDias: aviso ?? 0,
@@ -273,6 +296,7 @@ export function processarImportacao(
       multa: v("multa") && !/^(nao|n|sem|-)$/.test(normalizarBusca(v("multa"))) ? v("multa") : undefined,
       condicoesRescisao: v("condicoesRescisao") || undefined,
       observacoes: v("observacoes") || undefined,
+      pendencias: pendencias.length ? pendencias : undefined,
     });
   });
   return rel;

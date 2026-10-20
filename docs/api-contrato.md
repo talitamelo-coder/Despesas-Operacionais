@@ -59,6 +59,8 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | PUT | `/colaboradores/{id\|novo}` | `salvarColaborador` | E-mail corporativo em minúsculas é a identidade; domínios do grupo contam como o mesmo e-mail |
 | POST | `/licencas/{id}/atribuicoes` | `atribuirLicenca` | `{ colaboradorId, dataInicio }`. **Recusa sem assento livre**, e-mail repetido na licença ou pessoa desligada |
 | POST | `/licencas/atribuicoes/{id}/encerrar` | `encerrarAtribuicao` | `{ dataFim }`; histórico mantido |
+| POST | `/licencas/pendencias/{id}/resolver` | `resolverPendenciaAtribuicao` | `{ email? }`. Usuário da fila (importação sem e-mail ou sem assento) vira atribuição; cria a pessoa se o e-mail for novo. Recusa sem assento livre |
+| POST | `/licencas/pendencias/{id}/descartar` | `descartarPendenciaAtribuicao` | `{ observacao }`. Sai da fila sem atribuir; registro mantido |
 | POST | `/colaboradores/{id}/desligar` | `desligarColaborador` | Encerra licenças e linhas da pessoa |
 | PUT | `/cotacoes/{data}` | `salvarCotacao` | PTAX de venda. Backend carrega 1x/dia do Banco Central (API Olinda/PTAX) e guarda em cache |
 | POST | `/parametros/{chave}` | `salvarParametro` | `{ valor, vigenteDesde }`. Histórico: o valor vale a partir da data; meses anteriores não mudam |

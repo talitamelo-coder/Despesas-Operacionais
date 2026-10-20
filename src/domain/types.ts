@@ -766,6 +766,29 @@ export interface MovimentacaoLicenca {
 
 export type StatusAtribuicao = "Ativa" | "Encerrada";
 
+/**
+ * Usuário de licença que não pôde ser atribuído na importação (sem e-mail ou sem assento livre).
+ * Fica na fila até ser resolvido (vira atribuição) ou descartado. Nunca é apagado.
+ */
+export interface PendenciaAtribuicao {
+  id: string;
+  licencaId: string;
+  email?: string;
+  nome: string;
+  area?: string;
+  centroCusto?: string;
+  motivo: "Sem e-mail" | "Sem assento livre";
+  status: "Aberta" | "Resolvida" | "Descartada";
+  dataInicio?: ISODate;
+  /** Chave de idempotência da importação (licença + e-mail ou nome). */
+  chave: string;
+  criadoEm: string;
+  resolvidoEm?: string;
+  resolvidoPorId?: string;
+  atribuicaoId?: string;
+  observacao?: string;
+}
+
 export interface AtribuicaoLicenca {
   id: string;
   licencaId: string;

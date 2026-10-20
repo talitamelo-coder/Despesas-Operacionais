@@ -493,6 +493,8 @@ function Importacao() {
   const [rel, setRel] = useState<RelatorioImportacao>();
   const [importados, setImportados] = useState<string[]>();
   const [forn, setForn] = useState<RelatorioFornecedores>();
+  // Empresa para linhas sem empresa (padrão: Akross Plataformas, quando cadastrada).
+  const [empresaPadrao, setEmpresaPadrao] = useState(() => (cad.empresas.find((e) => /akross plataformas/i.test(e.nome)) ?? cad.empresas.find((e) => e.ativo))?.nome ?? "");
   const [fornResultado, setFornResultado] = useState<ResultadoImportacaoFornecedores>();
 
   async function ler(f: File) {
@@ -518,7 +520,7 @@ function Importacao() {
       processarImportacao(csv.cabecalhos, csv.linhas, map, {
         codigos: contratos.flatMap((c) => [c.codigo, c.external_id ?? ""]).filter(Boolean),
         chaves: contratos.map((c) => chaveDuplicidade(idForn.get(c.fornecedorId) ?? "", c.objeto, c.vigencia.dataFim, cad.empresas.find((e) => e.id === c.empresaId)?.nome)),
-      }),
+      }, { empresaPadrao: empresaPadrao || undefined }),
     );
   }
 
@@ -541,6 +543,10 @@ function Importacao() {
         <Card>
           <CardHeader titulo="2. Mapeamento de colunas" subtitulo="Sugerido automaticamente pelo nome das colunas — ajuste se necessário" acoes={<Button onClick={validar}>Validar dados</Button>} />
           <CardBody>
+            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <Select rotulo="Empresa para linhas sem empresa" ajuda="Linhas sem empresa entram com esta e ficam com o ponto “confirmar empresa”." vazio="— Nenhuma (linha sem empresa não entra) —" value={empresaPadrao} onChange={(e) => setEmpresaPadrao(e.target.value)} opcoes={cad.empresas.filter((e) => e.ativo).map((e) => ({ valor: e.nome, rotulo: e.nome }))} />
+              <p className="self-end pb-2 text-xs text-texto-suave">Contratos sem datas, valor ou gestor também entram, como “A completar”: você completa na capa do contrato (Editar). Sem fornecedor ou objeto, a linha não entra.</p>
+            </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {CAMPOS_IMPORTACAO.map((c) => (
                 <Select key={c.campo} rotulo={c.rotulo} obrigatorio={c.obrigatorio} vazio="— Não importar —" value={map[c.campo] ?? ""} onChange={(e) => setMap({ ...map, [c.campo]: e.target.value || undefined })} opcoes={csv.cabecalhos.map((h) => ({ valor: h, rotulo: h }))} />
@@ -574,12 +580,13 @@ function Importacao() {
             }
           />
           <CardBody className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
               {[
-                ["Prontos para importar", rel.importados.length, "sucesso"],
-                ["Inconsistências", rel.inconsistencias.length, "critico"],
-                ["Registros incompletos", rel.incompletos.length, "alerta"],
-                ["Duplicidades", rel.duplicidades.length, "neutro"],
+                ["Completos", rel.importados.filter((r) => !r.pendencias?.length).length, "sucesso"],
+                ["Entram “A completar”", rel.importados.filter((r) => r.pendencias?.length).length, "alerta"],
+                ["Inconsistências (não entram)", rel.inconsistencias.length, "critico"],
+                ["Sem fornecedor/objeto/empresa (não entram)", rel.incompletos.length, "critico"],
+                ["Duplicidades (não entram)", rel.duplicidades.length, "neutro"],
               ].map(([r, q, t]) => (
                 <div key={r as string} className="rounded-md border border-borda p-3">
                   <Badge tom={t as "sucesso"}>{r}</Badge>
@@ -597,7 +604,8 @@ function Importacao() {
             {forn && forn.erros.length > 0 && <ListaRelatorio titulo="Fornecedores com erro (aba Fornecedores)" itens={forn.erros.map((i) => [i.linha, i.erros.join("; ")])} />}
             {importados && <Aviso tom="sucesso" titulo={`${importados.length} contrato(s) criados`}>{importados.slice(0, 20).join(", ")}{importados.length > 20 ? "…" : ""}</Aviso>}
             {rel.inconsistencias.length > 0 && <ListaRelatorio titulo="Inconsistências" itens={rel.inconsistencias.map((i) => [i.linha, i.erros.join("; ")])} />}
-            {rel.incompletos.length > 0 && <ListaRelatorio titulo="Registros incompletos" itens={rel.incompletos.map((i) => [i.linha, `Faltando: ${i.faltando.join(", ")}`])} />}
+            {rel.importados.some((r) => r.pendencias?.length) && <ListaRelatorio titulo="Entram “A completar” (complete na capa do contrato)" itens={rel.importados.filter((r) => r.pendencias?.length).map((r) => [r.linha, `${r.fornecedor} · falta: ${r.pendencias!.join(", ")}`])} />}
+            {rel.incompletos.length > 0 && <ListaRelatorio titulo="Não entram (sem dados mínimos)" itens={rel.incompletos.map((i) => [i.linha, `Faltando: ${i.faltando.join(", ")}`])} />}
             {rel.duplicidades.length > 0 && <ListaRelatorio titulo="Duplicidades" itens={rel.duplicidades.map((i) => [i.linha, i.motivo])} />}
           </CardBody>
         </Card>

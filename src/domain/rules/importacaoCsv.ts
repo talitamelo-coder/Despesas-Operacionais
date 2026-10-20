@@ -13,6 +13,7 @@ import type {
   Licenca,
   LinhaTelefonica,
   Moeda,
+  PendenciaAtribuicao,
   MovimentacaoLicenca,
   TipoMovimentacao,
   StatusContrato,
@@ -100,6 +101,8 @@ export interface ContextoImportacao {
   dominios: string[];
   linhas: LinhaTelefonica[];
   usos: UsoLinha[];
+  /** Fila de usuários de licença pendentes (idempotência da importação). */
+  pendencias?: PendenciaAtribuicao[];
 }
 
 /** Operações planejadas — ids "novo:*" referem-se a registros criados por linhas anteriores do arquivo. */
@@ -111,6 +114,7 @@ export type OperacaoImportacao =
   | { tipo: "movimentacao"; movimentacao: Omit<MovimentacaoLicenca, "id" | "registradoPorId" | "registradoEm"> }
   | { tipo: "linha"; linha: LinhaTelefonica }
   | { tipo: "uso"; uso: UsoLinha }
+  | { tipo: "pendencia"; pendencia: PendenciaAtribuicao }
   | { tipo: "cliente"; cliente: Cliente }
   | { tipo: "contratoCliente"; contrato: ContratoClienteImportado };
 
@@ -195,6 +199,7 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
   const linhasTel = [...ctx.linhas];
   const usos = [...ctx.usos];
   const clientes = [...(ctx.clientes ?? [])];
+  const pendencias = [...(ctx.pendencias ?? [])];
   const contratosNovos: string[] = [];
   let n = 0;
   const novoId = (p: string) => `novo:${p}:${++n}`;
@@ -257,7 +262,9 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
         area: r.area || undefined, centroCusto: r.centro_custo || undefined, responsavel: r.responsavel || undefined, justificativaManutencao: r.justificativa_manutencao || undefined,
         substitutoPossivel: r.substituto_possivel || undefined, riscoTroca: r.risco_troca || undefined, limiteConsumoMensal: limite, status: "Ativa", criadoEm: ctx.hoje, atualizadoEm: ctx.hoje,
       };
-      const el = errosLicenca(l);
+      // Data de vencimento faltando não impede a carga: a licença entra “A completar” (alerta na tela).
+      const semVencimento = l.vencimentoTipo === "Data" && !l.dataVencimento;
+      const el = errosLicenca(l).filter((x) => !(semVencimento && /data de vencimento/.test(x)));
       if (el.length) {
         if (forn.novo) operacoes.pop(), fornecedores.pop();
         return previa("Recusada", resumo, el.join(" "));
@@ -275,24 +282,34 @@ export function planejarImportacao(tipo: TipoImportacao, texto: string, ctx: Con
       }
       licencas.push(l);
       operacoes.push({ tipo: "licenca", licenca: l, compra });
-      return previa("Importar", resumo, forn.novo ? `Fornecedor "${forn.novo}" será pré-cadastrado.` : undefined);
+      const avisos = [forn.novo && `Fornecedor "${forn.novo}" será pré-cadastrado.`, semVencimento && "Entra sem data de vencimento: complete na licença."].filter(Boolean);
+      return previa("Importar", resumo, avisos.join(" ") || undefined);
     }
 
     if (tipo === "atribuicoes") {
       const resumo = `${r.email || r.nome || "(sem e-mail)"} → ${[r.produto, r.plano].filter(Boolean).join(" · ")}`;
-      if (!r.email) return previa("Conciliação", resumo, "Sem e-mail: vai para a fila de conciliação (não cria pessoa automaticamente).");
-      if (!emailValido(r.email)) return previa("Recusada", resumo, "e-mail inválido");
       const l = acharLicenca(r);
       if (!l) return previa("Recusada", resumo, "licença não encontrada (importe as licenças primeiro)");
       const di = dataBR(r.data_inicio) ?? ctx.hoje;
       if (di === "invalida") return previa("Recusada", resumo, "data_inicio inválida");
+      // Sem e-mail ou sem assento: vai para a fila de pendências (Licenças → Pessoas), que fica gravada.
+      const paraFila = (motivo: PendenciaAtribuicao["motivo"], texto: string) => {
+        const chave = `${l.id}|${r.email ? chaveEmail(r.email, ctx.dominios) : `nome:${normalizarTexto(r.nome)}`}`;
+        if (pendencias.some((p) => p.chave === chave && p.status === "Aberta")) return previa("Já existe", resumo, "já está na fila de pendências");
+        const p: PendenciaAtribuicao = { id: novoId("p"), licencaId: l.id, email: r.email ? chaveEmail(r.email, ctx.dominios) : undefined, nome: r.nome?.trim() || r.email?.split("@")[0] || "(sem nome)", area: r.area || undefined, centroCusto: r.centro_custo || undefined, motivo, status: "Aberta", dataInicio: di, chave, criadoEm: ctx.hoje };
+        pendencias.push(p);
+        operacoes.push({ tipo: "pendencia", pendencia: p });
+        return previa("Conciliação", resumo, `${texto}: vai para a fila de pendências (Licenças → Pessoas).`);
+      };
+      if (!r.email) return paraFila("Sem e-mail", "Sem e-mail");
+      if (!emailValido(r.email)) return previa("Recusada", resumo, "e-mail inválido");
       let c = acharColab(r.email);
       if (c?.status === "Desligado") return previa("Recusada", resumo, "colaborador desligado");
       const ativas = atribs.filter((a) => a.licencaId === l.id && a.status === "Ativa");
       if (c && ativas.some((a) => a.colaboradorId === c!.id)) return previa("Já existe", resumo, "pessoa já tem esta licença");
       if (l.tipoCobranca === "Assento") {
         const assentos = posicaoNaData(movs.filter((m) => m.licencaId === l.id), "9999-12-31").assentos;
-        if (ativas.length >= assentos) return previa("Recusada", resumo, `sem assento livre (${ativas.length} de ${assentos}). Importe a compra antes.`);
+        if (ativas.length >= assentos) return paraFila("Sem assento livre", `Sem assento livre (${ativas.length} de ${assentos})`);
       }
       if (l.status === "Cancelada") return previa("Recusada", resumo, "licença cancelada");
       let aviso: string | undefined;

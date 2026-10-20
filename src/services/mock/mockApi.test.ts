@@ -256,7 +256,7 @@ describe("licenças de software", () => {
     expect((await api.importarCsv("licencas", lic, "u-sup1")).importadas).toBe(1);
     const atr = "email;nome;area;fornecedor;produto;plano\nzeca.souza@empresa.exemplo;Zeca Souza;Tecnologia;Novo Fornecedor SaaS;Ferramenta Z;Pro\n;Sem Email;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\nlia.reis@empresa.exemplo;Lia;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\nmax.paz@empresa.exemplo;Max;TI;Novo Fornecedor SaaS;Ferramenta Z;Pro\n";
     const r = await api.importarCsv("atribuicoes", atr, "u-sup1");
-    expect(r).toMatchObject({ importadas: 2, conciliacao: 1, recusadas: 1 }); // 2 assentos: o terceiro é recusado
+    expect(r).toMatchObject({ importadas: 2, conciliacao: 2, recusadas: 0 }); // 2 assentos: sem e-mail e o terceiro vão para a fila
     const antes = await api.listarLicencas("u-sup1");
     const r2 = await api.importarCsv("licencas", lic, "u-sup1");
     const r3 = await api.importarCsv("atribuicoes", atr, "u-sup1");
@@ -265,6 +265,30 @@ describe("licenças de software", () => {
     expect(depois.licencas.length).toBe(antes.licencas.length);
     expect(depois.atribuicoes.length).toBe(antes.atribuicoes.length);
     expect(depois.movimentacoes.length).toBe(antes.movimentacoes.length);
+    expect(depois.pendencias.filter((p) => p.status === "Aberta")).toHaveLength(2); // reimportar não duplica a fila
+  });
+
+  it("fila de pendências: sem assento continua bloqueado; com compra e e-mail vira atribuição; descarte fica registrado", async () => {
+    const lic = "fornecedor;produto;plano;tipo_cobranca;moeda;periodicidade;vencimento_tipo;data_vencimento;assentos_iniciais;preco_unitario;data_compra\nFornecedor Fila;App;Pro;assento;BRL;anual;data;;1;100;2026-01-10\n";
+    const rl = await api.importarCsv("licencas", lic, "u-sup1");
+    expect(rl.importadas).toBe(1); // sem data de vencimento: entra “A completar”
+    expect(rl.linhas[0].motivo).toMatch(/sem data de vencimento/);
+    await api.importarCsv("atribuicoes", "email;nome;fornecedor;produto;plano\nana@empresa.exemplo;Ana;Fornecedor Fila;App;Pro\nbia@empresa.exemplo;Bia;Fornecedor Fila;App;Pro\n;Caio;Fornecedor Fila;App;Pro\n", "u-sup1");
+    let d = await api.listarLicencas("u-sup1");
+    const l = d.licencas.find((x) => x.produto === "App")!;
+    const fila = d.pendencias.filter((p) => p.licencaId === l.id && p.status === "Aberta");
+    expect(fila.map((p) => p.motivo).sort()).toEqual(["Sem assento livre", "Sem e-mail"]);
+    const bia = fila.find((p) => p.nome === "Bia")!;
+    await expect(api.resolverPendenciaAtribuicao(bia.id, undefined, "u-sup1")).rejects.toThrow(/assento/);
+    await api.registrarMovimentacao({ licencaId: l.id, tipo: "Compra", data: H, quantidade: 1, precoUnitario: 100, responsavel: "Teste" }, "u-sup1");
+    await api.resolverPendenciaAtribuicao(bia.id, undefined, "u-sup1");
+    const caio = fila.find((p) => p.nome === "Caio")!;
+    await expect(api.resolverPendenciaAtribuicao(caio.id, undefined, "u-sup1")).rejects.toThrow(/e-mail/);
+    await api.descartarPendenciaAtribuicao(caio.id, "Pessoa desligada", "u-sup1");
+    d = await api.listarLicencas("u-sup1");
+    expect(d.atribuicoes.filter((a) => a.licencaId === l.id && a.status === "Ativa")).toHaveLength(2);
+    expect(d.pendencias.filter((p) => p.licencaId === l.id).map((p) => p.status).sort()).toEqual(["Descartada", "Resolvida"]);
+    expect((await api.listarLicencas("u-ges1")).pendencias).toEqual([]); // nome/e-mail só na visão completa
   });
 });
 
@@ -279,7 +303,7 @@ describe("dados fictícios de teste (ferramentas/dados-teste-licencas)", () => {
     const [l, m, a, t] = await rodar();
     expect(l).toMatchObject({ importadas: 4, recusadas: 2 });
     expect(m).toMatchObject({ importadas: 3, recusadas: 0 });
-    expect(a).toMatchObject({ importadas: 30, conciliacao: 1, jaExistiam: 1, recusadas: 1 });
+    expect(a).toMatchObject({ importadas: 30, conciliacao: 2, jaExistiam: 1, recusadas: 0 });
     expect(t).toMatchObject({ importadas: 4, recusadas: 1 });
     const antes = JSON.stringify(await api.listarLicencas("u-sup1"));
     expect((await rodar()).every((r) => r.importadas === 0)).toBe(true);
@@ -389,5 +413,20 @@ describe("telefonia", () => {
     await expect(api.atribuirLinha("tel-1", "col-4", H, "u-sup1")).rejects.toThrow(/já tem usuário/);
     await expect(api.salvarLinha({ id: "", numero: "(11) 98765-0001", operadora: "X", valorMensal: 10, situacao: "Ativa", criadoEm: "", atualizadoEm: "" }, "u-sup1")).rejects.toThrow(/já está cadastrada/);
     await api.atribuirLinha("tel-7", "col-4", H, "u-sup1");
+  });
+});
+
+describe("contrato importado “A completar”", () => {
+  it("entra vigente com pendências, aparece na Central e pode ser completado aos poucos sem aditivo", async () => {
+    await api.importarContratos([{ linha: 2, fornecedor: "Fornecedor Pendente", cnpj: "11222333000181", empresa: "Exemplo Holding S.A.", objeto: "Licenças diversas", gestor: "", valorAnual: 0, moeda: "BRL", dataInicio: "", dataFim: "", avisoPrevioDias: 0, renovacaoAutomatica: false, pendencias: ["Gestor", "Valor anual", "Data de início", "Data de fim (ou indeterminado)"] }], "u-sup1");
+    const c = (await api.listarContratos()).find((x) => x.objeto === "Licenças diversas")!;
+    expect(c.status).toBe("Vigente");
+    const central = await api.consultarCentral({ aba: "Todos" }, { coluna: "codigo", direcao: "asc" }, 0, 500);
+    expect(central.linhas.find((l) => l.id === c.contrato_id)?.pendenciasCadastro).toEqual(expect.arrayContaining(["Data de início", "Valor anual", "Gestor"]));
+    await api.atualizarContrato(c.contrato_id, { condicoes: { ...c.condicoes, valorAnual: 5000 } }, "u-sup1"); // ainda sem datas: salva
+    await api.atualizarContrato(c.contrato_id, { gestorId: "u-ges1", vigencia: { ...c.vigencia, dataInicio: "2026-01-01", dataFim: "2026-12-31" } }, "u-sup1");
+    const pronto = (await api.obterContrato(c.contrato_id))!;
+    expect(pronto.condicoes.valorAnual).toBe(5000);
+    await expect(api.atualizarContrato(c.contrato_id, { condicoes: { ...pronto.condicoes, valorAnual: 1 } }, "u-sup1")).rejects.toThrow(/aditivo/);
   });
 });
