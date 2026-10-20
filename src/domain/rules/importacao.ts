@@ -233,13 +233,13 @@ export function processarImportacao(
     }
 
     const codigo = v("codigo") || undefined;
-    const chave = chaveDuplicidade(identificadorFornecedor(v("cnpj"), v("fornecedor")), v("objeto"), dataFim!);
+    const chave = chaveDuplicidade(identificadorFornecedor(v("cnpj"), v("fornecedor")), v("objeto"), dataFim!, v("empresa"));
     if (codigo && codigosVistos.has(codigo.toUpperCase())) {
       rel.duplicidades.push({ linha, motivo: `Código ${codigo} já existe` });
       return;
     }
     if (chavesVistas.has(chave)) {
-      rel.duplicidades.push({ linha, motivo: "Mesmo fornecedor (CNPJ ou nome), objeto e data fim de outro registro" });
+      rel.duplicidades.push({ linha, motivo: "Mesmo fornecedor (CNPJ ou nome), objeto, data fim e empresa de outro registro" });
       return;
     }
     if (codigo) codigosVistos.add(codigo.toUpperCase());
@@ -291,6 +291,7 @@ export function paisExterior(pais?: string): string | undefined {
 }
 
 /** Chave de duplicidade de um contrato já cadastrado (mesma regra da importação). */
-export function chaveDuplicidade(fornecedor: string, objeto: string, dataFim: ISODate): string {
-  return `${fornecedor.startsWith("nome:") ? fornecedor : somenteDigitos(fornecedor)}|${normalizarBusca(objeto)}|${dataFim}`;
+export function chaveDuplicidade(fornecedor: string, objeto: string, dataFim: ISODate, empresa = ""): string {
+  // A empresa entra na chave: o mesmo fornecedor/objeto contratado por duas empresas do grupo são dois contratos.
+  return `${fornecedor.startsWith("nome:") ? fornecedor : somenteDigitos(fornecedor)}|${normalizarBusca(objeto)}|${dataFim}|${normalizarBusca(empresa)}`;
 }

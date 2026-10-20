@@ -511,7 +511,7 @@ function Importacao() {
     setRel(
       processarImportacao(csv.cabecalhos, csv.linhas, map, {
         codigos: contratos.flatMap((c) => [c.codigo, c.external_id ?? ""]).filter(Boolean),
-        chaves: contratos.map((c) => chaveDuplicidade(idForn.get(c.fornecedorId) ?? "", c.objeto, c.vigencia.dataFim)),
+        chaves: contratos.map((c) => chaveDuplicidade(idForn.get(c.fornecedorId) ?? "", c.objeto, c.vigencia.dataFim, cad.empresas.find((e) => e.id === c.empresaId)?.nome)),
       }),
     );
   }

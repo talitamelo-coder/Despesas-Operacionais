@@ -24,6 +24,16 @@ Fornecedor Nacional;;Brasil;Matriz;Suporte;Ana;1000;01/01/2026;31/12/2026`;
     expect(r.duplicidades).toHaveLength(1);
   });
 
+  it("mesmo fornecedor e objeto em outra empresa do grupo não é duplicidade", () => {
+    const csv = `Fornecedor;Empresa;Objeto;Gestor;Valor Anual;Início;Término
+Telmex;Akross;Multicloud;Ana;1000;01/01/2026;31/12/2026
+Telmex;Mobicare;Multicloud;Ana;1000;01/01/2026;31/12/2026`;
+    const { cabecalhos, linhas } = parseCSV(csv);
+    const r = processarImportacao(cabecalhos, linhas, sugerirMapeamento(cabecalhos));
+    expect(r.importados).toHaveLength(2);
+    expect(r.duplicidades).toEqual([]);
+  });
+
   it("sugere mapeamento e gera relatório", () => {
     const { cabecalhos, linhas } = parseCSV(CSV);
     const m = sugerirMapeamento(cabecalhos);

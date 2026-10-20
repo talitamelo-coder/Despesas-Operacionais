@@ -79,7 +79,7 @@ export function modeloContratosFornecedores(cad: Cadastros): Uint8Array {
       "6. Gestor não cadastrado é criado como usuário (complete o e-mail em Administração → Usuários).",
       "7. Multa e condições de rescisão são texto livre. Índice de reajuste vazio ou “Não” = sem reajuste.",
       "8. Suba o arquivo em Administração → Importação da planilha. Antes de gravar, o sistema mostra o relatório: prontos, inconsistências, incompletos e duplicidades.",
-      "9. Pode subir o mesmo arquivo de novo: contratos já existentes (mesmo código, ou mesmo fornecedor + objeto + data fim) são apontados como duplicidade e não são gravados.",
+      "9. Pode subir o mesmo arquivo de novo: contratos já existentes (mesmo código, ou mesmo fornecedor + objeto + data fim + empresa) são apontados como duplicidade e não são gravados.",
     ],
   });
 }
