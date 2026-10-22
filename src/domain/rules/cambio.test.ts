@@ -22,3 +22,12 @@ describe("câmbio e volume", () => {
     expect(d.impactoPreco + d.impactoVolume + d.impactoCambial).toBeCloseTo(d.variacaoLiquidaBRL);
   });
 });
+
+describe("valor mensal", () => {
+  it("é o anual ÷ 12, convertido para BRL como o anual", async () => {
+    const { mensalDeAnual, valorMensalBRL } = await import("./cambio");
+    expect(mensalDeAnual(120000)).toBe(10000);
+    expect(mensalDeAnual(undefined)).toBeUndefined();
+    expect(valorMensalBRL({ valorAnual: 1200, moeda: "USD", cotacao: { valor: 5, data: "2026-01-01", fonte: "PTAX" } })).toBe(500);
+  });
+});

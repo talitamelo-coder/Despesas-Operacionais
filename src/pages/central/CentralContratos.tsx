@@ -32,9 +32,9 @@ function useDebounce<T>(v: T, ms: number): T {
 }
 
 function csvDaPagina(linhas: LinhaCentral[]): string {
-  const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor anual (BRL)", "Data fim", "Status", "Próxima ação"];
+  const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor mensal (BRL)", "Valor anual (BRL)", "Data fim", "Status", "Próxima ação"];
   const esc = (s: unknown) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestorCompleto, l.analistaCompleto, l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
+  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestorCompleto, l.analistaCompleto, l.valorMensalBRL?.toFixed(2).replace(".", ","), l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
   return "\uFEFF" + [cab.map(esc).join(";"), ...corpo].join("\n");
 }
 
@@ -96,6 +96,18 @@ export function CentralContratos() {
     { id: "objeto", titulo: "Objeto", ordenavel: true, largura: "18%", render: (l) => <span className="line-clamp-2">{l.objeto}</span> },
     { id: "gestor", titulo: "Gestor", ordenavel: true, render: (l) => l.gestor },
     { id: "analista", titulo: "Analista", ordenavel: true, render: (l) => l.analista },
+    {
+      id: "valorMensal",
+      titulo: "Valor mensal",
+      ordenavel: true,
+      alinhamento: "direita",
+      render: (l) => (
+        <span className="tabular">
+          {formatarMoeda(l.valorMensalBRL)}
+          {l.moeda !== "BRL" && <span className="ml-1 text-[10px] font-semibold text-info-600">{l.moeda}</span>}
+        </span>
+      ),
+    },
     {
       id: "valorAnual",
       titulo: "Valor anual",

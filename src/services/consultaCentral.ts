@@ -1,7 +1,7 @@
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { abasDoContrato, abasDoProcesso, ABAS_CENTRAL, processoApareceNaCentral, situacaoCiclo, type AbaCentral } from "@/domain/rules/central";
 import { ORDEM_PRIORIDADE, maiorPrioridade, prioridadeDosPrazos } from "@/domain/rules/acoes";
-import { converterParaBRL, valorAnualBRL } from "@/domain/rules/cambio";
+import { converterParaBRL, mensalDeAnual, valorAnualBRL, valorMensalBRL } from "@/domain/rules/cambio";
 import { processoAtivo, valorNegociado } from "@/domain/rules/fluxo";
 import { decisaoRegistrada, prazosDoContrato } from "@/domain/rules/prazos";
 import { normalizarBusca } from "@/domain/formatacao";
@@ -78,6 +78,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       gestorCompleto: completo.get(c.gestorId) ?? "—",
       analistaCompleto: completo.get(c.analistaId) ?? "—",
       valorAnualBRL: valorAnualBRL(c.condicoes),
+      valorMensalBRL: valorMensalBRL(c.condicoes),
       moeda: c.condicoes.moeda,
       dataFim: c.vigencia.dataFim || undefined,
       diasAteVencimento: Number.isNaN(prazos.diasAteVencimento) ? undefined : prazos.diasAteVencimento,
@@ -123,6 +124,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       gestorCompleto: p.gestorId ? completo.get(p.gestorId) ?? "—" : "—",
       analistaCompleto: p.analistaId ? completo.get(p.analistaId) ?? "—" : "—",
       valorAnualBRL: valor !== undefined ? converterParaBRL(valor, moeda, p.condicoes?.cotacao) : undefined,
+      valorMensalBRL: mensalDeAnual(valor !== undefined ? converterParaBRL(valor, moeda, p.condicoes?.cotacao) : undefined),
       moeda,
       dataFim: p.vigencia?.dataFim,
       status: p.status,
@@ -175,6 +177,7 @@ const CHAVE_ORDENACAO: Record<Ordenacao["coluna"], (l: LinhaCentral) => string |
   objeto: (l) => l.objeto,
   gestor: (l) => l.gestor,
   analista: (l) => l.analista,
+  valorMensal: (l) => l.valorMensalBRL ?? -1,
   valorAnual: (l) => l.valorAnualBRL ?? -1,
   dataFim: (l) => l.dataFim ?? "9999",
   status: (l) => l.status,

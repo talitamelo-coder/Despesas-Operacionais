@@ -80,7 +80,7 @@ export interface FiltrosCentral {
   cadastro?: "incompleto";
 }
 
-export type ColunaOrdenavel = "codigo" | "fornecedor" | "empresa" | "objeto" | "gestor" | "analista" | "valorAnual" | "dataFim" | "status" | "prioridade";
+export type ColunaOrdenavel = "codigo" | "fornecedor" | "empresa" | "objeto" | "gestor" | "analista" | "valorMensal" | "valorAnual" | "dataFim" | "status" | "prioridade";
 
 export interface Ordenacao {
   coluna: ColunaOrdenavel;
@@ -103,6 +103,8 @@ export interface LinhaCentral {
   gestorCompleto: string;
   analistaCompleto: string;
   valorAnualBRL?: number;
+  /** Valor mensal em BRL (anual ÷ 12, mesma regra da capa). */
+  valorMensalBRL?: number;
   moeda: Moeda;
   dataFim?: ISODate;
   diasAteVencimento?: number;

@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { mensalDeAnual } from "@/domain/rules/cambio";
 import { AlarmClock, AlertTriangle, BadgeDollarSign, CalendarClock, FileCheck2, ListChecks, PiggyBank, RefreshCw } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -55,7 +56,7 @@ export function Dashboard() {
       )}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi rotulo="Contratos vigentes" valor={ind.contratosVigentes} icone={<FileCheck2 size={18} />} onClick={() => navegar("/contratos?aba=Vigentes")} />
-        <Kpi rotulo="Valor anual contratado" valor={formatarMoeda(ind.valorAnualContratado, "BRL", true)} detalhe="Contratos vigentes, convertido em BRL" icone={<BadgeDollarSign size={18} />} />
+        <Kpi rotulo="Valor anual contratado" valor={formatarMoeda(ind.valorAnualContratado, "BRL", true)} detalhe={`${formatarMoeda(mensalDeAnual(ind.valorAnualContratado), "BRL", true)} por mês · vigentes, em BRL`} icone={<BadgeDollarSign size={18} />} />
         <Kpi rotulo="Saving anual total" valor={formatarMoeda(ind.savingAnualTotal, "BRL", true)} detalhe="Sobre o baseline de cada contrato vigente" icone={<PiggyBank size={18} />} tom="sucesso" />
         <Kpi
           rotulo="Saving originado por Suprimentos"

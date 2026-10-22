@@ -18,7 +18,11 @@ export function valorMensal(c: Pick<CondicoesComerciais, "valorAnual">): number 
 }
 
 export function valorMensalBRL(c: Pick<CondicoesComerciais, "valorAnual" | "moeda" | "cotacao">): number | undefined {
-  const anual = valorAnualBRL(c);
+  return mensalDeAnual(valorAnualBRL(c));
+}
+
+/** Valor mensal a partir do anual (÷ 12). Indefinido continua indefinido. */
+export function mensalDeAnual(anual: number | undefined): number | undefined {
   return anual === undefined ? undefined : anual / 12;
 }
 
