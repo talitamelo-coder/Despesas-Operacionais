@@ -19,7 +19,7 @@ import type { TipoProcesso } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api, type ColunaOrdenavel, type FiltrosCentral, type LinhaCentral, type Ordenacao } from "@/services";
 
-const CHAVES_FILTRO = ["empresaId", "fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro"] as const;
+const CHAVES_FILTRO = ["fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro"] as const;
 const STATUS_OPCOES = ["Vigente", "Suspenso", "Encerrado", "Rescindido", ...new Set(Object.values(FLUXO_POR_TIPO).flat())];
 
 function useDebounce<T>(v: T, ms: number): T {
@@ -92,7 +92,6 @@ export function CentralContratos() {
       ),
     },
     { id: "fornecedor", titulo: "Fornecedor", ordenavel: true, render: (l) => <span className="line-clamp-2">{l.fornecedor}</span> },
-    { id: "empresa", titulo: "Empresa", ordenavel: true, largura: "10%", render: (l) => <span className="line-clamp-2 text-texto-suave">{l.empresa}</span> },
     { id: "objeto", titulo: "Objeto", ordenavel: true, largura: "18%", render: (l) => <span className="line-clamp-2">{l.objeto}</span> },
     { id: "gestor", titulo: "Gestor", ordenavel: true, render: (l) => l.gestor },
     { id: "analista", titulo: "Analista", ordenavel: true, render: (l) => l.analista },
@@ -204,7 +203,6 @@ export function CentralContratos() {
             />
           </div>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-            <Select rotulo="Empresa" opcoes={op.empresas} vazio="Todas" value={params.get("empresaId") ?? ""} onChange={(e) => setParam("empresaId", e.target.value)} />
             <Select rotulo="Fornecedor" opcoes={op.fornecedores} vazio="Todos" value={params.get("fornecedorId") ?? ""} onChange={(e) => setParam("fornecedorId", e.target.value)} />
             <Select rotulo="Gestor" opcoes={op.gestores} vazio="Todos" value={params.get("gestorId") ?? ""} onChange={(e) => setParam("gestorId", e.target.value)} />
             <Select rotulo="Analista" opcoes={op.analistas} vazio="Todos" value={params.get("analistaId") ?? ""} onChange={(e) => setParam("analistaId", e.target.value)} />
