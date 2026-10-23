@@ -15,7 +15,7 @@ import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/status";
 import { converterParaBRL } from "@/domain/rules/cambio";
-import { etapasDoProcesso, indiceEtapa, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
+import { etapasDoProcesso, indiceEtapa, opcoesFluxo, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { formatarDataHora } from "@/domain/datas";
 import { formatarMoeda, formatarNumero } from "@/domain/formatacao";
 import type { Documento, FonteCotacao, Moeda, Periodicidade, ProcessoContratacao, PropostaFornecedor, StatusJuridico, TipoVigencia } from "@/domain/types";
@@ -35,7 +35,8 @@ function Secao({ titulo, subtitulo, children, acoes }: { titulo: string; subtitu
 export function ProcessoDetalhe() {
   const { id = "" } = useParams();
   const navegar = useNavigate();
-  const { usuario, pode, executar, nomeUsuario, nomeEmpresa, fornecedor } = useApp();
+  const { usuario, pode, executar, nomeUsuario, nomeEmpresa, fornecedor, cad } = useApp();
+  const fluxo = opcoesFluxo(cad.config);
   const { dados: p, carregando } = useConsulta(() => api.obterProcesso(id), [id]);
   const { dados: docs } = useConsulta(() => api.listarDocumentos({ processo_id: id }), [id]);
   const { dados: contratos } = useConsulta(() => api.listarContratos(), []);
@@ -52,14 +53,14 @@ export function ProcessoDetalhe() {
 
   const ativo = processoAtivo(p) && p.status !== "Suspenso";
   const editavel = ativo && pode("editar_processo");
-  const destino = proximoStatus(p);
-  const faltando = destino ? requisitosPara(destino, edit, (docs ?? []) as Documento[]) : [];
+  const destino = proximoStatus(p, fluxo);
+  const faltando = destino ? requisitosPara(destino, edit, (docs ?? []) as Documento[], fluxo) : [];
   const anterior = contratos?.find((c) => c.contrato_id === p.contrato_anterior_id);
   const gerado = contratos?.find((c) => c.contrato_id === p.contrato_gerado_id);
   const set = (patch: Partial<ProcessoContratacao>) => setEdit((e) => ({ ...e!, ...patch }));
   const rec = propostaRecomendada(edit);
   const negociado = valorNegociado(edit);
-  const etapas = etapasDoProcesso(p);
+  const etapas = etapasDoProcesso(p, fluxo);
 
   async function salvar(silencioso = false) {
     if (!sujo) return true;
@@ -134,7 +135,7 @@ export function ProcessoDetalhe() {
 
       <Card className="mb-4">
         <CardBody>
-          <Etapas etapas={etapas} atual={p.status === "Cancelado" ? -1 : indiceEtapa(p)} suspenso={p.status === "Suspenso"} />
+          <Etapas etapas={etapas} atual={p.status === "Cancelado" ? -1 : indiceEtapa(p, fluxo)} suspenso={p.status === "Suspenso"} />
         </CardBody>
       </Card>
 
@@ -143,7 +144,7 @@ export function ProcessoDetalhe() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div className="space-y-4 xl:col-span-2">
           <SecaoDadosGerais edit={edit} set={set} editavel={editavel} />
-          {p.demandaJira && <SecaoValidacao p={p} editavel={editavel && pode("validar_demanda")} />}
+          {p.demandaJira && <SecaoDemandaJira p={p} />}
           <SecaoCotacao edit={edit} set={set} editavel={editavel} />
           <SecaoNegociacao edit={edit} set={set} editavel={editavel} negociado={negociado} />
           <Secao titulo="Saving" subtitulo="Indicador principal: saving anual em BRL">
@@ -181,8 +182,8 @@ export function ProcessoDetalhe() {
               </div>
             )}
           </Secao>
-          <SecaoAprovacoes p={p} />
-          <SecaoJuridico p={p} />
+          {(fluxo.exigirAprovacao || p.aprovacoes.length > 0) && <SecaoAprovacoes p={p} />}
+          {(fluxo.exigirJuridico || p.juridico.status !== "Não iniciado") && <SecaoJuridico p={p} />}
           <Secao titulo="Assinatura" subtitulo="Assinatura eletrônica própria não faz parte do MVP — integração futura (Adobe)">
             <GradeValores colunas={3}>
               <Valor rotulo="Status">{p.assinatura.status}</Valor>
@@ -264,6 +265,7 @@ type Props = { edit: ProcessoContratacao; set: (p: Partial<ProcessoContratacao>)
 
 function SecaoDadosGerais({ edit, set, editavel }: Props) {
   const op = useOpcoes();
+  const { cad } = useApp();
   const o = edit.origens;
   return (
     <Secao titulo="Dados gerais">
@@ -272,60 +274,35 @@ function SecaoDadosGerais({ edit, set, editavel }: Props) {
         <Select rotulo="Origem da oportunidade" obrigatorio disabled={!editavel} opcoes={op.origensOportunidade} value={edit.origemOportunidade ?? ""} onChange={(e) => set({ origemOportunidade: e.target.value as ProcessoContratacao["origemOportunidade"] })} />
         <Select rotulo="Tipo de contrato" disabled={!editavel} opcoes={op.tipos} origem={o.tipoContratoId} value={edit.tipoContratoId ?? ""} onChange={(e) => set({ tipoContratoId: e.target.value })} />
         <Textarea rotulo="Objeto" obrigatorio className="md:col-span-3" disabled={!editavel} origem={o.objeto} value={edit.objeto ?? ""} onChange={(e) => set({ objeto: e.target.value })} />
-        <Select rotulo="Gestor" obrigatorio disabled={!editavel} opcoes={op.gestores} origem={o.gestorId} value={edit.gestorId ?? ""} onChange={(e) => set({ gestorId: e.target.value })} />
+        <Select rotulo="Gestor" disabled={!editavel} opcoes={op.gestores} origem={o.gestorId} value={edit.gestorId ?? ""} onChange={(e) => set({ gestorId: e.target.value })} />
         <Select rotulo="Analista de Suprimentos" disabled={!editavel} opcoes={op.analistas} value={edit.analistaId ?? ""} onChange={(e) => set({ analistaId: e.target.value })} />
         <Select rotulo="Diretor" disabled={!editavel} opcoes={op.diretores} origem={o.diretorId} value={edit.diretorId ?? ""} onChange={(e) => set({ diretorId: e.target.value })} />
         <Input rotulo="Centro de custo" disabled={!editavel} origem={o.centroCusto} value={edit.centroCusto ?? ""} onChange={(e) => set({ centroCusto: e.target.value })} />
         <Select rotulo="Projeto" disabled={!editavel} opcoes={op.projetos} origem={o.projeto} value={edit.projeto ?? ""} onChange={(e) => set({ projeto: e.target.value || undefined })} />
-        <div className="flex items-end pb-1">
-          <Toggle rotulo="Processo de exceção" ajuda="Diretor passa a aprovar (e não só dar ciência)" disabled={!editavel || edit.status === "Aguardando aprovação comercial"} checked={Boolean(edit.excecao)} onChange={(v) => set({ excecao: v })} />
-        </div>
+        {opcoesFluxo(cad.config).exigirAprovacao && (
+          <div className="flex items-end pb-1">
+            <Toggle rotulo="Processo de exceção" ajuda="Diretor passa a aprovar (e não só dar ciência)" disabled={!editavel || edit.status === "Aguardando aprovação comercial"} checked={Boolean(edit.excecao)} onChange={(v) => set({ excecao: v })} />
+          </div>
+        )}
         {edit.tipo === "Substituição de fornecedor" && <Textarea rotulo="Motivo da substituição" obrigatorio className="md:col-span-3" disabled={!editavel} value={edit.motivoSubstituicao ?? ""} onChange={(e) => set({ motivoSubstituicao: e.target.value })} />}
       </div>
     </Secao>
   );
 }
 
-function SecaoValidacao({ p, editavel }: { p: ProcessoContratacao; editavel: boolean }) {
-  const { usuario, executar, nomeUsuario } = useApp();
+/** Dados da demanda vindos do JIRA: só consulta (pré-preenchem o processo; a aprovação é feita no JIRA). */
+function SecaoDemandaJira({ p }: { p: ProcessoContratacao }) {
   const d = p.demandaJira!;
-  const [v, setV] = useState({ valorValidado: p.validacao?.valorValidado ?? d.valorEstimado, quantidadeValidada: p.validacao?.quantidadeValidada ?? d.quantidade, observacao: p.validacao?.observacao ?? "" });
-  const validado = Boolean(p.validacao?.validadoEm);
-  const diff = (a?: number, b?: number) => (a !== undefined && b !== undefined && a !== b ? <span className={b < a ? "text-sucesso-600" : "text-critico-600"}> ({b < a ? "" : "+"}{formatarNumero(((b - a) / a) * 100, 1)}%)</span> : null);
   return (
-    <Secao
-      titulo="Demanda JIRA e validação de Suprimentos"
-      subtitulo={`${d.jira_key} · solicitado por ${d.solicitante} (${d.area})`}
-      acoes={validado ? <Badge tom="sucesso">Validado por {nomeUsuario(p.validacao?.validadoPorId)}</Badge> : <Badge tom="alerta">Não validado por Suprimentos</Badge>}
-    >
-      <div className="space-y-4">
-        <GradeValores colunas={2}>
-          <Valor rotulo="Descrição" origem="importado">{d.descricao}</Valor>
-          <Valor rotulo="Justificativa" origem="importado">{d.justificativa}</Valor>
-          <Valor rotulo="Fornecedores indicados" origem="importado">{d.fornecedoresIndicados.join(", ") || "—"}</Valor>
-          <Valor rotulo="Anexos" origem="importado">{d.anexos.join(", ") || "—"}</Valor>
-        </GradeValores>
-        <div className="overflow-hidden rounded-md border border-borda">
-          <table className="w-full text-sm">
-            <thead className="bg-fundo text-xs text-texto-suave">
-              <tr><th className="px-3 py-2 text-left">Comparativo</th><th className="px-3 py-2 text-right">Solicitado (JIRA)</th><th className="px-3 py-2 text-right">Validado (Suprimentos)</th></tr>
-            </thead>
-            <tbody className="tabular">
-              <tr className="border-t border-borda"><td className="px-3 py-2">Valor anual</td><td className="px-3 py-2 text-right">{formatarMoeda(d.valorEstimado)}</td><td className="px-3 py-2 text-right">{formatarMoeda(p.validacao?.valorValidado)}{diff(d.valorEstimado, p.validacao?.valorValidado)}</td></tr>
-              <tr className="border-t border-borda"><td className="px-3 py-2">Quantidade</td><td className="px-3 py-2 text-right">{formatarNumero(d.quantidade)}</td><td className="px-3 py-2 text-right">{formatarNumero(p.validacao?.quantidadeValidada)}{diff(d.quantidade, p.validacao?.quantidadeValidada)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-        {p.validacao?.observacao && <p className="text-xs text-texto-suave">Observação: {p.validacao.observacao}</p>}
-        {editavel && (
-          <div className="grid grid-cols-1 items-end gap-3 rounded-md bg-fundo p-3 md:grid-cols-[1fr_1fr_2fr_auto]">
-            <InputNumero rotulo="Valor validado" valor={v.valorValidado} onValor={(x) => setV({ ...v, valorValidado: x })} />
-            <InputNumero rotulo="Quantidade validada" valor={v.quantidadeValidada} onValor={(x) => setV({ ...v, quantidadeValidada: x })} />
-            <Input rotulo="Observação" value={v.observacao} onChange={(e) => setV({ ...v, observacao: e.target.value })} />
-            <Button onClick={() => executar(() => api.validarDemanda(p.processo_id, v, usuario.id), "Validação registrada.")}>{validado ? "Revalidar" : "Validar"}</Button>
-          </div>
-        )}
-      </div>
+    <Secao titulo="Demanda do JIRA" subtitulo={`${d.jira_key} · solicitado por ${d.solicitante} (${d.area})`}>
+      <GradeValores colunas={2}>
+        <Valor rotulo="Descrição" origem="importado">{d.descricao}</Valor>
+        <Valor rotulo="Justificativa" origem="importado">{d.justificativa}</Valor>
+        <Valor rotulo="Valor anual estimado" origem="importado">{formatarMoeda(d.valorEstimado)}</Valor>
+        <Valor rotulo="Quantidade" origem="importado">{formatarNumero(d.quantidade)}</Valor>
+        <Valor rotulo="Fornecedores indicados" origem="importado">{d.fornecedoresIndicados.join(", ") || "—"}</Valor>
+        <Valor rotulo="Anexos" origem="importado">{d.anexos.join(", ") || "—"}</Valor>
+      </GradeValores>
     </Secao>
   );
 }

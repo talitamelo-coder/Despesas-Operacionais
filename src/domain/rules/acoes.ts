@@ -129,9 +129,7 @@ function acoesDeContrato(c: Contrato, processosAbertos: ProcessoContratacao[], c
 
 const ACAO_POR_STATUS: Partial<Record<ProcessoContratacao["status"], string>> = {
   Rascunho: "Concluir abertura do processo",
-  "Validação de Suprimentos": "Validar dados recebidos do JIRA",
-  "Em cotação": "Registrar e comparar cotações",
-  "Em negociação": "Concluir negociação e definir fornecedor recomendado",
+  "Com Suprimentos": "Cotar, negociar e definir fornecedor recomendado",
   "Em análise jurídica": "Emitir parecer jurídico",
   "Aguardando assinatura": "Coletar assinaturas e anexar contrato assinado",
   Suspenso: "Processo suspenso — revisar continuidade",

@@ -296,9 +296,7 @@ export type TipoProcesso =
 
 export type StatusProcesso =
   | "Rascunho"
-  | "Validação de Suprimentos"
-  | "Em cotação"
-  | "Em negociação"
+  | "Com Suprimentos"
   | "Aguardando aprovação comercial"
   | "Em análise jurídica"
   | "Aguardando assinatura"
@@ -577,6 +575,15 @@ export interface Configuracao {
   origensSaving: OrigemSaving[];
   origensOportunidade: OrigemOportunidade[];
   listasAuxiliares: Record<string, string[]>;
+  /** Etapas opcionais do processo de contratação. Ausente = desligadas. */
+  fluxoProcesso?: FluxoProcessoConfig;
+}
+
+export interface FluxoProcessoConfig {
+  /** Aprovação comercial no sistema (hoje feita no JIRA). */
+  exigirAprovacao: boolean;
+  /** Análise jurídica com parecer antes da assinatura. */
+  exigirJuridico: boolean;
 }
 
 // ---------------------------------------------------------------- Contratos de receita (clientes)

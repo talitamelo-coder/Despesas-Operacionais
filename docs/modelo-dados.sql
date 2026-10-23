@@ -90,7 +90,7 @@ CREATE TABLE processos (
   processo_id           CHAR(36)    PRIMARY KEY,
   codigo                VARCHAR(20) NOT NULL UNIQUE COMMENT 'PC-AAAA-NNNN',
   tipo                  ENUM('Nova contratação','Renovação','Substituição de fornecedor','Renegociação','Aditivo') NOT NULL,
-  status                ENUM('Rascunho','Validação de Suprimentos','Em cotação','Em negociação','Aguardando aprovação comercial','Em análise jurídica','Aguardando assinatura','Concluído','Suspenso','Cancelado') NOT NULL,
+  status                ENUM('Rascunho','Com Suprimentos','Aguardando aprovação comercial','Em análise jurídica','Aguardando assinatura','Concluído','Suspenso','Cancelado') NOT NULL COMMENT 'Aprovação e jurídico: etapas opcionais (configuracoes.fluxo_processo)',
   status_antes_suspensao VARCHAR(40) NULL,
   jira_key              VARCHAR(40) NULL,
   demanda_jira          JSON        NULL COMMENT 'Pré-cadastro recebido do JIRA (não oficial)',

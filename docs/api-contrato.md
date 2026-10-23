@@ -33,7 +33,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | POST | `/processos` | `criarProcesso` | Sempre nasce em Rascunho |
 | PATCH | `/processos/{id}` | `atualizarProcesso` | Autosave do rascunho |
 | DELETE | `/processos/{id}` | `excluirRascunho` | Só rascunho |
-| POST | `/processos/{id}/validacao` | `validarDemanda` | Validação de Suprimentos (JIRA) |
+| POST | `/processos/{id}/validacao` | `validarDemanda` | Validação de Suprimentos (JIRA). Fora do fluxo atual; mantido para histórico |
 | POST | `/processos/{id}/avancar` | `avancarProcesso` | Valida campos da etapa; em `Concluído` gera o contrato |
 | POST | `/processos/{id}/aprovacoes` | `registrarAprovacao` | `{ papel, status, comentario }` |
 | POST | `/processos/{id}/parecer` | `registrarParecer` | Jurídico |
@@ -79,7 +79,7 @@ Métodos só do modo local (sem servidor): `obterModoDados`, `iniciarBaseVazia`,
 As fórmulas estão centralizadas em `src/domain/rules/` e cobertas por testes. Para não duplicar lógica, a recomendação é portar esses arquivos para um pacote Python `dominio/` com os **mesmos casos de teste**. Outra opção é manter o cálculo só no backend e fazer o front consumir os campos calculados.
 
 - `prazos.ts`: data limite, abertura da avaliação, fase, renovação automática em risco.
-- `fluxo.ts`: etapas por tipo, campos obrigatórios por etapa, aprovações.
+- `fluxo.ts`: etapas do processo (aprovação e jurídico opcionais por configuração), campos obrigatórios por etapa, aprovações, migração de status antigos.
 - `saving.ts`, `cambio.ts`, `reajuste.ts`: saving, baseline ajustado, decomposição preço × volume × câmbio.
 - `alertas.ts`, `acoes.ts`: alertas programados, interrupção, priorização.
 - `heranca.ts`: campos herdados na renovação e na substituição.

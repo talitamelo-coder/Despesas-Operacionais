@@ -10,7 +10,7 @@ import { validarCliente } from "@/domain/rules/clientes";
 import { camposDeValorAlterados, pendenciasCadastro } from "@/domain/rules/cadastro";
 import { gerarAlertas } from "@/domain/rules/alertas";
 import { diffAuditoria } from "@/domain/rules/auditoria";
-import { aprovacoesPadrao, etapasDoProcesso, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
+import { aprovacoesPadrao, etapasDoProcesso, opcoesFluxo, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { fornecedorMascarado, normalizarFornecedor, validarFornecedor } from "@/domain/rules/fornecedor";
 import { herdarDeContrato } from "@/domain/rules/heranca";
 import { planejarImportacao, chaveLicenca, type ContextoImportacao } from "@/domain/rules/importacaoCsv";
@@ -24,7 +24,7 @@ import { temPerfil, usuarioPode, type Permissao } from "@/domain/rules/permissoe
 import { validarSaving } from "@/domain/rules/saving";
 import type { AditivoContrato, AporteSaldo, Cliente, EmissaoFaturamento, PedidoContrato, AtribuicaoLicenca, Colaborador, Contrato, Documento, Fornecedor, Licenca, LinhaTelefonica, MovimentacaoLicenca, ProcessoContratacao, RegistroAuditoria, TipoProcesso, UsoLinha, Usuario } from "@/domain/types";
 import { jiraSimulado } from "@/integrations/jira";
-import { completarEstado, criarEstadoInicial, criarEstadoVazio, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
+import { completarEstado, criarEstadoInicial, criarEstadoVazio, migrarProcessos, VERSAO_SEED, type EstadoDados } from "@/mocks/seed";
 import { ErroNegocio, ErroPermissao, type ContratosApi, type NovaMovimentacao, type NovoContratoCliente } from "../api";
 import { consultar, montarLinhas } from "../consultaCentral";
 import { notificarMudanca } from "../eventos";
@@ -466,6 +466,10 @@ export const mockApi: ContratosApi = {
     exigir(porId, "administrar");
     auditar(diffAuditoria(estado.configuracao, c, { entidade: "configuracao", entidadeId: "configuracao", usuarioId: porId, data: agora(), acao: "Configuração alterada" }, () => novoId("a")));
     estado.configuracao = clone(c);
+    // Etapa desligada: processos parados nela seguem para a próxima etapa (registrado na linha do tempo).
+    const antes = new Map(estado.processos.map((p) => [p.processo_id, p.status]));
+    estado.processos = migrarProcessos(estado.processos, opcoesFluxo(c));
+    for (const p of estado.processos) if (antes.get(p.processo_id) !== p.status) registrar("processo", p.processo_id, porId, "Etapa desligada na configuração", "status", antes.get(p.processo_id), p.status);
     persistir();
     return clone(c);
   },
@@ -547,7 +551,7 @@ export const mockApi: ContratosApi = {
       if (tipo === "Substituição de fornecedor")
         processo.motivoSubstituicao = avaliacao.problemaFornecedor === "Sim" ? `Problema com fornecedor: ${avaliacao.observacoes ?? ""}`.trim() : undefined;
       processo.status = etapasDoProcesso(processo)[1]; // já entra com Suprimentos
-      if (requisitosPara(processo.status, processo, []).length) processo.status = "Rascunho";
+      if (requisitosPara(processo.status, processo, [], opcoesFluxo(estado.configuracao)).length) processo.status = "Rascunho";
       timeline(processo, porId, `Processo de ${tipo.toLowerCase()} criado a partir da avaliação de ${c.codigo}`, "sistema");
       estado.processos.push(processo);
     }
@@ -688,14 +692,15 @@ export const mockApi: ContratosApi = {
   async avancarProcesso(id, porId) {
     exigir(porId, "editar_processo");
     const p = getProcesso(id);
-    const destino = proximoStatus(p);
+    const op = opcoesFluxo(estado.configuracao);
+    const destino = proximoStatus(p, op);
     if (!destino) throw new ErroNegocio("Não há próxima etapa para este processo.");
     const docs = estado.documentos.filter((d) => d.processo_id === id);
     if (destino === "Concluído" && p.saving) {
       const erros = validarSaving(p.saving);
       if (erros.length) return { ok: false, pendencias: erros.map((m) => ({ campo: "saving", mensagem: m })) };
     }
-    const pendencias = requisitosPara(destino, p, docs);
+    const pendencias = requisitosPara(destino, p, docs, op);
     if (pendencias.length) return { ok: false, pendencias };
 
     const anterior = p.status;

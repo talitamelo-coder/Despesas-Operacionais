@@ -12,15 +12,14 @@ import { Tabs } from "@/components/ui/Tabs";
 import { PrioridadeBadge, StatusBadge } from "@/components/ui/status";
 import { Badge } from "@/components/ui/Badge";
 import { ABAS_CENTRAL, type AbaCentral } from "@/domain/rules/central";
-import { FLUXO_POR_TIPO } from "@/domain/rules/fluxo";
+import { etapasDoProcesso, opcoesFluxo, TIPOS_PROCESSO } from "@/domain/rules/fluxo";
 import { formatarData } from "@/domain/datas";
 import { formatarMoeda } from "@/domain/formatacao";
-import type { TipoProcesso } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api, type ColunaOrdenavel, type FiltrosCentral, type LinhaCentral, type Ordenacao } from "@/services";
 
 const CHAVES_FILTRO = ["fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro"] as const;
-const STATUS_OPCOES = ["Vigente", "Suspenso", "Encerrado", "Rescindido", ...new Set(Object.values(FLUXO_POR_TIPO).flat())];
+const STATUS_CONTRATO = ["Vigente", "Suspenso", "Encerrado", "Rescindido"];
 
 function useDebounce<T>(v: T, ms: number): T {
   const [d, setD] = useState(v);
@@ -41,7 +40,8 @@ function csvDaPagina(linhas: LinhaCentral[]): string {
 export function CentralContratos() {
   const [params, setParams] = useSearchParams();
   const navegar = useNavigate();
-  const { pode, executar } = useApp();
+  const { pode, executar, cad } = useApp();
+  const statusOpcoes = [...STATUS_CONTRATO, ...etapasDoProcesso({ tipo: "Nova contratação" }, opcoesFluxo(cad.config))];
   const op = useOpcoes();
   const aba = (params.get("aba") as AbaCentral) || "Todos";
   const [busca, setBusca] = useState(params.get("busca") ?? "");
@@ -206,11 +206,11 @@ export function CentralContratos() {
             <Select rotulo="Fornecedor" opcoes={op.fornecedores} vazio="Todos" value={params.get("fornecedorId") ?? ""} onChange={(e) => setParam("fornecedorId", e.target.value)} />
             <Select rotulo="Gestor" opcoes={op.gestores} vazio="Todos" value={params.get("gestorId") ?? ""} onChange={(e) => setParam("gestorId", e.target.value)} />
             <Select rotulo="Analista" opcoes={op.analistas} vazio="Todos" value={params.get("analistaId") ?? ""} onChange={(e) => setParam("analistaId", e.target.value)} />
-            <Select rotulo="Status" opcoes={STATUS_OPCOES.map((s) => ({ valor: s, rotulo: s }))} vazio="Todos" value={params.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)} />
+            <Select rotulo="Status" opcoes={statusOpcoes.map((s) => ({ valor: s, rotulo: s }))} vazio="Todos" value={params.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)} />
             <Select rotulo="Tipo de contrato" opcoes={op.tipos} vazio="Todos" value={params.get("tipoContratoId") ?? ""} onChange={(e) => setParam("tipoContratoId", e.target.value)} />
             <Select
               rotulo="Tipo de processo"
-              opcoes={(Object.keys(FLUXO_POR_TIPO) as TipoProcesso[]).map((t) => ({ valor: t, rotulo: t }))}
+              opcoes={TIPOS_PROCESSO.map((t) => ({ valor: t, rotulo: t }))}
               vazio="Todos"
               value={params.get("tipoProcesso") ?? ""}
               onChange={(e) => setParam("tipoProcesso", e.target.value)}

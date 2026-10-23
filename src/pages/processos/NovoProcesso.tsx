@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, CloudUpload, Download, FilePlus2, 
 import { useApp, useOpcoes } from "@/app/contexto";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { GradeValores, Input, InputNumero, Select, Textarea, Valor } from "@/components/ui/Campos";
+import { GradeValores, Input, Select, Textarea, Valor } from "@/components/ui/Campos";
 import { Aviso, Etapas } from "@/components/ui/Diversos";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
@@ -17,7 +17,7 @@ import { requisitosInicio } from "@/domain/rules/fluxo";
 import { herdarDeContrato } from "@/domain/rules/heranca";
 import { formatarData } from "@/domain/datas";
 import { formatarCnpj, formatarMoeda, formatarNumero, normalizarBusca } from "@/domain/formatacao";
-import type { Contrato, DemandaJira, OrigemOportunidade, ProcessoContratacao, TipoProcesso, ValidacaoSuprimentos } from "@/domain/types";
+import type { Contrato, DemandaJira, OrigemOportunidade, ProcessoContratacao, TipoProcesso } from "@/domain/types";
 import { CHAVES_JIRA_DEMONSTRACAO } from "@/integrations/jira";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
@@ -52,7 +52,6 @@ export function NovoProcesso() {
   const [jiraKey, setJiraKey] = useState("");
   const [buscandoJira, setBuscandoJira] = useState(false);
   const [jiraErro, setJiraErro] = useState<string>();
-  const [validacao, setValidacao] = useState<ValidacaoSuprimentos>({});
   const [buscaContrato, setBuscaContrato] = useState("");
   const [tentouAvancar, setTentouAvancar] = useState(false);
   const criando = useRef<Promise<string> | null>(null);
@@ -136,7 +135,6 @@ export function NovoProcesso() {
       origemOportunidade: x.origemOportunidade ?? "Área solicitante",
       origens: { ...x.origens, jira_key: "importado", demandaJira: "importado", empresaId: empresa ? "importado" : "manual", gestorId: gestor ? "importado" : "manual", objeto: "importado" },
     }));
-    setValidacao({ valorValidado: d.valorEstimado, quantidadeValidada: d.quantidade });
   }
 
   // ---------------------------------------------------------------- Validações por passo
@@ -167,9 +165,6 @@ export function NovoProcesso() {
     } else {
       const { origens, ...resto } = dados;
       await api.atualizarProcesso(pid, { ...resto, origens }, usuario.id);
-    }
-    if (tipo === "Nova contratação" && dados.demandaJira && (validacao.valorValidado !== undefined || validacao.quantidadeValidada !== undefined) && validacao.observacao !== undefined) {
-      await executar(() => api.validarDemanda(pid!, validacao, usuario.id));
     }
     const r = await executar(() => api.avancarProcesso(pid!, usuario.id));
     // Se houver pendência não prevista, o processo abre em rascunho mostrando o que falta.
@@ -290,7 +285,7 @@ export function NovoProcesso() {
                 <Select rotulo="Origem da oportunidade" obrigatorio opcoes={op.origensOportunidade} value={dados.origemOportunidade ?? ""} onChange={(e) => set({ origemOportunidade: (e.target.value || undefined) as OrigemOportunidade }, "manual")} erro={erroCampo("origemOportunidade")} />
                 <Select rotulo="Empresa" obrigatorio opcoes={op.empresas} origem={dados.origens?.empresaId} value={dados.empresaId ?? ""} onChange={(e) => set({ empresaId: e.target.value || undefined }, "manual")} erro={erroCampo("empresaId")} />
                 <Textarea rotulo="Objeto" obrigatorio className="md:col-span-2" origem={dados.origens?.objeto} value={dados.objeto ?? ""} onChange={(e) => set({ objeto: e.target.value }, "manual")} erro={erroCampo("objeto")} />
-                <Select rotulo="Gestor" obrigatorio opcoes={op.gestores} origem={dados.origens?.gestorId} value={dados.gestorId ?? ""} onChange={(e) => set({ gestorId: e.target.value || undefined }, "manual")} erro={erroCampo("gestorId")} />
+                <Select rotulo="Gestor" opcoes={op.gestores} origem={dados.origens?.gestorId} value={dados.gestorId ?? ""} onChange={(e) => set({ gestorId: e.target.value || undefined }, "manual")} erro={erroCampo("gestorId")} />
                 <Select rotulo="Analista de Suprimentos" opcoes={op.analistas} value={dados.analistaId ?? ""} onChange={(e) => set({ analistaId: e.target.value || undefined })} />
                 {tipo === "Substituição de fornecedor" && (
                   <Textarea rotulo="Motivo da substituição" obrigatorio className="md:col-span-2" value={dados.motivoSubstituicao ?? ""} onChange={(e) => set({ motivoSubstituicao: e.target.value })} erro={erroCampo("motivoSubstituicao")} ajuda={cad.config.listasAuxiliares["Motivos de substituição"]?.join(" · ")} />
@@ -309,20 +304,6 @@ export function NovoProcesso() {
               </div>
             </CardBody>
           </Card>
-          {tipo === "Nova contratação" && dados.demandaJira && pode("validar_demanda") && (
-            <Card>
-              <CardHeader titulo="Validação de Suprimentos" subtitulo="Compare o que foi solicitado com o que Suprimentos valida. Opcional agora — pode ser feita na etapa de validação." />
-              <CardBody>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                  <Valor rotulo="Valor solicitado" origem="importado">{formatarMoeda(dados.demandaJira.valorEstimado)}</Valor>
-                  <InputNumero rotulo="Valor validado (anual, BRL)" valor={validacao.valorValidado} onValor={(v) => setValidacao((x) => ({ ...x, valorValidado: v }))} />
-                  <Valor rotulo="Quantidade solicitada" origem="importado">{formatarNumero(dados.demandaJira.quantidade)}</Valor>
-                  <InputNumero rotulo="Quantidade validada" valor={validacao.quantidadeValidada} onValor={(v) => setValidacao((x) => ({ ...x, quantidadeValidada: v }))} />
-                  <Textarea rotulo="Observação da validação" className="md:col-span-4" value={validacao.observacao ?? ""} onChange={(e) => setValidacao((x) => ({ ...x, observacao: e.target.value }))} ajuda="Preencha a observação para registrar a validação ao iniciar o processo." />
-                </div>
-              </CardBody>
-            </Card>
-          )}
           {tentouAvancar && pendenciasPasso.length > 0 && <Aviso tom="alerta" titulo="Para continuar, informe:">{pendenciasPasso.join(", ")}</Aviso>}
         </div>
       )}
@@ -341,7 +322,6 @@ export function NovoProcesso() {
               <Valor rotulo="Objeto" className="sm:col-span-2 lg:col-span-3" origem={dados.origens?.objeto}>{dados.objeto}</Valor>
               {dados.motivoSubstituicao && <Valor rotulo="Motivo da substituição" className="sm:col-span-2 lg:col-span-3">{dados.motivoSubstituicao}</Valor>}
             </GradeValores>
-            {dados.demandaJira && !validacao.observacao && <Badge tom="alerta">Não validado por Suprimentos</Badge>}
           </CardBody>
         </Card>
       )}

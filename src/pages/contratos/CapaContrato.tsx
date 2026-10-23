@@ -459,7 +459,7 @@ export function PropostasResumo({ p }: { p: ProcessoContratacao }) {
 
 export function AprovacoesResumo({ p }: { p: ProcessoContratacao }) {
   const { nomeUsuario } = useApp();
-  if (!p.aprovacoes.length) return <p className="text-sm text-texto-suave">As aprovações são geradas quando o processo entra em "Aguardando aprovação comercial".</p>;
+  if (!p.aprovacoes.length) return <p className="text-sm text-texto-suave">Sem aprovações registradas no sistema: a aprovação comercial é feita no JIRA.</p>;
   const tom = { Pendente: "alerta", Aprovado: "sucesso", Reprovado: "critico", Ciente: "info" } as const;
   return (
     <ul className="divide-y divide-borda">

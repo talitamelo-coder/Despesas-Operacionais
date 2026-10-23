@@ -51,21 +51,12 @@ describe("renovação", () => {
 });
 
 describe("processo de aditivo", () => {
-  it("bloqueia jurídico sem aprovação e aplica o aditivo ao contrato ao concluir", async () => {
+  it("fluxo padrão: sem aprovação nem jurídico no sistema; aplica o aditivo ao concluir", async () => {
     const id = "p-aditivo-nexo";
     let r = await api.avancarProcesso(id, "u-sup2");
-    expect(r.ok).toBe(false);
-    expect(r.pendencias.map((p) => p.campo)).toContain("aprovacoes");
-
-    await api.registrarAprovacao(id, "Gestor", "Aprovado", undefined, "u-ges2");
-    await api.registrarAprovacao(id, "Diretor", "Ciente", undefined, "u-dir1");
-    await api.adicionarDocumento({ processo_id: id, nome: "minuta.docx", categoria: "Minuta" }, "u-sup2");
-    r = await api.avancarProcesso(id, "u-sup2");
     expect(r.ok).toBe(true);
-    expect(r.processo?.status).toBe("Em análise jurídica");
-
-    await api.registrarParecer(id, "Parecer emitido", "De acordo.", "u-jur1");
-    expect((await api.avancarProcesso(id, "u-sup2")).processo?.status).toBe("Aguardando assinatura");
+    expect(r.processo?.status).toBe("Aguardando assinatura");
+    expect(r.processo?.aprovacoes).toEqual([]);
     expect((await api.avancarProcesso(id, "u-sup2")).ok).toBe(false); // falta contrato assinado
     await api.adicionarDocumento({ processo_id: id, nome: "aditivo-assinado.pdf", categoria: "Contrato assinado" }, "u-sup2");
     const original = await api.obterContrato("c-nexo");
@@ -78,16 +69,31 @@ describe("processo de aditivo", () => {
     expect(aud.some((a) => a.campo === "condicoes.valorAnual" && a.valorAnterior === "3840000")).toBe(true);
   });
 
+  it("etapas religadas em Administração: aprovação e jurídico voltam ao fluxo; ao desligar, o processo segue", async () => {
+    const cfg = await api.obterConfiguracao();
+    await api.salvarConfiguracao({ ...cfg, fluxoProcesso: { exigirAprovacao: true, exigirJuridico: true } }, "u-admin");
+    const id = "p-aditivo-nexo";
+    expect((await api.avancarProcesso(id, "u-sup2")).processo?.status).toBe("Aguardando aprovação comercial");
+    let r = await api.avancarProcesso(id, "u-sup2");
+    expect(r.ok).toBe(false);
+    expect(r.pendencias.map((p) => p.campo)).toContain("aprovacoes");
+    await api.registrarAprovacao(id, "Gestor", "Aprovado", undefined, "u-ges2");
+    await api.registrarAprovacao(id, "Suprimentos", "Aprovado", undefined, "u-sup2");
+    await api.adicionarDocumento({ processo_id: id, nome: "minuta.docx", categoria: "Minuta" }, "u-sup2");
+    r = await api.avancarProcesso(id, "u-sup2");
+    expect(r.processo?.status).toBe("Em análise jurídica");
+    expect((await api.avancarProcesso(id, "u-sup2")).pendencias.map((p) => p.campo)).toEqual(["juridico"]);
+    // Desliga o jurídico: o processo parado nele segue para assinatura, com registro.
+    await api.salvarConfiguracao({ ...cfg, fluxoProcesso: { exigirAprovacao: true, exigirJuridico: false } }, "u-admin");
+    const p = await api.obterProcesso(id);
+    expect(p?.status).toBe("Aguardando assinatura");
+    expect(p?.timeline.at(-1)?.descricao).toMatch(/desligada/);
+  });
+
   it("renovação concluída gera novo código vinculado e mantém o anterior", async () => {
     const id = "p-renov-link";
     await api.atualizarProcesso(id, { justificativa: "Melhor proposta", tipoContratoId: "t-tel" }, "u-sup1");
-    expect((await api.avancarProcesso(id, "u-sup1")).processo?.status).toBe("Aguardando aprovação comercial");
-    await api.registrarAprovacao(id, "Gestor", "Aprovado", undefined, "u-ges1");
-    await api.registrarAprovacao(id, "Suprimentos", "Aprovado", undefined, "u-sup1");
-    await api.adicionarDocumento({ processo_id: id, nome: "minuta.docx", categoria: "Minuta" }, "u-sup1");
-    await api.avancarProcesso(id, "u-sup1");
-    await api.registrarParecer(id, "Parecer emitido", "Ok", "u-jur1");
-    await api.avancarProcesso(id, "u-sup1");
+    expect((await api.avancarProcesso(id, "u-sup1")).processo?.status).toBe("Aguardando assinatura");
     await api.adicionarDocumento({ processo_id: id, nome: "assinado.pdf", categoria: "Contrato assinado" }, "u-sup1");
     const r = await api.avancarProcesso(id, "u-sup1");
     expect(r.ok).toBe(true);
@@ -100,6 +106,19 @@ describe("processo de aditivo", () => {
   });
 });
 
+describe("migração do fluxo", () => {
+  it("backup com status antigos volta com as etapas atuais e registro na linha do tempo", async () => {
+    const bk = JSON.parse(await api.exportarBackup("u-admin"));
+    const pr = bk.estado.processos.find((x: { processo_id: string }) => x.processo_id === "p-renov-link");
+    pr.status = "Em negociação";
+    delete bk.estado.configuracao.fluxoProcesso;
+    await api.importarBackup(JSON.stringify(bk), "u-admin");
+    const p = await api.obterProcesso("p-renov-link");
+    expect(p?.status).toBe("Com Suprimentos");
+    expect(p?.timeline.at(-1)?.descricao).toBe("Fluxo simplificado: etapa Em negociação passou a Com Suprimentos");
+  });
+});
+
 describe("substituição", () => {
   it("substituição marca o anterior como substituído sem alterá-lo", async () => {
     const p = await api.criarProcesso(
@@ -107,7 +126,7 @@ describe("substituição", () => {
       { contrato_anterior_id: "c-normal", origemOportunidade: "Suprimentos", empresaId: "e-hold", objeto: "Limpeza", gestorId: "u-ges3", analistaId: "u-sup2", tipoContratoId: "t-fac", motivoSubstituicao: "SLA" },
       "u-sup2",
     );
-    expect((await api.avancarProcesso(p.processo_id, "u-sup2")).processo?.status).toBe("Em cotação");
+    expect((await api.avancarProcesso(p.processo_id, "u-sup2")).processo?.status).toBe("Com Suprimentos");
     const antes = await api.obterContrato("c-normal");
     expect(antes?.sucessor_id).toBeUndefined();
   });

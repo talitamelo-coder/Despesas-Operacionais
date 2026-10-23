@@ -1,6 +1,6 @@
 import { addDias, anoDe, hoje } from "@/domain/datas";
 import { gerarCodigo } from "@/domain/codigos";
-import { aprovacoesPadrao } from "@/domain/rules/fluxo";
+import { migrarEtapa, opcoesFluxo } from "@/domain/rules/fluxo";
 import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
@@ -33,6 +33,7 @@ import type {
   RegistroAuditoria,
   TipoContrato,
   Usuario,
+  FluxoProcessoConfig,
 } from "@/domain/types";
 
 /**
@@ -84,6 +85,16 @@ export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLic
  * O controle de licenças da versão anterior (produtosLicenca/atribuicoes) é descartado: a v1 começa vazia.
  * O perfil "TI" deixou de existir: vira Solicitante (só consulta).
  */
+/** Processos em etapas que não existem mais (ou desligadas) seguem para a etapa vigente, com registro na linha do tempo. */
+export function migrarProcessos(processos: ProcessoContratacao[], op: FluxoProcessoConfig): ProcessoContratacao[] {
+  return processos.map((p) => {
+    const m = migrarEtapa(p, op);
+    if (!m) return p;
+    const evento = { id: `tl-mig-${p.processo_id}-${p.timeline.length}`, data: new Date().toISOString(), usuarioId: "sistema", descricao: m.descricao, tipo: "sistema" as const };
+    return { ...p, status: m.status, statusAntesSuspensao: m.statusAntesSuspensao, timeline: [...p.timeline, evento] };
+  });
+}
+
 export function completarEstado(e: EstadoDados): EstadoDados {
   const { produtosLicenca: _p, atribuicoes: _a, ...resto } = e as EstadoDados & { produtosLicenca?: unknown; atribuicoes?: unknown };
   const r = { ...resto } as EstadoDados;
@@ -97,6 +108,7 @@ export function completarEstado(e: EstadoDados): EstadoDados {
   r.aportesSaldo = e.aportesSaldo ?? [];
   if (r.configuracao && !r.configuracao.listasAuxiliares?.Unidades) r.configuracao = { ...r.configuracao, listasAuxiliares: { ...r.configuracao.listasAuxiliares, Unidades: UNIDADES_PADRAO } };
   r.usuarios = e.usuarios.map((u) => ((u.perfil as string) === "TI" ? { ...u, perfil: "Solicitante" } : u));
+  r.processos = migrarProcessos(e.processos, opcoesFluxo(r.configuracao));
   return r;
 }
 
@@ -304,7 +316,7 @@ export function criarEstadoInicial(): EstadoDados {
     processo_id: "p-renov-link",
     codigo: codigo("PC", addDias(H, -11)),
     tipo: "Renovação",
-    status: "Em negociação",
+    status: "Com Suprimentos",
     contrato_anterior_id: cLink3.contrato_id,
     ...linkBase,
     origemOportunidade: "Suprimentos",
@@ -332,7 +344,7 @@ export function criarEstadoInicial(): EstadoDados {
     timeline: [
       { id: "tl-1", data: new Date(Date.now() - 12 * 86400000).toISOString(), usuarioId: "u-ges1", descricao: "Gestor respondeu a avaliação: deseja renovar", tipo: "sistema" },
       { id: "tl-2", data: new Date(Date.now() - 11 * 86400000).toISOString(), usuarioId: "u-sup1", descricao: `Processo de renovação criado a partir de ${cLink3.codigo}`, tipo: "status" },
-      { id: "tl-3", data: new Date(Date.now() - 6 * 86400000).toISOString(), usuarioId: "u-sup1", descricao: "Status alterado para Em negociação", tipo: "status" },
+      { id: "tl-3", data: new Date(Date.now() - 6 * 86400000).toISOString(), usuarioId: "u-sup1", descricao: "Status alterado para Com Suprimentos", tipo: "status" },
     ],
     origens: { empresaId: "herdado", objeto: "herdado", gestorId: "herdado", diretorId: "herdado", centroCusto: "herdado", projeto: "herdado", tipoContratoId: "herdado", "condicoes.moeda": "herdado", "condicoes.condicaoPagamento": "herdado", reajuste: "herdado", rescisao: "herdado", "vigencia.avisoPrevioDias": "herdado", "saving.baselineAnual": "calculado" },
     criadoEm: new Date(Date.now() - 11 * 86400000).toISOString(),
@@ -458,12 +470,12 @@ export function criarEstadoInicial(): EstadoDados {
   doc({ contrato_id: cEixo.contrato_id, nome: `${cEixo.codigo}-contrato-assinado.pdf`, categoria: "Contrato assinado", usuarioId: "u-sup1", diasAtras: 35 });
   doc({ processo_id: "p-subst-eixo", nome: "parecer-juridico-manutencao.pdf", categoria: "Parecer", usuarioId: "u-jur1", diasAtras: 45 });
 
-  // ------------------------------------------------------------ 5. Em análise jurídica (nova contratação via JIRA)
+  // ------------------------------------------------------------ 5. Aguardando assinatura (nova contratação via JIRA; aprovação feita no JIRA)
   const pJur: ProcessoContratacao = {
     processo_id: "p-juridico-crm",
     codigo: codigo("PC", addDias(H, -48)),
     tipo: "Nova contratação",
-    status: "Em análise jurídica",
+    status: "Aguardando assinatura",
     jira_key: "COMP-1244",
     demandaJira: {
       jira_key: "COMP-1244",
@@ -507,13 +519,13 @@ export function criarEstadoInicial(): EstadoDados {
       { papel: "Suprimentos", tipo: "Aprovação", status: "Aprovado", usuarioId: "u-sup2", data: new Date(Date.now() - 9 * 86400000).toISOString() },
       { papel: "Diretor", tipo: "Ciência", status: "Ciente", usuarioId: "u-dir1", data: new Date(Date.now() - 8 * 86400000).toISOString() },
     ],
-    juridico: { status: "Em análise", responsavelId: "u-jur1" },
-    assinatura: { status: "Não iniciada" },
+    juridico: { status: "Não iniciado" },
+    assinatura: { status: "Enviado para assinatura" },
     timeline: [
       { id: "tl-j1", data: new Date(Date.now() - 48 * 86400000).toISOString(), usuarioId: "u-sup2", descricao: "Processo criado a partir do JIRA COMP-1244", tipo: "status" },
       { id: "tl-j2", data: new Date(Date.now() - 45 * 86400000).toISOString(), usuarioId: "u-sup2", descricao: "Demanda validada por Suprimentos (120 usuários, R$ 468.000)", tipo: "status" },
       { id: "tl-j3", data: new Date(Date.now() - 9 * 86400000).toISOString(), usuarioId: "u-sup2", descricao: "Aprovação comercial concluída", tipo: "aprovacao" },
-      { id: "tl-j4", data: new Date(Date.now() - 7 * 86400000).toISOString(), usuarioId: "u-sup2", descricao: "Status alterado para Em análise jurídica", tipo: "status" },
+      { id: "tl-j4", data: new Date(Date.now() - 7 * 86400000).toISOString(), usuarioId: "u-sup2", descricao: "Status alterado para Aguardando assinatura", tipo: "status" },
     ],
     origens: { jira_key: "importado", "demandaJira": "importado", "validacao.valorValidado": "validado", "validacao.quantidadeValidada": "validado", empresaId: "validado", gestorId: "validado" },
     criadoEm: new Date(Date.now() - 48 * 86400000).toISOString(),
@@ -646,7 +658,7 @@ export function criarEstadoInicial(): EstadoDados {
     processo_id: "p-aditivo-nexo",
     codigo: codigo("PC", addDias(H, -15)),
     tipo: "Aditivo",
-    status: "Aguardando aprovação comercial",
+    status: "Com Suprimentos",
     contrato_anterior_id: cNexo.contrato_id,
     empresaId: "e-serv",
     objeto: "Aditivo — ampliação para 100 posições (Black Friday e Natal)",
@@ -681,16 +693,15 @@ export function criarEstadoInicial(): EstadoDados {
     atualizadoEm: new Date(Date.now() - 1 * 86400000).toISOString(),
     criadoPorId: "u-sup2",
   };
-  pAditivo.aprovacoes = aprovacoesPadrao(pAditivo).map((a) => (a.papel === "Suprimentos" ? { ...a, status: "Aprovado", data: new Date(Date.now() - 86400000).toISOString() } : a));
   processos.push(pAditivo);
   doc({ processo_id: pAditivo.processo_id, nome: "proposta-nexo-100-posicoes.pdf", categoria: "Proposta", usuarioId: "u-sup2", diasAtras: 6 });
 
-  // ------------------------------------------------------------ Nova contratação aguardando validação de Suprimentos
+  // ------------------------------------------------------------ Nova contratação recém-chegada do JIRA, com Suprimentos
   processos.push({
     processo_id: "p-validacao-ura",
     codigo: codigo("PC", addDias(H, -3)),
     tipo: "Nova contratação",
-    status: "Validação de Suprimentos",
+    status: "Com Suprimentos",
     jira_key: "COMP-1287",
     demandaJira: {
       jira_key: "COMP-1287",
@@ -866,6 +877,8 @@ export function criarEstadoInicial(): EstadoDados {
     auditoria,
     configuracao: {
       regrasAlerta: { ...REGRAS_ALERTA_PADRAO },
+      // Aprovação feita no JIRA; jurídico fora do fluxo por enquanto.
+      fluxoProcesso: { exigirAprovacao: false, exigirJuridico: false },
       moedas: ["BRL", "USD", "EUR"],
       periodicidades: ["Mensal", "Trimestral", "Semestral", "Anual", "Pagamento único"],
       fontesCotacao: ["PTAX", "Cartão de crédito", "Taxa contratual", "Cotação fornecedor", "Outro"],

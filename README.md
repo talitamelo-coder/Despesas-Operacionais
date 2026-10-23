@@ -89,15 +89,15 @@ O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × du
 | Cenário | Onde ver |
 |---|---|
 | Contrato vigente normal | Prisma Facilities (limpeza predial) |
-| Renovação em andamento, com cadeia de 3 contratos | LinkSul: dois contratos encerrados → vigente → processo de renovação em negociação |
+| Renovação em andamento, com cadeia de 3 contratos | LinkSul: dois contratos encerrados → vigente → processo de renovação com Suprimentos |
 | Renovação automática em risco | Vértice Segurança (vigilância 24x7) |
 | Troca de fornecedor com saving composto | Brisa → Eixo Engenharia (R$ 350 mil: troca de fornecedor + negociação + escopo) |
-| Contrato em análise jurídica | CRM Orbital, vindo do JIRA COMP-1244 |
+| Aguardando assinatura (aprovado no JIRA) | CRM Orbital, vindo do JIRA COMP-1244 |
 | Contrato encerrado | Pixel Gráfica |
 | Moeda estrangeira (USD, PTAX) | Global Seat Licensing |
 | Reajuste evitado (baseline ajustado) | DataForte: R$ 1,0 mi + 5% → saving de R$ 50 mil |
-| Demanda JIRA aguardando validação | URA/discador, COMP-1287 |
-| Aditivo aguardando aprovação comercial | Nexo Contact Center |
+| Demanda JIRA recém-chegada, com Suprimentos | URA/discador, COMP-1287 |
+| Aditivo pronto para assinatura | Nexo Contact Center |
 
 Há também cerca de 140 contratos de fundo para testar volume, filtros e ordenação. Todos os nomes, CNPJs e valores são **fictícios**.
 
@@ -123,8 +123,8 @@ docs/
 2. **"Renovação automática em risco"** aparece quando faltam **30 dias ou menos para a data limite de manifestação** e o ciclo não foi resolvido formalmente. O prazo é configurável em Administração → Regras de alertas.
 3. **"Data limite próxima"** corresponde aos últimos **15 dias** antes da data limite.
 4. **Lembrete de 60 dias.** Com o prazo padrão do gestor (30 dias), ele cai *antes* da abertura da avaliação, porque segue literalmente "60 dias restantes para a data limite". Confirmar se a intenção era essa ou "60 dias para o fim".
-5. **Ciência do diretor** não bloqueia o envio ao Jurídico. Só as aprovações (Gestor, Suprimentos e Diretor em exceção) bloqueiam.
-6. **Assinatura** só começa depois do parecer jurídico emitido (com ou sem ressalvas).
+5. **Fluxo do processo**: Rascunho → Com Suprimentos → Aguardando assinatura → Concluído, para todos os tipos. A aprovação comercial é feita no JIRA e o jurídico está fora do fluxo; as duas etapas podem ser religadas em Administração → Processo de contratação. Ligadas, a ciência do diretor não bloqueia e a assinatura só começa depois do parecer jurídico.
+6. **Gestor** não é obrigatório para abrir o processo (os gestores ainda não estão no sistema). Contrato gerado sem gestor entra com a pendência "Gestor".
 7. **Aditivo concluído** altera o próprio contrato (mesmo código), com auditoria do valor anterior e do novo. **Renovação e substituição** sempre geram um código novo, vinculado ao anterior.
 8. A **resposta do gestor** à avaliação cria automaticamente o processo de renovação ou substituição para Suprimentos.
 9. **Importação** aceita CSV (a planilha exportada como CSV). A leitura direta de `.xlsx` fica para uma próxima entrega.

@@ -14,12 +14,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Input, InputNumero, Select, Toggle } from "@/components/ui/Campos";
-import { Aviso } from "@/components/ui/Diversos";
+import { Aviso, Etapas } from "@/components/ui/Diversos";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Tabela } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
+import { etapasDoProcesso, opcoesFluxo } from "@/domain/rules/fluxo";
 import { CAMPOS_IMPORTACAO, chaveDuplicidade, identificadorFornecedor, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
 import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
@@ -33,6 +34,7 @@ const ABAS = [
   { id: "tipos", rotulo: "Tipos de contrato" },
   { id: "listas", rotulo: "Listas e parâmetros" },
   { id: "alertas", rotulo: "Regras de alertas" },
+  { id: "processo", rotulo: "Processo de contratação" },
   { id: "importacao", rotulo: "Importação da planilha" },
   { id: "auditoria", rotulo: "Auditoria" },
 ] as const;
@@ -64,6 +66,7 @@ export function Administracao() {
       {aba === "tipos" && <Tipos />}
       {aba === "listas" && <Listas />}
       {aba === "alertas" && <RegrasAlertas />}
+      {aba === "processo" && <FluxoProcesso />}
       {aba === "importacao" && <Importacao />}
       {aba === "auditoria" && (
         <Card>
@@ -456,6 +459,27 @@ function Listas() {
         ))}
       </div>
     </div>
+  );
+}
+
+function FluxoProcesso() {
+  const { cfg, setCfg, sujo, salvar } = useConfigEditavel();
+  const f = opcoesFluxo(cfg);
+  const set = (p: Partial<typeof f>) => setCfg({ ...cfg, fluxoProcesso: { ...f, ...p } });
+  return (
+    <Card>
+      <CardHeader titulo="Etapas do processo de contratação" acoes={<Button icone={<Save size={16} />} disabled={!sujo} onClick={salvar}>Salvar</Button>} />
+      <CardBody className="space-y-5">
+        <Etapas etapas={etapasDoProcesso({ tipo: "Nova contratação" }, f)} atual={-1} />
+        <div className="flex flex-wrap gap-6">
+          <Toggle rotulo="Exigir aprovação comercial no sistema" ajuda="Gestor e Suprimentos aprovam; Diretor dá ciência. Desligada: a aprovação é feita no JIRA" checked={f.exigirAprovacao} onChange={(v) => set({ exigirAprovacao: v })} />
+          <Toggle rotulo="Exigir análise jurídica" ajuda="Minuta anexada e parecer do Jurídico antes da assinatura" checked={f.exigirJuridico} onChange={(v) => set({ exigirJuridico: v })} />
+        </div>
+        <Aviso tom="info">
+          Vale para todos os tipos de processo. Ao desligar uma etapa, os processos parados nela seguem para a etapa seguinte, com registro na linha do tempo e na auditoria.
+        </Aviso>
+      </CardBody>
+    </Card>
   );
 }
 
