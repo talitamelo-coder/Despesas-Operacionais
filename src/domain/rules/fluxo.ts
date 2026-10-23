@@ -6,6 +6,7 @@ import type {
   ProcessoContratacao,
   PropostaFornecedor,
   StatusProcesso,
+  TipoAditivo,
   TipoProcesso,
 } from "../types";
 
@@ -24,7 +25,10 @@ const ORDEM_ETAPAS: StatusProcesso[] = [
   "Concluído",
 ];
 
-export const TIPOS_PROCESSO: TipoProcesso[] = ["Nova contratação", "Renovação", "Substituição de fornecedor", "Renegociação", "Aditivo"];
+/** Tipos oferecidos. Renegociação entra como Aditivo (tipo de aditivo "Renegociação"): altera o próprio contrato. */
+export const TIPOS_PROCESSO: TipoProcesso[] = ["Nova contratação", "Renovação", "Substituição de fornecedor", "Aditivo"];
+
+export const TIPOS_ADITIVO: TipoAditivo[] = ["Valor", "Prazo", "Valor e prazo", "Escopo", "Renegociação"];
 
 /**
  * Etapas opcionais ligadas em Administração. Padrão: desligadas — a aprovação é feita no JIRA
@@ -63,6 +67,15 @@ export function indiceEtapa(p: Pick<ProcessoContratacao, "tipo" | "status" | "st
   const i = ORDEM_ETAPAS.indexOf(status);
   // Etapa desligada: mostra a última etapa ligada anterior.
   return i < 0 ? -1 : ORDEM_ETAPAS.slice(0, i + 1).filter((s) => etapaLigada(s, op)).length - 1;
+}
+
+/**
+ * Processo de renegociação em andamento vira Aditivo (tipo "Renegociação"): ao concluir, altera o próprio
+ * contrato. Processos encerrados mantêm o tipo original (histórico).
+ */
+export function migrarTipo(p: Pick<ProcessoContratacao, "tipo" | "status" | "tipoAditivo">): { tipo: TipoProcesso; tipoAditivo?: TipoAditivo; descricao: string } | undefined {
+  if (p.tipo !== "Renegociação" || !processoAtivo(p)) return undefined;
+  return { tipo: "Aditivo", tipoAditivo: p.tipoAditivo ?? "Renegociação", descricao: "Renegociação passou a ser tratada como Aditivo (tipo Renegociação): ao concluir, altera o próprio contrato" };
 }
 
 /** Status antigos (fluxo anterior) → etapa atual. */

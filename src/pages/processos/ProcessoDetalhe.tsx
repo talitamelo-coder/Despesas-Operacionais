@@ -15,10 +15,10 @@ import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/status";
 import { converterParaBRL } from "@/domain/rules/cambio";
-import { etapasDoProcesso, indiceEtapa, opcoesFluxo, processoAtivo, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
+import { etapasDoProcesso, indiceEtapa, opcoesFluxo, processoAtivo, TIPOS_ADITIVO, propostaRecomendada, proximoStatus, requisitosPara, valorNegociado } from "@/domain/rules/fluxo";
 import { formatarDataHora } from "@/domain/datas";
 import { formatarMoeda, formatarNumero } from "@/domain/formatacao";
-import type { Documento, FonteCotacao, Moeda, Periodicidade, ProcessoContratacao, PropostaFornecedor, StatusJuridico, TipoVigencia } from "@/domain/types";
+import type { Documento, FonteCotacao, Moeda, Periodicidade, ProcessoContratacao, PropostaFornecedor, StatusJuridico, TipoAditivo, TipoVigencia } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
 import { AprovacoesResumo } from "../contratos/CapaContrato";
@@ -89,7 +89,7 @@ export function ProcessoDetalhe() {
         migalhas={[{ rotulo: "Central de Contratos", para: "/contratos?aba=Em contratação" }, { rotulo: p.codigo }]}
         titulo={
           <span className="flex flex-wrap items-center gap-2">
-            {p.codigo} <StatusBadge status={p.status} /> <Badge tom="primario">{p.tipo}</Badge>
+            {p.codigo} <StatusBadge status={p.status} /> <Badge tom="primario">{p.tipo}{p.tipoAditivo ? ` · ${p.tipoAditivo}` : ""}</Badge>
           </span>
         }
         descricao={
@@ -284,6 +284,7 @@ function SecaoDadosGerais({ edit, set, editavel }: Props) {
             <Toggle rotulo="Processo de exceção" ajuda="Diretor passa a aprovar (e não só dar ciência)" disabled={!editavel || edit.status === "Aguardando aprovação comercial"} checked={Boolean(edit.excecao)} onChange={(v) => set({ excecao: v })} />
           </div>
         )}
+        {edit.tipo === "Aditivo" && <Select rotulo="Tipo de aditivo" disabled={!editavel} opcoes={TIPOS_ADITIVO.map((t) => ({ valor: t, rotulo: t }))} value={edit.tipoAditivo ?? ""} onChange={(e) => set({ tipoAditivo: (e.target.value || undefined) as TipoAditivo })} />}
         {edit.tipo === "Substituição de fornecedor" && <Textarea rotulo="Motivo da substituição" obrigatorio className="md:col-span-3" disabled={!editavel} value={edit.motivoSubstituicao ?? ""} onChange={(e) => set({ motivoSubstituicao: e.target.value })} />}
       </div>
     </Secao>

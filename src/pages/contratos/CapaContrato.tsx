@@ -391,9 +391,9 @@ export function CapaContrato() {
             <Bloco titulo="Iniciar novo processo a partir deste contrato">
               <p className="mb-3 text-sm text-texto-suave">Os dados do contrato são herdados automaticamente e podem ser editados no novo processo. O contrato atual nunca é sobrescrito.</p>
               <div className="flex flex-wrap gap-2">
-                {(["Renovação", "Substituição de fornecedor", "Renegociação", "Aditivo"] as TipoProcesso[]).map((t) => (
+                {(["Renovação", "Substituição de fornecedor", "Aditivo"] as TipoProcesso[]).map((t) => (
                   <Button key={t} variante="secundario" onClick={() => iniciar(t)}>
-                    {t}
+                    {t === "Aditivo" ? "Aditivo (inclui renegociação)" : t}
                   </Button>
                 ))}
               </div>

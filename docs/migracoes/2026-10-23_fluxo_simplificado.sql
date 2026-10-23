@@ -23,3 +23,9 @@ ALTER TABLE processos MODIFY status ENUM(
 INSERT INTO configuracoes (chave, valor) VALUES ('fluxo_processo', JSON_OBJECT('exigirAprovacao', false, 'exigirJuridico', false))
   ON DUPLICATE KEY UPDATE chave = chave;
 -- Registre cada processo migrado na linha do tempo e na auditoria (no mock: migrarProcessos em src/mocks/seed.ts).
+
+-- Renegociação passa a ser um Aditivo (tipo_aditivo = 'Renegociação'): ao concluir, altera o próprio contrato.
+-- Processos encerrados mantêm o tipo original (histórico).
+ALTER TABLE processos ADD COLUMN tipo_aditivo ENUM('Valor','Prazo','Valor e prazo','Escopo','Renegociação') NULL AFTER tipo;
+UPDATE processos SET tipo = 'Aditivo', tipo_aditivo = 'Renegociação'
+ WHERE tipo = 'Renegociação' AND status NOT IN ('Concluído','Cancelado');

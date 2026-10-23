@@ -7,12 +7,13 @@ import { Modal } from "@/components/ui/Modal";
 import { Tabela } from "@/components/ui/Tabela";
 import { formatarData, hoje } from "@/domain/datas";
 import { formatarMoeda } from "@/domain/formatacao";
+import { TIPOS_ADITIVO } from "@/domain/rules/fluxo";
 import { aplicarAditivoRegistrado, receitaMensalNaData, valorMensalFixoNaData, type NovoAditivo } from "@/domain/rules/receita";
 import type { Contrato, TipoAditivo } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
 
-const TIPOS: TipoAditivo[] = ["Valor", "Prazo", "Valor e prazo", "Escopo", "Renegociação"];
+const TIPOS = TIPOS_ADITIVO;
 
 /** Registro de aditivo: a única forma de mudar valor ou prazo de um contrato já registrado. */
 export function AditivoModal({ c, onFechar }: { c: Contrato; onFechar: () => void }) {

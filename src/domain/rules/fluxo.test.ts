@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aprovacaoComercialConcluida, aprovacoesPadrao, etapasDoProcesso, indiceEtapa, migrarEtapa, proximoStatus, requisitosPara } from "./fluxo";
+import { aprovacaoComercialConcluida, aprovacoesPadrao, etapasDoProcesso, indiceEtapa, migrarEtapa, migrarTipo, TIPOS_PROCESSO, proximoStatus, requisitosPara } from "./fluxo";
 import type { ProcessoContratacao } from "../types";
 
 function processo(over: Partial<ProcessoContratacao> = {}): ProcessoContratacao {
@@ -72,6 +72,13 @@ describe("fluxo do processo", () => {
     expect(s).toMatchObject({ status: "Suspenso", statusAntesSuspensao: "Com Suprimentos" });
     expect(migrarEtapa({ tipo, status: "Com Suprimentos" }, desligado)).toBeUndefined();
     expect(migrarEtapa({ tipo, status: "Em análise jurídica" }, tudo)).toBeUndefined();
+  });
+
+  it("renegociação não é mais um tipo: entra como Aditivo; encerradas mantêm o histórico", () => {
+    expect(TIPOS_PROCESSO).not.toContain("Renegociação");
+    expect(migrarTipo({ tipo: "Renegociação", status: "Com Suprimentos" })).toMatchObject({ tipo: "Aditivo", tipoAditivo: "Renegociação" });
+    expect(migrarTipo({ tipo: "Renegociação", status: "Concluído" })).toBeUndefined();
+    expect(migrarTipo({ tipo: "Aditivo", status: "Com Suprimentos" })).toBeUndefined();
   });
 
   it("etapa desligada aparece na última etapa ligada anterior", () => {

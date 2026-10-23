@@ -64,7 +64,7 @@ Menu próprio, separado das licenças. Linha com número, operadora, plano, fran
 
 ### Papel do módulo de contratos
 
-Três funções: **registro do contrato, saldo e valores contratados**. Pedidos, Contas a pagar e Contas a receber fazem o resto, respeitando o que foi contratado. Depois da contratação, valor e prazo só mudam por **aditivo**, renegociação ou novo contrato: a edição direta fica liberada apenas para completar cadastro importado.
+Três funções: **registro do contrato, saldo e valores contratados**. Pedidos, Contas a pagar e Contas a receber fazem o resto, respeitando o que foi contratado. Depois da contratação, valor e prazo só mudam por **aditivo** (inclusive renegociação) ou novo contrato: a edição direta fica liberada apenas para completar cadastro importado.
 
 ### Contratos de clientes
 
@@ -125,7 +125,7 @@ docs/
 4. **Lembrete de 60 dias.** Com o prazo padrão do gestor (30 dias), ele cai *antes* da abertura da avaliação, porque segue literalmente "60 dias restantes para a data limite". Confirmar se a intenção era essa ou "60 dias para o fim".
 5. **Fluxo do processo**: Rascunho → Com Suprimentos → Aguardando assinatura → Concluído, para todos os tipos. A aprovação comercial é feita no JIRA e o jurídico está fora do fluxo; as duas etapas podem ser religadas em Administração → Processo de contratação. Ligadas, a ciência do diretor não bloqueia e a assinatura só começa depois do parecer jurídico.
 6. **Gestor** não é obrigatório para abrir o processo (os gestores ainda não estão no sistema). Contrato gerado sem gestor entra com a pendência "Gestor".
-7. **Aditivo concluído** altera o próprio contrato (mesmo código), com auditoria do valor anterior e do novo. **Renovação e substituição** sempre geram um código novo, vinculado ao anterior.
+7. **Aditivo concluído** altera o próprio contrato (mesmo código), com auditoria do valor anterior e do novo. **Renegociação** não é mais um tipo separado: é um Aditivo com tipo "Renegociação" (preço, condições, reajuste). **Renovação e substituição** sempre geram um código novo, vinculado ao anterior.
 8. A **resposta do gestor** à avaliação cria automaticamente o processo de renovação ou substituição para Suprimentos.
 9. **Importação** aceita CSV (a planilha exportada como CSV). A leitura direta de `.xlsx` fica para uma próxima entrega.
 10. **Documentos.** No MVP só os metadados e as versões são registrados. O arquivo não é armazenado.

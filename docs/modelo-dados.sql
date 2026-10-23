@@ -89,7 +89,8 @@ CREATE TABLE configuracoes (
 CREATE TABLE processos (
   processo_id           CHAR(36)    PRIMARY KEY,
   codigo                VARCHAR(20) NOT NULL UNIQUE COMMENT 'PC-AAAA-NNNN',
-  tipo                  ENUM('Nova contratação','Renovação','Substituição de fornecedor','Renegociação','Aditivo') NOT NULL,
+  tipo                  ENUM('Nova contratação','Renovação','Substituição de fornecedor','Renegociação','Aditivo') NOT NULL COMMENT 'Renegociação: só legado; hoje é Aditivo + tipo_aditivo',
+  tipo_aditivo          ENUM('Valor','Prazo','Valor e prazo','Escopo','Renegociação') NULL,
   status                ENUM('Rascunho','Com Suprimentos','Aguardando aprovação comercial','Em análise jurídica','Aguardando assinatura','Concluído','Suspenso','Cancelado') NOT NULL COMMENT 'Aprovação e jurídico: etapas opcionais (configuracoes.fluxo_processo)',
   status_antes_suspensao VARCHAR(40) NULL,
   jira_key              VARCHAR(40) NULL,

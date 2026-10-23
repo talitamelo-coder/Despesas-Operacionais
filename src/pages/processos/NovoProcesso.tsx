@@ -13,11 +13,11 @@ import { Badge } from "@/components/ui/Badge";
 import { OrigemTag } from "@/components/ui/status";
 import { cn } from "@/components/ui/cn";
 import { valorAnualBRL } from "@/domain/rules/cambio";
-import { requisitosInicio } from "@/domain/rules/fluxo";
+import { requisitosInicio, TIPOS_ADITIVO } from "@/domain/rules/fluxo";
 import { herdarDeContrato } from "@/domain/rules/heranca";
 import { formatarData } from "@/domain/datas";
 import { formatarCnpj, formatarMoeda, formatarNumero, normalizarBusca } from "@/domain/formatacao";
-import type { Contrato, DemandaJira, OrigemOportunidade, ProcessoContratacao, TipoProcesso } from "@/domain/types";
+import type { Contrato, DemandaJira, OrigemOportunidade, ProcessoContratacao, TipoAditivo, TipoProcesso } from "@/domain/types";
 import { CHAVES_JIRA_DEMONSTRACAO } from "@/integrations/jira";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
@@ -26,8 +26,7 @@ const TIPOS: { tipo: TipoProcesso; icone: typeof FilePlus2; descricao: string }[
   { tipo: "Nova contratação", icone: FilePlus2, descricao: "A partir de uma demanda do JIRA. Dados chegam como pré-cadastro." },
   { tipo: "Renovação", icone: RefreshCw, descricao: "Novo contrato com o mesmo fornecedor, herdando os dados do vigente." },
   { tipo: "Substituição de fornecedor", icone: Repeat, descricao: "Novo processo para trocar o fornecedor de um contrato vigente." },
-  { tipo: "Aditivo", icone: Wrench, descricao: "Alteração de escopo, quantidade ou prazo de um contrato vigente." },
-  { tipo: "Renegociação", icone: RefreshCw, descricao: "Revisão de condições comerciais sem trocar o fornecedor." },
+  { tipo: "Aditivo", icone: Wrench, descricao: "Alteração de valor, escopo, quantidade ou prazo de um contrato vigente, inclusive renegociação das condições. Altera o próprio contrato." },
 ];
 
 const PASSOS = ["Tipo", "Origem", "Dados do processo", "Revisão"];
@@ -287,6 +286,9 @@ export function NovoProcesso() {
                 <Textarea rotulo="Objeto" obrigatorio className="md:col-span-2" origem={dados.origens?.objeto} value={dados.objeto ?? ""} onChange={(e) => set({ objeto: e.target.value }, "manual")} erro={erroCampo("objeto")} />
                 <Select rotulo="Gestor" opcoes={op.gestores} origem={dados.origens?.gestorId} value={dados.gestorId ?? ""} onChange={(e) => set({ gestorId: e.target.value || undefined }, "manual")} erro={erroCampo("gestorId")} />
                 <Select rotulo="Analista de Suprimentos" opcoes={op.analistas} value={dados.analistaId ?? ""} onChange={(e) => set({ analistaId: e.target.value || undefined })} />
+                {tipo === "Aditivo" && (
+                  <Select rotulo="Tipo de aditivo" opcoes={TIPOS_ADITIVO.map((t) => ({ valor: t, rotulo: t }))} value={dados.tipoAditivo ?? ""} onChange={(e) => set({ tipoAditivo: (e.target.value || undefined) as TipoAditivo })} ajuda="Renegociação: revisão de preço e condições com o mesmo fornecedor" />
+                )}
                 {tipo === "Substituição de fornecedor" && (
                   <Textarea rotulo="Motivo da substituição" obrigatorio className="md:col-span-2" value={dados.motivoSubstituicao ?? ""} onChange={(e) => set({ motivoSubstituicao: e.target.value })} erro={erroCampo("motivoSubstituicao")} ajuda={cad.config.listasAuxiliares["Motivos de substituição"]?.join(" · ")} />
                 )}

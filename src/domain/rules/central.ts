@@ -15,13 +15,12 @@ export const ABAS_CENTRAL = [
 export type AbaCentral = (typeof ABAS_CENTRAL)[number];
 
 /** Situação de ciclo do contrato: renovação e aditivo são processos relacionados, não substituem "Vigente". */
-export type SituacaoCiclo = "Em renovação" | "Em substituição" | "Em renegociação" | "Em aditivo" | undefined;
+export type SituacaoCiclo = "Em renovação" | "Em substituição" | "Em aditivo" | undefined;
 
 export function situacaoCiclo(processosAbertos: Pick<ProcessoContratacao, "tipo">[]): SituacaoCiclo {
   const tipos = new Set(processosAbertos.map((p) => p.tipo));
   if (tipos.has("Renovação")) return "Em renovação";
   if (tipos.has("Substituição de fornecedor")) return "Em substituição";
-  if (tipos.has("Renegociação")) return "Em renegociação";
   if (tipos.has("Aditivo")) return "Em aditivo";
   return undefined;
 }
@@ -31,7 +30,7 @@ export function abasDoContrato(c: Contrato, processosAbertos: ProcessoContrataca
   if (c.status === "Vigente" || c.status === "Suspenso") abas.push("Vigentes");
   if (c.status === "Encerrado" || c.status === "Rescindido" || c.status === "Cancelado") abas.push("Encerrados");
   const sit = situacaoCiclo(processosAbertos);
-  if (sit === "Em renovação" || sit === "Em substituição" || sit === "Em renegociação") abas.push("Em renovação");
+  if (sit === "Em renovação" || sit === "Em substituição") abas.push("Em renovação");
   if (processosAbertos.some((p) => p.tipo === "Aditivo")) abas.push("Em aditivo");
   if (temAcao) abas.push("Ações necessárias");
   return abas;

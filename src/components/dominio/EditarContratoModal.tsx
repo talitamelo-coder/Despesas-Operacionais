@@ -81,7 +81,7 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
 
         {travado && (
           <Aviso tom="info" titulo="Valor e prazo travados">
-            Este contrato está com o cadastro completo: valor, moeda e vigência só mudam por aditivo, renegociação ou novo contrato (aba Renovações &amp; Aditivos).
+            Este contrato está com o cadastro completo: valor, moeda e vigência só mudam por aditivo (inclusive renegociação) ou novo contrato (aba Renovações &amp; Aditivos).
           </Aviso>
         )}
 

@@ -291,6 +291,7 @@ export type TipoProcesso =
   | "Nova contratação"
   | "Renovação"
   | "Substituição de fornecedor"
+  /** Legado: só em processos já encerrados. Renegociação agora é um Aditivo (tipoAditivo "Renegociação"). */
   | "Renegociação"
   | "Aditivo";
 
@@ -367,6 +368,8 @@ export interface ProcessoContratacao {
 
   /** Substituição de fornecedor. */
   motivoSubstituicao?: string;
+  /** Aditivo: o que muda (valor, prazo, escopo ou renegociação das condições). */
+  tipoAditivo?: TipoAditivo;
 
   propostas: PropostaFornecedor[];
   propostaRecomendadaId?: string;

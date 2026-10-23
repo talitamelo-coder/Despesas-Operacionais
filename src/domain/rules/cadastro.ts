@@ -32,7 +32,7 @@ export function descricaoMulta(r: Pick<Rescisao, "possuiMulta" | "descricaoMulta
 }
 
 /**
- * Depois da contratação, valor e prazo só mudam por aditivo, renegociação ou novo contrato.
+ * Depois da contratação, valor e prazo só mudam por aditivo (inclusive renegociação) ou novo contrato.
  * A edição direta fica liberada apenas para completar/corrigir cadastro importado (com pendências).
  */
 export function camposDeValorAlterados(antes: Contrato, depois: Contrato): string[] {

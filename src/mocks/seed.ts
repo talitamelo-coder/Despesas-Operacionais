@@ -1,6 +1,6 @@
 import { addDias, anoDe, hoje } from "@/domain/datas";
 import { gerarCodigo } from "@/domain/codigos";
-import { migrarEtapa, opcoesFluxo } from "@/domain/rules/fluxo";
+import { migrarEtapa, migrarTipo, opcoesFluxo } from "@/domain/rules/fluxo";
 import { REGRAS_ALERTA_PADRAO } from "@/domain/rules/prazos";
 import { baselineAjustado } from "@/domain/rules/saving";
 import { AREAS_PADRAO } from "@/domain/rules/usuario";
@@ -85,13 +85,16 @@ export const COLECOES_LICENCAS = ["colaboradores", "licencas", "movimentacoesLic
  * O controle de licenças da versão anterior (produtosLicenca/atribuicoes) é descartado: a v1 começa vazia.
  * O perfil "TI" deixou de existir: vira Solicitante (só consulta).
  */
-/** Processos em etapas que não existem mais (ou desligadas) seguem para a etapa vigente, com registro na linha do tempo. */
+/** Processos em etapas ou tipos que não existem mais (ou etapas desligadas) seguem para o fluxo vigente, com registro na linha do tempo. */
 export function migrarProcessos(processos: ProcessoContratacao[], op: FluxoProcessoConfig): ProcessoContratacao[] {
-  return processos.map((p) => {
+  const evento = (p: ProcessoContratacao, descricao: string) => ({ id: `tl-mig-${p.processo_id}-${p.timeline.length}`, data: new Date().toISOString(), usuarioId: "sistema", descricao, tipo: "sistema" as const });
+  return processos.map((original) => {
+    let p = original;
+    const t = migrarTipo(p);
+    if (t) p = { ...p, tipo: t.tipo, tipoAditivo: t.tipoAditivo, timeline: [...p.timeline, evento(p, t.descricao)] };
     const m = migrarEtapa(p, op);
-    if (!m) return p;
-    const evento = { id: `tl-mig-${p.processo_id}-${p.timeline.length}`, data: new Date().toISOString(), usuarioId: "sistema", descricao: m.descricao, tipo: "sistema" as const };
-    return { ...p, status: m.status, statusAntesSuspensao: m.statusAntesSuspensao, timeline: [...p.timeline, evento] };
+    if (m) p = { ...p, status: m.status, statusAntesSuspensao: m.statusAntesSuspensao, timeline: [...p.timeline, evento(p, m.descricao)] };
+    return p;
   });
 }
 

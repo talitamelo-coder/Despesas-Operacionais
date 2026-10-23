@@ -117,6 +117,25 @@ describe("migração do fluxo", () => {
     expect(p?.status).toBe("Com Suprimentos");
     expect(p?.timeline.at(-1)?.descricao).toBe("Fluxo simplificado: etapa Em negociação passou a Com Suprimentos");
   });
+
+  it("renegociação em andamento vira Aditivo e, ao concluir, altera o próprio contrato", async () => {
+    const bk = JSON.parse(await api.exportarBackup("u-admin"));
+    const pr = bk.estado.processos.find((x: { processo_id: string }) => x.processo_id === "p-renov-link");
+    pr.tipo = "Renegociação";
+    await api.importarBackup(JSON.stringify(bk), "u-admin");
+    const id = "p-renov-link";
+    const p = await api.obterProcesso(id);
+    expect(p).toMatchObject({ tipo: "Aditivo", tipoAditivo: "Renegociação" });
+    await api.atualizarProcesso(id, { justificativa: "Novo preço", tipoContratoId: "t-tel" }, "u-sup1");
+    expect((await api.avancarProcesso(id, "u-sup1")).processo?.status).toBe("Aguardando assinatura");
+    await api.adicionarDocumento({ processo_id: id, nome: "aditivo.pdf", categoria: "Contrato assinado" }, "u-sup1");
+    const fim = await api.avancarProcesso(id, "u-sup1");
+    expect(fim.ok).toBe(true);
+    expect(fim.contratoGerado?.contrato_id).toBe("c-link-3");
+    expect(fim.contratoGerado?.condicoes.valorAnual).toBe(1302000);
+    const aud = await api.listarAuditoria("c-link-3");
+    expect(aud.some((a) => a.acao.includes("(Renegociação) aplicado") && a.valorAnterior === "1155000")).toBe(true);
+  });
 });
 
 describe("substituição", () => {

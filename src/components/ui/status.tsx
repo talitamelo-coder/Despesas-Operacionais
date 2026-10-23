@@ -17,7 +17,6 @@ const TOM_STATUS: Record<string, Tom> = {
   Cancelado: "neutro",
   "Em renovação": "info",
   "Em substituição": "info",
-  "Em renegociação": "info",
   "Em aditivo": "primario",
 };
 

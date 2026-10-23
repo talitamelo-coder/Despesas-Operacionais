@@ -295,12 +295,15 @@ function aplicarAditivo(p: ProcessoContratacao, porId: string): Contrato {
       unidade: cond.unidade ?? c.condicoes.unidade,
       precoUnitario: cond.precoUnitario ?? c.condicoes.precoUnitario,
       condicaoPagamento: cond.condicaoPagamento ?? c.condicoes.condicaoPagamento,
+      periodicidadePagamento: cond.periodicidadePagamento ?? c.condicoes.periodicidadePagamento,
       cotacao: cond.cotacao ?? c.condicoes.cotacao,
     },
     vigencia: { ...c.vigencia, dataFim: p.vigencia?.dataFim ?? c.vigencia.dataFim },
+    // Renegociação pode rever o reajuste; sem alteração no processo, fica o do contrato.
+    reajuste: p.reajuste ?? c.reajuste,
     atualizadoEm: agora(),
   };
-  auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: c.contrato_id, usuarioId: porId, data: agora(), acao: `Aditivo ${p.codigo} aplicado` }, () => novoId("a")));
+  auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: c.contrato_id, usuarioId: porId, data: agora(), acao: `Aditivo ${p.codigo}${p.tipoAditivo ? ` (${p.tipoAditivo})` : ""} aplicado` }, () => novoId("a")));
   Object.assign(c, novo);
   for (const d of estado.documentos) if (d.processo_id === p.processo_id) d.contrato_id = c.contrato_id;
   return c;
@@ -510,7 +513,7 @@ export const mockApi: ContratosApi = {
     const errosVig = errosVigencia(novo.vigencia);
     if (errosVig.length && !aCompletar) throw new ErroNegocio(`Todo contrato precisa de vigência. ${errosVig.join(" ")}`);
     if (alterados.length && !pendenciasCadastro(c, estado.fornecedores.find((f) => f.fornecedor_id === c.fornecedorId), tipoNome).length)
-      throw new ErroNegocio(`Para alterar ${alterados.join(", ")}, registre um aditivo (ou renegociação/novo contrato).`);
+      throw new ErroNegocio(`Para alterar ${alterados.join(", ")}, registre um aditivo (inclusive renegociação) ou novo contrato.`);
     auditar(diffAuditoria(c, novo, { entidade: "contrato", entidadeId: id, usuarioId: porId, data: agora(), acao: "Contrato alterado" }, () => novoId("a")));
     Object.assign(c, novo);
     persistir();
