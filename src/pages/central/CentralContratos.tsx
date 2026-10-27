@@ -10,7 +10,6 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Paginacao, Tabela, type Coluna } from "@/components/ui/Tabela";
 import { Tabs } from "@/components/ui/Tabs";
 import { PrioridadeBadge, StatusBadge } from "@/components/ui/status";
-import { Badge } from "@/components/ui/Badge";
 import { ABAS_CENTRAL, type AbaCentral } from "@/domain/rules/central";
 import { etapasDoProcesso, opcoesFluxo, TIPOS_PROCESSO } from "@/domain/rules/fluxo";
 import { formatarData } from "@/domain/datas";
@@ -81,20 +80,19 @@ export function CentralContratos() {
       id: "codigo",
       titulo: "Código",
       ordenavel: true,
-      largura: "120px",
       render: (l) => (
-        <div>
-          <Link to={l.link} onClick={(e) => e.stopPropagation()} className="font-semibold whitespace-nowrap text-primaria-800 hover:underline">
+        <span title={l.jira_key ? `JIRA ${l.jira_key}` : undefined}>
+          <Link to={l.link} onClick={(e) => e.stopPropagation()} className="font-semibold text-primaria-800 hover:underline">
             {l.codigo}
           </Link>
-          {l.jira_key && <div className="text-[11px] text-texto-fraco">{l.jira_key}</div>}
-        </div>
+          {l.jira_key && <span className="ml-1.5 text-[11px] text-texto-fraco">{l.jira_key}</span>}
+        </span>
       ),
     },
-    { id: "fornecedor", titulo: "Fornecedor", ordenavel: true, render: (l) => <span className="line-clamp-2">{l.fornecedor}</span> },
-    { id: "objeto", titulo: "Objeto", ordenavel: true, largura: "18%", render: (l) => <span className="line-clamp-2">{l.objeto}</span> },
-    { id: "gestor", titulo: "Gestor", ordenavel: true, render: (l) => l.gestor },
-    { id: "analista", titulo: "Analista", ordenavel: true, render: (l) => l.analista },
+    { id: "fornecedor", titulo: "Fornecedor", ordenavel: true, maxLargura: "max-w-[140px]", dica: (l) => l.fornecedor, render: (l) => l.fornecedor },
+    { id: "objeto", titulo: "Objeto", ordenavel: true, maxLargura: "max-w-[180px]", dica: (l) => l.objeto, render: (l) => l.objeto },
+    { id: "gestor", titulo: "Gestor", ordenavel: true, maxLargura: "max-w-[90px]", dica: (l) => l.gestor, render: (l) => l.gestor },
+    { id: "analista", titulo: "Analista", ordenavel: true, maxLargura: "max-w-[90px]", dica: (l) => l.analista, render: (l) => l.analista },
     {
       id: "valorMensal",
       titulo: "Valor mensal",
@@ -124,40 +122,43 @@ export function CentralContratos() {
       titulo: "Data fim",
       ordenavel: true,
       render: (l) => (
-        <div className="whitespace-nowrap tabular">
+        <span className="tabular">
           {formatarData(l.dataFim)}
           {l.diasAteVencimento !== undefined && l.status === "Vigente" && l.diasAteVencimento >= 0 && l.diasAteVencimento <= 120 && (
-            <div className={`text-[11px] ${l.diasAteVencimento <= 30 ? "text-critico-600" : "text-alerta-600"}`}>em {l.diasAteVencimento} dias</div>
+            <span className={`ml-1.5 text-[11px] ${l.diasAteVencimento <= 30 ? "text-critico-600" : "text-alerta-600"}`}>{l.diasAteVencimento} d</span>
           )}
-        </div>
+        </span>
       ),
     },
     {
       id: "status",
       titulo: "Status",
       ordenavel: true,
+      maxLargura: "max-w-[130px]",
+      dica: (l) => [l.status, l.situacao, l.pendenciasCadastro.length ? `A completar: ${l.pendenciasCadastro.join(", ")}` : ""].filter(Boolean).join(" · "),
       render: (l) => (
-        <div className="flex flex-col items-start gap-1">
+        <span className="inline-flex items-center gap-1.5">
           <StatusBadge status={l.status} />
-          {l.situacao && <Badge tom={l.tipo === "processo" ? "neutro" : "info"}>{l.situacao}</Badge>}
+          {l.situacao && <span className="text-[11px] text-info-600">{l.situacao}</span>}
           {l.pendenciasCadastro.length > 0 && (
-            <span title={`A completar: ${l.pendenciasCadastro.join(", ")}`}>
-              <Badge tom="alerta">A completar ({l.pendenciasCadastro.length})</Badge>
+            <span title={`Cadastro a completar: ${l.pendenciasCadastro.join(", ")}`} className="text-[11px] font-medium text-alerta-600">
+              A completar ({l.pendenciasCadastro.length})
             </span>
           )}
-        </div>
+        </span>
       ),
     },
     {
       id: "prioridade",
       titulo: "Próxima ação",
       ordenavel: true,
-      largura: "16%",
+      maxLargura: "max-w-[180px]",
+      dica: (l) => l.proximaAcao,
       render: (l) => (
-        <div className="flex flex-col items-start gap-1">
-          {l.prioridade !== "Normal" && <PrioridadeBadge prioridade={l.prioridade} />}
-          <span className="line-clamp-2 text-xs text-texto-suave">{l.proximaAcao}</span>
-        </div>
+        <>
+          {l.prioridade !== "Normal" && <span className="mr-1.5"><PrioridadeBadge prioridade={l.prioridade} /></span>}
+          <span className="text-xs text-texto-suave">{l.proximaAcao}</span>
+        </>
       ),
     },
   ];
@@ -189,9 +190,9 @@ export function CentralContratos() {
           onChange={(a) => setParam("aba", a === "Todos" ? undefined : a)}
         />
 
-        <div className="space-y-3 border-b border-borda p-4">
-          <div className="relative">
-            <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-texto-fraco" />
+        <div className="flex flex-wrap items-center gap-2 border-b border-borda px-4 py-3">
+          <div className="relative min-w-[240px] flex-1">
+            <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-texto-fraco" />
             <input
               value={busca}
               onChange={(e) => {
@@ -199,24 +200,24 @@ export function CentralContratos() {
                 setParam("busca", e.target.value || undefined);
               }}
               placeholder="Pesquisar por código, fornecedor, CNPJ, objeto, JIRA ou projeto"
-              className="h-9 w-full rounded-md border border-borda-forte pr-3 pl-9 text-sm focus:border-primaria-500 focus:outline-none focus:ring-2 focus:ring-primaria-100"
+              className="h-8 w-full rounded-md border border-borda-forte pr-3 pl-9 text-[13px] focus:border-primaria-500 focus:outline-none focus:ring-2 focus:ring-primaria-100"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
-            <Select rotulo="Fornecedor" opcoes={op.fornecedores} vazio="Todos" value={params.get("fornecedorId") ?? ""} onChange={(e) => setParam("fornecedorId", e.target.value)} />
-            <Select rotulo="Gestor" opcoes={op.gestores} vazio="Todos" value={params.get("gestorId") ?? ""} onChange={(e) => setParam("gestorId", e.target.value)} />
-            <Select rotulo="Analista" opcoes={op.analistas} vazio="Todos" value={params.get("analistaId") ?? ""} onChange={(e) => setParam("analistaId", e.target.value)} />
-            <Select rotulo="Status" opcoes={statusOpcoes.map((s) => ({ valor: s, rotulo: s }))} vazio="Todos" value={params.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)} />
-            <Select rotulo="Tipo de contrato" opcoes={op.tipos} vazio="Todos" value={params.get("tipoContratoId") ?? ""} onChange={(e) => setParam("tipoContratoId", e.target.value)} />
+          <div className="contents">
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Fornecedor" opcoes={op.fornecedores} vazio="Fornecedor" value={params.get("fornecedorId") ?? ""} onChange={(e) => setParam("fornecedorId", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Gestor" opcoes={op.gestores} vazio="Gestor" value={params.get("gestorId") ?? ""} onChange={(e) => setParam("gestorId", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Analista" opcoes={op.analistas} vazio="Analista" value={params.get("analistaId") ?? ""} onChange={(e) => setParam("analistaId", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Status" opcoes={statusOpcoes.map((s) => ({ valor: s, rotulo: s }))} vazio="Status" value={params.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Tipo de contrato" opcoes={op.tipos} vazio="Tipo de contrato" value={params.get("tipoContratoId") ?? ""} onChange={(e) => setParam("tipoContratoId", e.target.value)} />
             <Select
-              rotulo="Tipo de processo"
+              compacto className="w-auto max-w-[200px]" rotulo="Tipo de processo"
               opcoes={TIPOS_PROCESSO.map((t) => ({ valor: t, rotulo: t }))}
-              vazio="Todos"
+              vazio="Tipo de processo"
               value={params.get("tipoProcesso") ?? ""}
               onChange={(e) => setParam("tipoProcesso", e.target.value)}
             />
             <Select
-              rotulo="Vencimento"
+              compacto className="w-auto max-w-[200px]" rotulo="Vencimento"
               opcoes={[
                 { valor: "30", rotulo: "Até 30 dias" },
                 { valor: "60", rotulo: "Até 60 dias" },
@@ -224,26 +225,27 @@ export function CentralContratos() {
                 { valor: "180", rotulo: "Até 180 dias" },
                 { valor: "vencidos", rotulo: "Vencidos" },
               ]}
-              vazio="Qualquer"
+              vazio="Vencimento"
               value={params.get("vencimento") ?? ""}
               onChange={(e) => setParam("vencimento", e.target.value)}
             />
             <Select
-              rotulo="Renovação automática"
+              compacto className="w-auto max-w-[200px]" rotulo="Renovação automática"
               opcoes={[
                 { valor: "sim", rotulo: "Sim" },
                 { valor: "nao", rotulo: "Não" },
               ]}
-              vazio="Todas"
+              vazio="Renovação automática"
               value={params.get("renovacaoAutomatica") ?? ""}
               onChange={(e) => setParam("renovacaoAutomatica", e.target.value)}
             />
-            <Select rotulo="Moeda" opcoes={op.moedas} vazio="Todas" value={params.get("moeda") ?? ""} onChange={(e) => setParam("moeda", e.target.value)} />
-            <Select rotulo="Projeto" opcoes={op.projetos} vazio="Todos" value={params.get("projeto") ?? ""} onChange={(e) => setParam("projeto", e.target.value)} />
-            <Select rotulo="Cadastro" opcoes={[{ valor: "incompleto", rotulo: "A completar" }]} vazio="Todos" value={params.get("cadastro") ?? ""} onChange={(e) => setParam("cadastro", e.target.value)} />
-            <div className="flex items-end">
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Moeda" opcoes={op.moedas} vazio="Moeda" value={params.get("moeda") ?? ""} onChange={(e) => setParam("moeda", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Projeto" opcoes={op.projetos} vazio="Projeto" value={params.get("projeto") ?? ""} onChange={(e) => setParam("projeto", e.target.value)} />
+            <Select compacto className="w-auto max-w-[200px]" rotulo="Cadastro" opcoes={[{ valor: "incompleto", rotulo: "A completar" }]} vazio="Cadastro" value={params.get("cadastro") ?? ""} onChange={(e) => setParam("cadastro", e.target.value)} />
+            <div>
               <Button
                 variante="fantasma"
+                tamanho="sm"
                 icone={<FilterX size={16} />}
                 disabled={!filtrosAtivos}
                 onClick={() => {
@@ -268,7 +270,6 @@ export function CentralContratos() {
           onLinha={(l) => navegar(l.link)}
           carregando={carregando && !dados}
           densa
-          minLargura="min-w-[1100px]"
           vazio="Nenhum contrato ou processo para os filtros selecionados."
         />
         <div className="flex items-center justify-between">

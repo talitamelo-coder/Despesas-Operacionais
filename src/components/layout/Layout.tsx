@@ -1,7 +1,7 @@
 import { temPerfil } from "@/domain/rules/permissoes";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, FilePlus2, FileText, FolderKanban, Handshake, LayoutDashboard, ListChecks, Menu, Search, Settings, X } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { useConsulta } from "@/hooks/useConsulta";
@@ -11,19 +11,18 @@ import { PrioridadeBadge } from "@/components/ui/status";
 import { formatarData } from "@/domain/datas";
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 
-const MENU = [
-  { para: "/", rotulo: "Dashboard", icone: LayoutDashboard, fim: true },
-  { para: "/contratos", rotulo: "Contratos de fornecedores", icone: FolderKanban },
-  { para: "/clientes", rotulo: "Contratos de clientes", icone: Handshake },
-  { para: "/processos/novo", rotulo: "Novo Processo", icone: FilePlus2 },
-  { para: "/acoes", rotulo: "Ações Necessárias", icone: ListChecks, contador: true },
-  { para: "/documentos", rotulo: "Documentos", icone: FileText },
-  { para: "/admin", rotulo: "Administração", icone: Settings, permissao: "administrar" as const },
+const MENU: { para: string; rotulo: string; fim?: boolean; contador?: boolean; permissao?: "administrar" }[] = [
+  { para: "/", rotulo: "Dashboard", fim: true },
+  { para: "/contratos", rotulo: "Contratos de fornecedores" },
+  { para: "/clientes", rotulo: "Contratos de clientes" },
+  { para: "/processos/novo", rotulo: "Novo processo" },
+  { para: "/acoes", rotulo: "Ações necessárias", contador: true },
+  { para: "/documentos", rotulo: "Documentos" },
+  { para: "/admin", rotulo: "Administração", permissao: "administrar" },
 ];
 
 export function Layout() {
   const { usuario, cad, trocarUsuario, pode, nomeUsuario } = useApp();
-  const [menuAberto, setMenuAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const [sinoAberto, setSinoAberto] = useState(false);
   const navegar = useNavigate();
@@ -32,54 +31,17 @@ export function Layout() {
   const urgentes = minhas.filter((a) => a.prioridade === "Crítico" || a.prioridade === "Ação necessária");
 
   const itens = MENU.filter((m) => !m.permissao || pode(m.permissao) || (m.para === "/admin" && cad.modo === "demonstracao"));
-  const link = (m: (typeof MENU)[number], vertical = false) => (
-    <NavLink
-      key={m.para}
-      to={m.para}
-      end={m.fim}
-      onClick={() => setMenuAberto(false)}
-      className={({ isActive }) =>
-        cn(
-          "flex shrink-0 items-center gap-2 rounded-md px-3 text-sm whitespace-nowrap transition-colors",
-          vertical ? "h-10" : "h-9",
-          isActive ? "bg-white/15 font-medium text-white" : "text-white/75 hover:bg-white/10 hover:text-white",
-        )
-      }
-    >
-      <m.icone size={16} className={cn("shrink-0", !vertical && "hidden 2xl:block")} />
-      <span>{m.rotulo}</span>
-      {m.contador && urgentes.length > 0 && <span className="rounded-full bg-critico-600 px-1.5 text-[11px] font-semibold tabular">{urgentes.length}</span>}
-    </NavLink>
-  );
 
   return (
     <div className="flex h-full flex-col">
-      {/* Menu principal no topo: libera a largura toda para as tabelas. */}
-      <div className="shrink-0 bg-primaria-900 text-white">
-        <div className="flex h-14 items-center gap-4 px-4">
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15 text-sm font-bold">A</div>
-            <div className="leading-tight">
-              <p className="text-sm font-semibold">Akross</p>
-              <p className="text-[11px] text-white/60">Gestão de Contratos</p>
-            </div>
-          </div>
-          <nav aria-label="Menu principal" className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto xl:flex">
-            {itens.map((m) => link(m))}
-          </nav>
-          <button onClick={() => setMenuAberto((v) => !v)} className="ml-auto rounded-md p-2 text-white/80 hover:bg-white/10 xl:hidden" aria-label={menuAberto ? "Fechar menu" : "Abrir menu"} aria-expanded={menuAberto}>
-            {menuAberto ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-        {menuAberto && (
-          <nav aria-label="Menu principal" className="flex flex-col gap-0.5 border-t border-white/10 p-2 xl:hidden">
-            {itens.map((m) => link(m, true))}
-          </nav>
-        )}
-      </div>
-
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-borda bg-superficie px-4 md:px-5">
+        <header className="flex h-12 shrink-0 items-center gap-3 bg-primaria-900 px-4 text-white md:px-5">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-white/15 text-xs font-bold">A</div>
+            <p className="hidden text-sm leading-tight font-semibold whitespace-nowrap sm:block">
+              Akross <span className="font-normal text-white/60">· Gestão de Contratos</span>
+            </p>
+          </div>
           <form
             className="relative min-w-0 max-w-md flex-1"
             onSubmit={(e) => {
@@ -87,12 +49,12 @@ export function Layout() {
               navegar(`/contratos?busca=${encodeURIComponent(busca)}`);
             }}
           >
-            <Search size={16} className="absolute top-1/2 left-3 -translate-y-1/2 text-texto-fraco" />
+            <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-white/50" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por código, fornecedor, CNPJ, objeto, JIRA ou projeto"
-              className="h-9 w-full rounded-md border border-borda bg-fundo pr-3 pl-9 text-sm focus:border-primaria-500 focus:bg-superficie focus:outline-none"
+              className="h-8 w-full rounded border border-transparent bg-white/10 pr-3 pl-9 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:bg-white/15 focus:outline-none"
             />
           </form>
           <div className="ml-auto flex shrink-0 items-center gap-2 md:gap-3">
@@ -105,7 +67,7 @@ export function Layout() {
                 </span>
               ))}
             <div className="relative">
-              <button onClick={() => setSinoAberto((v) => !v)} className="relative rounded-md p-2 text-texto-suave hover:bg-fundo" aria-label="Alertas">
+              <button onClick={() => setSinoAberto((v) => !v)} className="relative rounded p-1.5 text-white/80 hover:bg-white/10" aria-label="Alertas">
                 <Bell size={18} />
                 {urgentes.length > 0 && <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-critico-600" />}
               </button>
@@ -141,9 +103,9 @@ export function Layout() {
                 </div>
               )}
             </div>
-            <label className="flex items-center gap-2 text-xs text-texto-suave" title="Perfil simulado — no produto final virá do login da Akross Atende">
+            <label className="flex items-center gap-2 text-xs text-white/60" title="Perfil simulado — no produto final virá do login da Akross Atende">
               <span className="hidden lg:inline">Perfil simulado</span>
-              <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-9 max-w-[11rem] rounded-md border border-borda bg-superficie px-2 text-sm text-texto sm:max-w-none">
+              <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-8 max-w-[11rem] rounded border border-white/20 bg-white/10 px-2 text-sm text-white sm:max-w-none [&>option]:text-texto">
                 {cad.usuarios.filter((u) => u.ativo).map((u) => (
                   <option key={u.id} value={u.id}>
                     {nomeDeExibicao(u)} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}{u.perfisAdicionais?.length ? ` + ${u.perfisAdicionais.map((p) => ROTULO_PERFIL[p]).join(", ")}` : ""}
@@ -153,6 +115,25 @@ export function Layout() {
             </label>
           </div>
         </header>
+        {/* Menu em faixa única, como o cabeçalho de uma planilha: compacto e sem quebra de linha. */}
+        <nav aria-label="Menu principal" className="flex shrink-0 overflow-x-auto border-b border-borda-forte bg-fundo">
+          {itens.map((m) => (
+            <NavLink
+              key={m.para}
+              to={m.para}
+              end={m.fim}
+              className={({ isActive }) =>
+                cn(
+                  "-mb-px flex h-8 shrink-0 items-center gap-1.5 border-r border-b-2 border-r-borda px-4 text-[13px] whitespace-nowrap transition-colors",
+                  isActive ? "border-b-primaria-700 bg-superficie font-semibold text-primaria-800" : "border-b-transparent text-texto-suave hover:bg-superficie hover:text-texto",
+                )
+              }
+            >
+              {m.rotulo}
+              {m.contador && urgentes.length > 0 && <span className="rounded-full bg-critico-600 px-1.5 text-[10px] leading-4 font-semibold text-white tabular">{urgentes.length}</span>}
+            </NavLink>
+          ))}
+        </nav>
         <main className="min-w-0 flex-1 overflow-y-auto">
           <div className="mx-auto max-w-[1440px] px-5 py-5">
             <Outlet />

@@ -65,13 +65,14 @@ export function Select({
   className,
   opcoes,
   vazio = "Selecione…",
+  compacto,
   ...rest
-}: CampoBase & SelectHTMLAttributes<HTMLSelectElement> & { opcoes: OpcaoSelect[]; vazio?: string | false }) {
+}: CampoBase & SelectHTMLAttributes<HTMLSelectElement> & { opcoes: OpcaoSelect[]; vazio?: string | false; /** Filtro em linha: sem rótulo acima, altura menor. */ compacto?: boolean }) {
   const id = useId();
   return (
     <div className={className}>
-      <Rotulo htmlFor={id} rotulo={rotulo} obrigatorio={obrigatorio} origem={origem} />
-      <select id={id} className={cn(BASE, "h-9 pr-8", erro && "border-critico-600")} {...rest}>
+      {!compacto && <Rotulo htmlFor={id} rotulo={rotulo} obrigatorio={obrigatorio} origem={origem} />}
+      <select id={id} aria-label={compacto ? rotulo : undefined} className={cn(BASE, compacto ? "h-8 pr-7 text-[13px]" : "h-9 pr-8", compacto && Boolean(rest.value) && "border-primaria-500 bg-primaria-50/50 font-medium", erro && "border-critico-600")} {...rest}>
         {vazio !== false && <option value="">{vazio}</option>}
         {opcoes.map((o) => (
           <option key={o.valor} value={o.valor}>
