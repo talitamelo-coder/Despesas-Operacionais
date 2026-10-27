@@ -15,8 +15,6 @@ const CapaContrato = tela(() => import("@/pages/contratos/CapaContrato"), "CapaC
 const AvaliacaoRenovacao = tela(() => import("@/pages/contratos/AvaliacaoRenovacao"), "AvaliacaoRenovacao");
 const Documentos = tela(() => import("@/pages/documentos/Documentos"), "Documentos");
 const AcoesNecessarias = tela(() => import("@/pages/acoes/AcoesNecessarias"), "AcoesNecessarias");
-const Licencas = tela(() => import("@/pages/licencas/Licencas"), "Licencas");
-const Telefonia = tela(() => import("@/pages/telefonia/Telefonia"), "Telefonia");
 const ContratosClientes = tela(() => import("@/pages/clientes/ContratosClientes"), "ContratosClientes");
 const Administracao = tela(() => import("@/pages/admin/Administracao"), "Administracao");
 const NaoEncontrado = tela(() => import("@/pages/NaoEncontrado"), "NaoEncontrado");
@@ -40,8 +38,6 @@ export function App() {
               <Route path="processos/:id" element={<ProcessoDetalhe />} />
               <Route path="acoes" element={<AcoesNecessarias />} />
               <Route path="documentos" element={<Documentos />} />
-              <Route path="licencas" element={<Licencas />} />
-              <Route path="telefonia" element={<Telefonia />} />
               <Route path="clientes" element={<ContratosClientes />} />
               <Route path="admin" element={<Administracao />} />
               <Route path="*" element={<NaoEncontrado />} />

@@ -36,7 +36,7 @@ describe("painel de contratos de clientes", () => {
 
   it("concentração acima de 50% e saldo a faturar geram alerta", () => {
     const cs = [contrato("a", { fixo: 900, cliente: "grande" }), contrato("b", { fixo: 100, cliente: "outro" })];
-    const saldo = { moeda: "BRL", contratadoBase: 100, aportes: 0, contratado: 100, comprometido: 0, realizado: 85, licencas: 0, linhas: 0, consumido: 85, disponivel: 15, percentualConsumido: 85 } as const;
+    const saldo = { moeda: "BRL", contratadoBase: 100, aportes: 0, contratado: 100, comprometido: 0, realizado: 85, consumido: 85, disponivel: 15, percentualConsumido: 85 } as const;
     const p = montarPainelClientes(cs, H, { saldos: { a: saldo } });
     expect(p.concentracao).toEqual({ clienteId: "grande", percentual: 90 });
     expect(p.alertas.some((x) => /Concentração/.test(x.titulo))).toBe(true);

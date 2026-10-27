@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { erroSaldoApos, erroSaldoPedido, faixaAlertaSaldo, mesesDaLinha, periodoDoSaldo, saldoDoContrato, type ContextoSaldo } from "./saldo";
-import type { Contrato, Licenca, LinhaTelefonica, MovimentacaoLicenca, PedidoContrato } from "../types";
+import { erroSaldoPedido, faixaAlertaSaldo, periodoDoSaldo, saldoDoContrato, type ContextoSaldo } from "./saldo";
+import type { Contrato, PedidoContrato } from "../types";
 
 const contrato = (extra: Partial<Contrato["vigencia"]> = {}, valorAnual = 12000): Contrato =>
   ({
@@ -11,7 +11,7 @@ const contrato = (extra: Partial<Contrato["vigencia"]> = {}, valorAnual = 12000)
     vigencia: { dataInicio: "2026-01-01", dataFim: "2027-12-31", tipoVigencia: "Prazo determinado", avisoPrevioDias: 30, renovacaoAutomatica: false, prazoGestorDias: 30, ...extra },
   }) as unknown as Contrato;
 const pedido = (valor: number, status: PedidoContrato["status"] = "Aprovado", data = "2026-03-01"): PedidoContrato => ({ id: `p${valor}${status}`, contrato_id: "c1", numero: "P", data, valor, status, origem: "Registro manual", registradoPorId: "u", registradoEm: "" });
-const vazio: ContextoSaldo = { pedidos: [], aportes: [], linhas: [], licencas: { licencas: [], movimentacoes: [], atribuicoes: [], colaboradores: [], cotacoes: [], parametros: [] } };
+const vazio: ContextoSaldo = { pedidos: [], aportes: [] };
 
 describe("saldo do contrato", () => {
   it("contratado = valor anual × anos da vigência + aportes; consumido = pedidos", () => {
@@ -42,20 +42,9 @@ describe("saldo do contrato", () => {
     expect(s.comprometido).toBe(500);
   });
 
-  it("licenças e linhas vinculadas consomem o saldo", () => {
-    const l: Licenca = { id: "l", fornecedorId: "f", contrato_id: "c1", produto: "X", tipoCobranca: "Assento", moeda: "BRL", periodicidade: "Mensal", vencimentoTipo: "Mensal", status: "Ativa", criadoEm: "", atualizadoEm: "" };
-    const m: MovimentacaoLicenca = { id: "m", licencaId: "l", tipo: "Compra", data: "2026-01-05", quantidade: 2, precoUnitario: 50, responsavel: "R", valorAnualAntes: 0, valorAnualDepois: 1200, registradoPorId: "u", registradoEm: "" };
-    const linha: LinhaTelefonica = { id: "t", numero: "11900000000", operadora: "O", contrato_id: "c1", valorMensal: 10, situacao: "Ativa", criadoEm: "2026-07-15T00:00:00Z", atualizadoEm: "2026-07-15T00:00:00Z" };
-    const s = saldoDoContrato(contrato(), { ...vazio, linhas: [linha], licencas: { ...vazio.licencas, licencas: [l], movimentacoes: [m] } });
-    expect(s.licencas).toBe(100 * 24);
-    expect(mesesDaLinha(linha, periodoDoSaldo(contrato())!)).toBe(18);
-    expect(s.linhas).toBe(180);
+  it("alerta de saldo em 80% e 100%", () => {
+    const s = saldoDoContrato(contrato(), vazio);
     expect(faixaAlertaSaldo({ ...s, percentualConsumido: 85 })).toBe(80);
-  });
-
-  it("operação que deixa o saldo negativo é bloqueada; a que melhora, não", () => {
-    const antes = saldoDoContrato(contrato({}, 1200), vazio);
-    expect(erroSaldoApos(antes, { ...antes, disponivel: -10 }, "CT-1")).toMatch(/Adicione saldo/);
-    expect(erroSaldoApos({ ...antes, disponivel: -50 }, { ...antes, disponivel: -10 }, "CT-1")).toBeUndefined();
+    expect(faixaAlertaSaldo({ ...s, percentualConsumido: 100 })).toBe(100);
   });
 });

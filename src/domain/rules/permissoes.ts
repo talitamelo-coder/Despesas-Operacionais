@@ -35,7 +35,7 @@ const MATRIZ: Record<Perfil, Permissao[]> = {
   Juridico: ["emitir_parecer", "gerir_documentos", "visualizar"],
   // Solicitante (área requisitante): acompanha contratos e processos, sem editar.
   Solicitante: ["visualizar"],
-  // Leitura: só totais de licenças e telefonia, sem nome de pessoa.
+  // Leitura: consulta, sem alterar.
   Leitura: ["ver_licencas_agregado", "visualizar"],
 };
 
@@ -73,5 +73,5 @@ export const ROTULO_PERFIL: Record<Perfil, string> = {
   Gestor: "Gestor",
   Juridico: "Jurídico/Consulta",
   Solicitante: "Solicitante",
-  Leitura: "Leitura (totais)",
+  Leitura: "Leitura",
 };

@@ -813,11 +813,11 @@ export function criarEstadoInicial(): EstadoDados {
   // ------------------------------------------------------------ Saldo (pedidos fictícios até a integração com o módulo de pedidos)
   const pedidosContrato: PedidoContrato[] = [];
   const aportesSaldo: AporteSaldo[] = [];
-  const ctxSaldo = () => ({ pedidos: pedidosContrato, aportes: aportesSaldo, linhas: licencas.linhasTelefonicas, licencas: { ...licencas, movimentacoes: licencas.movimentacoesLicenca, atribuicoes: licencas.atribuicoesLicenca } });
+  const ctxSaldo = () => ({ pedidos: pedidosContrato, aportes: aportesSaldo });
   const consumir = (contrato_id: string, fracoes: [number, PedidoContrato["status"]][]) => {
     const c = contratos.find((x) => x.contrato_id === contrato_id);
     if (!c) return;
-    const s = saldoDoContrato(c, ctxSaldo(), H);
+    const s = saldoDoContrato(c, ctxSaldo());
     fracoes.forEach(([f, status], i) =>
       pedidosContrato.push({ id: `ped-${contrato_id}-${i}`, contrato_id, numero: `PED-${48000 + pedidosContrato.length * 7}`, data: addDias(c.vigencia.dataInicio || H, 20 + i * 45), valor: Math.round(s.contratado * f), descricao: "Pedido fictício (demonstração)", status, origem: "Registro manual", registradoPorId: "u-sup1", registradoEm: agora }),
     );

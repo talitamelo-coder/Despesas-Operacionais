@@ -16,7 +16,7 @@ import { api } from "@/services";
 import { AditivoModal } from "./Aditivos";
 
 /**
- * Saldo do contrato: contratado (vigência + aportes) − pedidos − licenças e linhas vinculadas.
+ * Saldo do contrato: contratado (vigência + aportes) − pedidos.
  * Pedido acima do saldo é bloqueado. Até a integração, pedidos são registrados aqui.
  */
 export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean }) {
@@ -60,7 +60,6 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
               <>
                 <Valor rotulo="Pedidos aprovados (comprometido)">{m(s.comprometido)}</Valor>
                 <Valor rotulo="Pedidos pagos (realizado)">{m(s.realizado)}</Valor>
-                <Valor rotulo="Licenças e linhas vinculadas" origem="calculado">{m(s.licencas + s.linhas)}</Valor>
               </>
             )}
           </GradeValores>
@@ -126,7 +125,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
               ]} />
             </>
           )}
-          <p className="text-xs text-texto-fraco">{receita ? "Contratado = valor total (ou fixo mensal × meses da vigência) + aditivos. Cada nota emitida no Contas a receber consome o saldo; emissão acima dele é recusada." : "Contratado = valor anual × duração da vigência + aditivos. Compras de licenças e linhas vinculadas a este contrato também consomem o saldo e são bloqueadas se não couberem."}</p>
+          <p className="text-xs text-texto-fraco">{receita ? "Contratado = valor total (ou fixo mensal × meses da vigência) + aditivos. Cada nota emitida no Contas a receber consome o saldo; emissão acima dele é recusada." : "Contratado = valor anual × duração da vigência + aditivos. Pedidos aprovados e pagos consomem o saldo; pedido acima do disponível é bloqueado."}</p>
         </>
       )}
       {pedido && <PedidoModal c={c} disponivel={s} onFechar={() => setPedido(false)} />}

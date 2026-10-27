@@ -11,10 +11,10 @@ export const PERFIS: Perfil[] = ["Solicitante", "Gestor", "Suprimentos", "Juridi
 
 const DESCRICAO_PERFIL: Record<Perfil, string> = {
   Solicitante: "Acompanha contratos e processos",
-  Gestor: "Gestor de contratos: avalia renovação, aprova; vê licenças e linhas da área",
-  Suprimentos: "Registra contratos, processos, aditivos, licenças e telefonia",
+  Gestor: "Gestor de contratos: avalia renovação e acompanha seus contratos",
+  Suprimentos: "Registra contratos, processos e aditivos",
   Juridico: "Emite parecer jurídico",
-  Leitura: "Vê só totais de licenças e telefonia",
+  Leitura: "Consulta contratos, sem alterar",
   Administrador: "Acesso total, usuários e cópia de segurança",
 };
 

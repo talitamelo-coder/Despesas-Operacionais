@@ -21,7 +21,7 @@ import { validarCliente, novoCliente } from "@/domain/rules/clientes";
 import { prazosDoContrato } from "@/domain/rules/prazos";
 import { errosContratoReceita, receitaMensalNaData } from "@/domain/rules/receita";
 import { receitaMensalBRL } from "@/domain/rules/painelClientes";
-import { ImportacaoCsv } from "@/pages/licencas/Importacao";
+import { ImportacaoCsv } from "@/components/dominio/ImportacaoCsv";
 import { PainelClientes } from "./PainelClientes";
 import type { Cliente, Contrato, Moeda, TipoReceita } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";

@@ -4,7 +4,7 @@ import { normalizarBusca, somenteDigitos } from "@/domain/formatacao";
 import { calcularAcoes } from "@/domain/rules/acoes";
 import { desfechoAvaliacao } from "@/domain/rules/avaliacao";
 import { errosVigencia, prazosDoContrato } from "@/domain/rules/prazos";
-import { erroSaldoApos, erroSaldoEmissao, erroSaldoPedido, faixaAlertaSaldo, saldoDoContrato, type ContextoSaldo } from "@/domain/rules/saldo";
+import { erroSaldoEmissao, erroSaldoPedido, faixaAlertaSaldo, saldoDoContrato, type ContextoSaldo } from "@/domain/rules/saldo";
 import { aplicarAditivoRegistrado, errosContratoReceita, valorAnualReceita } from "@/domain/rules/receita";
 import { validarCliente } from "@/domain/rules/clientes";
 import { camposDeValorAlterados, pendenciasCadastro } from "@/domain/rules/cadastro";
@@ -207,36 +207,13 @@ function contextoSaldo(e: EstadoDados = estado): ContextoSaldo {
     pedidos: e.pedidosContrato,
     emissoes: e.emissoesFaturamento,
     aportes: e.aportesSaldo,
-    linhas: e.linhasTelefonicas,
-    licencas: { licencas: e.licencas, movimentacoes: e.movimentacoesLicenca, atribuicoes: e.atribuicoesLicenca, colaboradores: e.colaboradores, cotacoes: e.cotacoes, parametros: e.parametros },
   };
 }
 
-/** Contratos vigentes que têm algo consumindo saldo (pedidos, licenças ou linhas vinculadas). */
+/** Contratos vigentes que têm algo consumindo saldo (pedidos ou faturamento). */
 function contratosComConsumo(e: EstadoDados = estado): Contrato[] {
-  const ids = new Set([...e.pedidosContrato.map((p) => p.contrato_id), ...e.emissoesFaturamento.map((x) => x.contrato_id), ...e.licencas.map((l) => l.contrato_id), ...e.linhasTelefonicas.map((l) => l.contrato_id)]);
+  const ids = new Set([...e.pedidosContrato.map((p) => p.contrato_id), ...e.emissoesFaturamento.map((x) => x.contrato_id)]);
   return e.contratos.filter((c) => c.status === "Vigente" && ids.has(c.contrato_id));
-}
-
-/**
- * Compras de licença e linhas vinculadas consomem o saldo: se a operação deixar algum contrato
- * sem saldo (ou piorar um saldo negativo), nada é gravado.
- */
-async function comGuardaSaldo<T>(acao: () => Promise<T>): Promise<T> {
-  const copia = clone(estado);
-  const r = await acao();
-  const ctxAntes = contextoSaldo(copia);
-  const ctxDepois = contextoSaldo();
-  for (const c of contratosComConsumo()) {
-    const anterior = copia.contratos.find((x) => x.contrato_id === c.contrato_id) ?? c;
-    const erro = erroSaldoApos(saldoDoContrato(anterior, ctxAntes), saldoDoContrato(c, ctxDepois), c.codigo);
-    if (erro) {
-      estado = copia;
-      persistir();
-      throw new ErroNegocio(erro);
-    }
-  }
-  return r;
 }
 
 function acoes() {
@@ -1346,8 +1323,3 @@ export const mockApi: ContratosApi = {
   },
 };
 
-// Operações que mudam o custo de licenças e linhas vinculadas passam pela guarda de saldo.
-for (const k of ["salvarLicenca", "registrarMovimentacao", "salvarLinha", "importarCsv"] as const) {
-  const original = mockApi[k] as (...a: unknown[]) => Promise<unknown>;
-  (mockApi as unknown as Record<string, unknown>)[k] = (...a: unknown[]) => comGuardaSaldo(() => original(...a));
-}

@@ -1,7 +1,7 @@
 import { temPerfil } from "@/domain/rules/permissoes";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, ChevronsLeft, ChevronsRight, FilePlus2, FileText, FolderKanban, KeyRound, Smartphone, Handshake, LayoutDashboard, ListChecks, Search, Settings } from "lucide-react";
+import { Bell, FilePlus2, FileText, FolderKanban, Handshake, LayoutDashboard, ListChecks, Menu, Search, Settings, X } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { useConsulta } from "@/hooks/useConsulta";
@@ -18,24 +18,12 @@ const MENU = [
   { para: "/processos/novo", rotulo: "Novo Processo", icone: FilePlus2 },
   { para: "/acoes", rotulo: "Ações Necessárias", icone: ListChecks, contador: true },
   { para: "/documentos", rotulo: "Documentos", icone: FileText },
-  { para: "/licencas", rotulo: "Licenças", icone: KeyRound, permissoes: ["gerir_licencas", "ver_licencas_da_area", "ver_licencas_agregado"] as const },
-  { para: "/telefonia", rotulo: "Telefonia", icone: Smartphone, permissoes: ["gerir_licencas", "ver_licencas_da_area", "ver_licencas_agregado"] as const },
   { para: "/admin", rotulo: "Administração", icone: Settings, permissao: "administrar" as const },
 ];
 
-const CHAVE_MENU = "akross-contratos:menu-recolhido";
-
-function lerMenu(): boolean {
-  try {
-    return localStorage.getItem(CHAVE_MENU) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function Layout() {
   const { usuario, cad, trocarUsuario, pode, nomeUsuario } = useApp();
-  const [recolhido, setRecolhido] = useState(lerMenu);
+  const [menuAberto, setMenuAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const [sinoAberto, setSinoAberto] = useState(false);
   const navegar = useNavigate();
@@ -43,59 +31,57 @@ export function Layout() {
   const minhas = (acoes ?? []).filter((a) => a.responsavelId === usuario.id || temPerfil(usuario, "Administrador"));
   const urgentes = minhas.filter((a) => a.prioridade === "Crítico" || a.prioridade === "Ação necessária");
 
-  const alternar = () => {
-    setRecolhido((r) => {
-      try {
-        localStorage.setItem(CHAVE_MENU, r ? "0" : "1");
-      } catch {
-        /* preferência local */
+  const itens = MENU.filter((m) => !m.permissao || pode(m.permissao) || (m.para === "/admin" && cad.modo === "demonstracao"));
+  const link = (m: (typeof MENU)[number], vertical = false) => (
+    <NavLink
+      key={m.para}
+      to={m.para}
+      end={m.fim}
+      onClick={() => setMenuAberto(false)}
+      className={({ isActive }) =>
+        cn(
+          "flex shrink-0 items-center gap-2 rounded-md px-3 text-sm whitespace-nowrap transition-colors",
+          vertical ? "h-10" : "h-9",
+          isActive ? "bg-white/15 font-medium text-white" : "text-white/75 hover:bg-white/10 hover:text-white",
+        )
       }
-      return !r;
-    });
-  };
+    >
+      <m.icone size={16} className={cn("shrink-0", !vertical && "hidden 2xl:block")} />
+      <span>{m.rotulo}</span>
+      {m.contador && urgentes.length > 0 && <span className="rounded-full bg-critico-600 px-1.5 text-[11px] font-semibold tabular">{urgentes.length}</span>}
+    </NavLink>
+  );
 
   return (
-    <div className="flex h-full">
-      <aside className={cn("flex shrink-0 flex-col bg-primaria-900 text-white transition-[width] duration-200", recolhido ? "w-16" : "w-60")}>
-        <div className="flex h-14 items-center gap-2 border-b border-white/10 px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-white/15 text-sm font-bold">A</div>
-          {!recolhido && (
-            <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-semibold">Akross</p>
-              <p className="truncate text-[11px] text-white/60">Gestão de Contratos</p>
+    <div className="flex h-full flex-col">
+      {/* Menu principal no topo: libera a largura toda para as tabelas. */}
+      <div className="shrink-0 bg-primaria-900 text-white">
+        <div className="flex h-14 items-center gap-4 px-4">
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white/15 text-sm font-bold">A</div>
+            <div className="leading-tight">
+              <p className="text-sm font-semibold">Akross</p>
+              <p className="text-[11px] text-white/60">Gestão de Contratos</p>
             </div>
-          )}
+          </div>
+          <nav aria-label="Menu principal" className="hidden min-w-0 flex-1 items-center gap-0.5 overflow-x-auto xl:flex">
+            {itens.map((m) => link(m))}
+          </nav>
+          <button onClick={() => setMenuAberto((v) => !v)} className="ml-auto rounded-md p-2 text-white/80 hover:bg-white/10 xl:hidden" aria-label={menuAberto ? "Fechar menu" : "Abrir menu"} aria-expanded={menuAberto}>
+            {menuAberto ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
-          {MENU.filter(
-            (m) =>
-              (m.permissoes ? m.permissoes.some((p) => pode(p)) : !m.permissao || pode(m.permissao)) ||
-              (m.para === "/admin" && cad.modo === "demonstracao"),
-          ).map((m) => (
-            <NavLink
-              key={m.para}
-              to={m.para}
-              end={m.fim}
-              title={recolhido ? m.rotulo : undefined}
-              className={({ isActive }) =>
-                cn("flex h-9 items-center gap-3 rounded-md px-3 text-sm transition-colors", isActive ? "bg-white/15 font-medium text-white" : "text-white/75 hover:bg-white/10 hover:text-white")
-              }
-            >
-              <m.icone size={18} className="shrink-0" />
-              {!recolhido && <span className="flex-1 truncate">{m.rotulo}</span>}
-              {!recolhido && m.contador && urgentes.length > 0 && <span className="rounded-full bg-critico-600 px-1.5 text-[11px] font-semibold tabular">{urgentes.length}</span>}
-            </NavLink>
-          ))}
-        </nav>
-        <button onClick={alternar} className="flex h-10 items-center justify-center gap-2 border-t border-white/10 text-xs text-white/60 hover:text-white" aria-label={recolhido ? "Expandir menu" : "Recolher menu"}>
-          {recolhido ? <ChevronsRight size={16} /> : (<><ChevronsLeft size={16} /> Recolher menu</>)}
-        </button>
-      </aside>
+        {menuAberto && (
+          <nav aria-label="Menu principal" className="flex flex-col gap-0.5 border-t border-white/10 p-2 xl:hidden">
+            {itens.map((m) => link(m, true))}
+          </nav>
+        )}
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-borda bg-superficie px-5">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-borda bg-superficie px-4 md:px-5">
           <form
-            className="relative max-w-md flex-1"
+            className="relative min-w-0 max-w-md flex-1"
             onSubmit={(e) => {
               e.preventDefault();
               navegar(`/contratos?busca=${encodeURIComponent(busca)}`);
@@ -109,7 +95,7 @@ export function Layout() {
               className="h-9 w-full rounded-md border border-borda bg-fundo pr-3 pl-9 text-sm focus:border-primaria-500 focus:bg-superficie focus:outline-none"
             />
           </form>
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex shrink-0 items-center gap-2 md:gap-3">
             {fonteDados === "mock" &&
               (cad.modo === "demonstracao" ? (
                 <span className="hidden rounded bg-alerta-50 px-2 py-0.5 text-[11px] font-medium text-alerta-600 md:inline">Dados de demonstração</span>
@@ -157,7 +143,7 @@ export function Layout() {
             </div>
             <label className="flex items-center gap-2 text-xs text-texto-suave" title="Perfil simulado — no produto final virá do login da Akross Atende">
               <span className="hidden lg:inline">Perfil simulado</span>
-              <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-9 rounded-md border border-borda bg-superficie px-2 text-sm text-texto">
+              <select value={usuario.id} onChange={(e) => trocarUsuario(e.target.value)} className="h-9 max-w-[11rem] rounded-md border border-borda bg-superficie px-2 text-sm text-texto sm:max-w-none">
                 {cad.usuarios.filter((u) => u.ativo).map((u) => (
                   <option key={u.id} value={u.id}>
                     {nomeDeExibicao(u)} — {u.diretor ? "Diretor" : ROTULO_PERFIL[u.perfil]}{u.perfisAdicionais?.length ? ` + ${u.perfisAdicionais.map((p) => ROTULO_PERFIL[p]).join(", ")}` : ""}

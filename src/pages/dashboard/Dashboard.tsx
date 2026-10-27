@@ -65,7 +65,7 @@ export function Dashboard() {
           icone={<PiggyBank size={18} />}
           tom="sucesso"
         />
-        <Kpi rotulo="Contratos em renovação" valor={ind.contratosEmRenovacao} detalhe="Renovação, substituição ou renegociação em curso" icone={<RefreshCw size={18} />} onClick={() => navegar("/contratos?aba=Em renovação")} />
+        <Kpi rotulo="Contratos em renovação" valor={ind.contratosEmRenovacao} detalhe="Renovação ou substituição em curso" icone={<RefreshCw size={18} />} onClick={() => navegar("/contratos?aba=Em renovação")} />
         <Kpi
           rotulo="Vencendo em 30 / 60 / 90 dias"
           valor={

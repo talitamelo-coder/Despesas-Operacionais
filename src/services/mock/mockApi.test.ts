@@ -365,12 +365,7 @@ describe("saldo do contrato", () => {
     expect((await api.listarAcoes()).some((x) => x.id === "c-eixo:saldo")).toBe(true);
   });
 
-  it("compra de licença vinculada que estoura o saldo é bloqueada e nada é gravado", async () => {
-    const antes = await api.listarLicencas("u-sup1");
-    await expect(api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 100000, precoUnitario: 30, responsavel: "Teste" }, "u-sup1")).rejects.toThrow(/Saldo insuficiente no contrato/);
-    expect((await api.listarLicencas("u-sup1")).movimentacoes.length).toBe(antes.movimentacoes.length);
-    await api.registrarMovimentacao({ licencaId: "lic-colab", tipo: "Compra", data: H, quantidade: 1, precoUnitario: 30, responsavel: "Teste" }, "u-sup1");
-  });
+
 });
 
 describe("contratos de clientes (receita)", () => {

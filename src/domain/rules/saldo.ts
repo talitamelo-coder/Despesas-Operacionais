@@ -1,15 +1,14 @@
 import { addMeses, diffDias, hoje } from "../datas";
-import { cotacaoNaData, competenciaDe, parcelasDoPeriodo, type DadosCusto } from "./licencas";
 import { proximaRevisaoAnual, ultimaRevisao } from "./prazos";
 import { fixoNoPeriodo } from "./receita";
-import type { AporteSaldo, Contrato, EmissaoFaturamento, ISODate, LinhaTelefonica, Moeda, PedidoContrato } from "../types";
+import type { AporteSaldo, Contrato, EmissaoFaturamento, ISODate, Moeda, PedidoContrato } from "../types";
 
 /**
  * Saldo do contrato — ÚNICA fonte deste cálculo. Fica no CONTRATO (não no fornecedor).
  *
  *   Contratado = valor anual × duração da vigência (em anos) + aportes de saldo
  *   Consumido  = pedidos aprovados (comprometido) + pedidos pagos (realizado)
- *              + licenças e linhas vinculadas ao contrato no período
+ * Licenças e linhas telefônicas não fazem parte deste módulo (controladas no módulo de gestão).
  *   Disponível = contratado − consumido
  *
  * Prazo indeterminado: o saldo é do ciclo anual (de uma revisão até a seguinte).
@@ -41,25 +40,11 @@ export function anosDoPeriodo(p: PeriodoSaldo): number {
 
 const dentro = (d: ISODate, p: PeriodoSaldo) => d >= p.inicio && d <= p.fim;
 
-/** Meses de cobrança de uma linha dentro do período (ativação = cadastro; cancelada/portada = até a alteração). */
-export function mesesDaLinha(l: Pick<LinhaTelefonica, "situacao" | "criadoEm" | "atualizadoEm">, p: PeriodoSaldo): number {
-  const ini = l.criadoEm.slice(0, 10) > p.inicio ? l.criadoEm.slice(0, 10) : p.inicio;
-  const encerrada = l.situacao === "Cancelada" || l.situacao === "Portada";
-  const fimLinha = encerrada ? l.atualizadoEm.slice(0, 10) : p.fim;
-  const fim = fimLinha < p.fim ? fimLinha : p.fim;
-  if (fim < ini) return 0;
-  const [yi, mi] = ini.split("-").map(Number);
-  const [yf, mf] = fim.split("-").map(Number);
-  return (yf - yi) * 12 + (mf - mi) + 1;
-}
-
 export interface ContextoSaldo {
   pedidos: PedidoContrato[];
   /** Contratos de receita: emissões vindas de Contas a receber. */
   emissoes?: EmissaoFaturamento[];
   aportes: AporteSaldo[];
-  licencas: DadosCusto;
-  linhas: LinhaTelefonica[];
 }
 
 export interface SaldoContrato {
@@ -72,24 +57,15 @@ export interface SaldoContrato {
   contratado: number;
   comprometido: number;
   realizado: number;
-  licencas: number;
-  linhas: number;
   consumido: number;
   disponivel: number;
   percentualConsumido: number;
 }
 
-/** Converte reais para a moeda do contrato (USD pela PTAX; outras pela cotação do contrato). */
-function deBRL(valorBRL: number, c: Contrato, ptax?: number): number | undefined {
-  if (c.condicoes.moeda === "BRL") return valorBRL;
-  if (c.condicoes.moeda === "USD" && ptax) return valorBRL / ptax;
-  return c.condicoes.cotacao?.valor ? valorBRL / c.condicoes.cotacao.valor : undefined;
-}
-
-export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo, referencia: ISODate = hoje()): SaldoContrato {
+export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo): SaldoContrato {
   const moeda = c.condicoes.moeda;
   const periodo = periodoDoSaldo(c);
-  const vazio = { moeda, periodo, contratadoBase: 0, aportes: 0, contratado: 0, comprometido: 0, realizado: 0, licencas: 0, linhas: 0, consumido: 0, disponivel: 0, percentualConsumido: 0 };
+  const vazio = { moeda, periodo, contratadoBase: 0, aportes: 0, contratado: 0, comprometido: 0, realizado: 0, consumido: 0, disponivel: 0, percentualConsumido: 0 };
   if (!periodo) return { ...vazio, indisponivel: "Informe a vigência do contrato para calcular o saldo." };
 
   if (c.natureza === "Receita") return saldoReceita(c, ctx, periodo, vazio);
@@ -99,23 +75,8 @@ export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo, referencia: ISO
   const comprometido = pedidos.filter((p) => p.status === "Aprovado").reduce((s, p) => s + p.valor, 0);
   const realizado = pedidos.filter((p) => p.status === "Pago").reduce((s, p) => s + p.valor, 0);
 
-  // Licenças vinculadas: o contratado delas dentro do período, na moeda do contrato.
-  const doContrato = new Set(ctx.licencas.licencas.filter((l) => l.contrato_id === c.contrato_id).map((l) => l.id));
-  let licencas = 0;
-  if (doContrato.size) {
-    const d = { ...ctx.licencas, licencas: ctx.licencas.licencas.filter((l) => doContrato.has(l.id)) };
-    for (const p of parcelasDoPeriodo(d, competenciaDe(periodo.inicio), competenciaDe(periodo.fim), referencia)) {
-      if (moeda === "USD") licencas += p.valorUSD ?? 0;
-      else if (moeda === "BRL") licencas += p.custoRealBRL ?? 0;
-      else licencas += deBRL(p.custoRealBRL ?? 0, c) ?? 0;
-    }
-  }
-  const ptax = cotacaoNaData(ctx.licencas.cotacoes, referencia)?.ptaxVenda;
-  const linhasBRL = ctx.linhas.filter((l) => l.contrato_id === c.contrato_id).reduce((s, l) => s + l.valorMensal * mesesDaLinha(l, periodo), 0);
-  const linhas = deBRL(linhasBRL, c, ptax) ?? 0;
-
   const contratado = contratadoBase + aportes;
-  const consumido = comprometido + realizado + licencas + linhas;
+  const consumido = comprometido + realizado;
   return {
     moeda,
     periodo,
@@ -125,8 +86,6 @@ export function saldoDoContrato(c: Contrato, ctx: ContextoSaldo, referencia: ISO
     contratado,
     comprometido,
     realizado,
-    licencas,
-    linhas,
     consumido,
     disponivel: contratado - consumido,
     percentualConsumido: contratado ? (consumido / contratado) * 100 : 0,
@@ -185,12 +144,6 @@ export function erroSaldoPedido(s: SaldoContrato, valor: number, c: Pick<Contrat
   if (valor > s.disponivel + 0.005)
     return `Saldo insuficiente: disponível ${fmt(s.disponivel, s.moeda)}. Adicione pelo menos ${fmt(valor - s.disponivel, s.moeda)} de saldo ao contrato para registrar este pedido.`;
   return undefined;
-}
-
-/** Uma mudança (compra de licença, linha nova…) não pode deixar o saldo negativo nem piorar um saldo já negativo. */
-export function erroSaldoApos(antes: SaldoContrato, depois: SaldoContrato, codigo: string): string | undefined {
-  if (depois.disponivel >= -0.005 || depois.disponivel >= antes.disponivel - 0.005) return undefined;
-  return `Saldo insuficiente no contrato ${codigo}: esta operação consome ${fmt(antes.disponivel - depois.disponivel, depois.moeda)} e o disponível é ${fmt(Math.max(0, antes.disponivel), depois.moeda)}. Adicione saldo ao contrato antes.`;
 }
 
 export const ALERTAS_SALDO = [80, 100] as const;

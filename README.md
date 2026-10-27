@@ -42,25 +42,13 @@ React 19 + TypeScript + Vite + Tailwind CSS 4, a mesma base que o Lovable gera. 
 | 7 | Documentos | `/documentos` |
 | 8 | Ações Necessárias (pendências, alertas e prévia de e-mail) | `/acoes` |
 | 9 | Administração (inclui a importação da planilha) | `/admin` |
-| 10 | Licenças de Software (dashboard, licenças, pessoas, importação CSV, câmbio e parâmetros) | `/licencas` |
-| 11 | Telefonia (dashboard, linhas, importação CSV) | `/telefonia` |
+| 10 | Contratos de clientes (painel, contratos, clientes, importação) | `/clientes` |
 
-### Licenças de Software
+Navegação pelo **menu no topo** (no celular e em telas estreitas, vira menu recolhível).
 
-Registra **o contratado** (o real pago fica em Pedidos e Contas a pagar) e quem usa. A licença só referencia o contrato; **o contrato não é alterado**. A Capa do Contrato mostra um bloco somente leitura.
+### Fora deste módulo
 
-- Assentos e preço vêm das **movimentações**: compra (soma assentos), redução, renegociação e cancelamento. Cada uma guarda o valor anual antes/depois: são as economias e os aumentos do dashboard.
-- **Custo:** BRL sem IOF. USD = valor × PTAX × (1 + spread) + IOF. Custo real (valor + IOF) é a base de tudo. Cenário com impostos é só simulação, em indicador separado.
-- **Sem furo na base:** atribuir sem assento livre é bloqueado; reduzir abaixo do atribuído também. E-mail corporativo é a identidade (domínios do grupo são a mesma pessoa).
-- **Rateio:** custo ÷ assentos × assentos da pessoa. Assento sem pessoa = "Disponível (ocioso)". Fixo/consumo sem usuário = "Não atribuído". O ranking de ofensores sempre fecha com o total.
-- **Perfis:** Suprimentos e Administrador gerem; Gestor vê a própria área; **Leitura** vê só totais.
-- **Parâmetros** (spread, IOF, fator de impostos, domínios) e **PTAX** ficam em "Câmbio e parâmetros", com data de vigência: mudar recalcula sem deploy e não mexe no passado.
-- Usuários sem e-mail ou sem assento livre na importação vão para a **fila de pendências** (Licenças → Pessoas): informe o e-mail ou compre o assento e atribua, ou descarte com motivo. Licença sem data de vencimento entra “A completar” (alerta no dashboard).
-- **Importação por planilha** (.xlsx ou .csv) com modelo Excel para download; um mesmo .xlsx pode trazer as abas "Licenças" e "Atribuições" (cada importação usa a aba do tipo escolhido); `contrato_codigo` aceita o código do sistema ou o código da planilha de carga, pré-visualização, relatório de recusadas e reimportação sem duplicar. Toda exportação entra na auditoria.
-
-### Telefonia
-
-Menu próprio, separado das licenças. Linha com número, operadora, plano, franquia, valor mensal (BRL) e situação; uma pessoa por vez, com histórico. Dashboard por pessoa, área e operadora, e alertas de linha sem usuário ou de pessoa desligada com linha.
+**Licenças de software e linhas telefônicas** passam a ser controladas no módulo de gestão. As telas saíram daqui e elas não consomem mais o saldo do contrato. As regras e a API simulada (`domain/rules/licencas.ts`, `telefonia.ts`) continuam no repositório como referência para o novo módulo; os dados já gravados no navegador não foram apagados. Orçamento, valor pago e classificação contábil também ficam em outro módulo.
 
 ### Papel do módulo de contratos
 
@@ -76,7 +64,7 @@ Aba **Importar**: CSV de contratos de clientes (modelo para download, prévia li
 
 ### Saldo do contrato
 
-O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos − licenças e linhas vinculadas. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Compras de licenças e linhas vinculadas também consomem o saldo e são bloqueadas se não couberem. Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.
+O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.
 
 ### Contratos: vigência e cancelamento
 
