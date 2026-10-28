@@ -185,3 +185,26 @@ export function calcularAcoes(ctx: Contexto): AcaoNecessaria[] {
     (a, b) => ORDEM_PRIORIDADE[a.prioridade] - ORDEM_PRIORIDADE[b.prioridade] || (a.prazo ?? "9").localeCompare(b.prazo ?? "9"),
   );
 }
+
+/**
+ * Fornecedor (ou cliente) da ação, para identificar a pendência sem abrir o contrato.
+ * Contrato: a contraparte dele. Processo: fornecedor recomendado (cadastrado ou potencial);
+ * sem recomendado, o do contrato anterior; senão "A definir".
+ */
+export function contraparteDaAcao(
+  ref: AcaoNecessaria["referencia"],
+  contratos: Pick<Contrato, "contrato_id" | "natureza" | "fornecedorId" | "clienteId">[],
+  processos: Pick<ProcessoContratacao, "processo_id" | "propostas" | "propostaRecomendadaId" | "contrato_anterior_id">[],
+  nome: { fornecedor: (id: string) => string | undefined; cliente: (id: string) => string | undefined },
+): string {
+  const doContrato = (id?: string) => {
+    const c = id ? contratos.find((x) => x.contrato_id === id) : undefined;
+    if (!c) return undefined;
+    return c.natureza === "Receita" ? (c.clienteId ? nome.cliente(c.clienteId) : undefined) : nome.fornecedor(c.fornecedorId);
+  };
+  if (ref.tipo === "contrato") return doContrato(ref.id) ?? "—";
+  const p = processos.find((x) => x.processo_id === ref.id);
+  if (!p) return "—";
+  const rec = p.propostas.find((x) => x.id === p.propostaRecomendadaId);
+  return (rec?.fornecedorId && nome.fornecedor(rec.fornecedorId)) || rec?.fornecedorPotencial || doContrato(p.contrato_anterior_id) || "A definir";
+}

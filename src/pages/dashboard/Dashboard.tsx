@@ -12,12 +12,14 @@ import { formatarData } from "@/domain/datas";
 import { formatarMoeda, formatarPercentual } from "@/domain/formatacao";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
+import { useContraparteAcao } from "@/hooks/useContraparteAcao";
 
 export function Dashboard() {
   const navegar = useNavigate();
   const { nomeUsuario, usuario, cad } = useApp();
   const { dados: ind } = useConsulta(() => api.obterIndicadores(), []);
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
+  const contraparte = useContraparteAcao();
   const { dados: incompletos } = useConsulta(() => api.consultarCentral({ aba: "Todos", cadastro: "incompleto" }, { coluna: "codigo", direcao: "asc" }, 0, 1), []);
   if (!ind) return <Carregando />;
   const pctSuprimentos = ind.savingAnualTotal ? (ind.savingSuprimentos / ind.savingAnualTotal) * 100 : 0;
@@ -91,6 +93,7 @@ export function Dashboard() {
                 <button onClick={() => navegar(a.link)} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-fundo">
                   <span className="w-32 shrink-0"><PrioridadeBadge prioridade={a.prioridade} /></span>
                   <span className="w-28 shrink-0 text-xs font-semibold text-primaria-800">{a.referencia.codigo}</span>
+                  <span className="hidden w-40 shrink-0 truncate text-xs lg:block" title={contraparte(a.referencia)}>{contraparte(a.referencia)}</span>
                   <span className="min-w-0 flex-1 truncate text-sm">{a.acao}</span>
                   <span className="hidden w-36 shrink-0 truncate text-xs text-texto-suave md:block">{nomeUsuario(a.responsavelId)}</span>
                   <span className="w-20 shrink-0 text-right text-xs text-texto-suave tabular">{formatarData(a.prazo)}</span>

@@ -20,6 +20,7 @@ import { renderizarEmailAvaliacao, type EmailRenderizado } from "@/domain/templa
 import type { AcaoNecessaria, Alerta, Contrato, Prioridade } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
+import { useContraparteAcao } from "@/hooks/useContraparteAcao";
 
 const NIVEIS: Prioridade[] = ["Crítico", "Ação necessária", "Atenção", "Normal"];
 
@@ -38,6 +39,7 @@ function Pendencias() {
   const navegar = useNavigate();
   const { usuario, nomeUsuario, cad } = useApp();
   const { dados, carregando } = useConsulta(() => api.listarAcoes(), []);
+  const contraparte = useContraparteAcao();
   const [soMinhas, setSoMinhas] = useState(!temPerfil(usuario, "Administrador"));
   const [nivel, setNivel] = useState("");
   const [responsavel, setResponsavel] = useState("");
@@ -57,7 +59,7 @@ function Pendencias() {
       <Card>
         <div className="flex flex-wrap items-end gap-4 border-b border-borda p-4">
           <Toggle rotulo="Somente minhas ações" checked={soMinhas} onChange={setSoMinhas} />
-          <Select className="w-56" rotulo="Responsável" vazio="Todos" value={responsavel} onChange={(e) => setResponsavel(e.target.value)} opcoes={cad.usuarios.map((u) => ({ valor: u.id, rotulo: u.nome }))} />
+          <Select className="w-56" rotulo="Responsável" vazio="Todos" value={responsavel} onChange={(e) => setResponsavel(e.target.value)} opcoes={cad.usuarios.map((u) => ({ valor: u.id, rotulo: nomeUsuario(u.id) }))} />
         </div>
         <Tabela<AcaoNecessaria>
           carregando={carregando && !dados}
@@ -68,6 +70,7 @@ function Pendencias() {
           colunas={[
             { id: "p", titulo: "Prioridade", largura: "150px", render: (a) => <PrioridadeBadge prioridade={a.prioridade} /> },
             { id: "c", titulo: "Contrato / processo", largura: "150px", render: (a) => <span className="font-semibold text-primaria-800">{a.referencia.codigo}</span> },
+            { id: "f", titulo: "Fornecedor / cliente", maxLargura: "max-w-[220px]", render: (a) => contraparte(a.referencia) },
             { id: "a", titulo: "Ação", render: (a) => a.acao },
             { id: "r", titulo: "Responsável", render: (a) => nomeUsuario(a.responsavelId) },
             {
