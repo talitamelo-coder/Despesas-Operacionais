@@ -71,3 +71,18 @@ Fornecedor C;Matriz;Outro;Ana;12000;900;01/01/2026;31/12/2026
     expect(sem.incompletos[0].faltando).toEqual(["Empresa"]);
   });
 });
+
+describe("contrato por demanda", () => {
+  it("coluna “Por demanda” marca o valor anual como estimado", () => {
+    const csv = `Fornecedor;Empresa;Objeto;Gestor;Valor anual;Por demanda (valor estimado);Data início;Data fim
+Fornecedor D;Matriz;Serviços sob demanda;Ana;600000;Sim;01/01/2026;31/12/2026
+Fornecedor E;Matriz;Locação;Ana;120000;Não;01/01/2026;31/12/2026`;
+    const { cabecalhos, linhas } = parseCSV(csv);
+    const m = sugerirMapeamento(cabecalhos);
+    expect(m.porDemanda).toBe("Por demanda (valor estimado)");
+    expect(m.valorAnual).toBe("Valor anual");
+    const r = processarImportacao(cabecalhos, linhas, m);
+    expect(r.importados.find((x) => x.fornecedor === "Fornecedor D")?.porDemanda).toBe(true);
+    expect(r.importados.find((x) => x.fornecedor === "Fornecedor E")?.porDemanda).toBeUndefined();
+  });
+});

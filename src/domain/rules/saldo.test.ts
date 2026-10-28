@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { erroSaldoPedido, faixaAlertaSaldo, periodoDoSaldo, saldoDoContrato, type ContextoSaldo } from "./saldo";
+import { erroSaldoPedido, faixaAlertaSaldo, periodoDoSaldo, rotuloAumentoSaldo, saldoDoContrato, valorEstimado, type ContextoSaldo } from "./saldo";
 import type { Contrato, PedidoContrato } from "../types";
 
 const contrato = (extra: Partial<Contrato["vigencia"]> = {}, valorAnual = 12000): Contrato =>
@@ -46,5 +46,16 @@ describe("saldo do contrato", () => {
     const s = saldoDoContrato(contrato(), vazio);
     expect(faixaAlertaSaldo({ ...s, percentualConsumido: 85 })).toBe(80);
     expect(faixaAlertaSaldo({ ...s, percentualConsumido: 100 })).toBe(100);
+  });
+
+  it("contrato por demanda: valor anual estimado é a base do saldo e o aumento é reforço", () => {
+    const c = contrato();
+    expect(valorEstimado(c)).toBe(false);
+    expect(rotuloAumentoSaldo(c)).toBe("Aditivo de valor");
+    const demanda = { ...c, condicoes: { ...c.condicoes, valorAnualEstimado: true } };
+    expect(valorEstimado(demanda)).toBe(true);
+    expect(rotuloAumentoSaldo(demanda)).toBe("Reforço de saldo");
+    expect(rotuloAumentoSaldo({ ...demanda, natureza: "Receita" })).toBe("Aditivo de valor");
+    expect(saldoDoContrato(demanda, vazio).contratado).toBeCloseTo(saldoDoContrato(c, vazio).contratado);
   });
 });

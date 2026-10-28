@@ -9,7 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Tabela } from "@/components/ui/Tabela";
 import { formatarData, hoje } from "@/domain/datas";
 import { formatarMoeda, formatarPercentual } from "@/domain/formatacao";
-import { aceitaMovimento, erroSaldoPedido } from "@/domain/rules/saldo";
+import { aceitaMovimento, erroSaldoPedido, rotuloAumentoSaldo } from "@/domain/rules/saldo";
 import type { Contrato } from "@/domain/types";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api } from "@/services";
@@ -68,7 +68,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
       {podeEditar && (
         <div className="flex flex-wrap gap-2">
           {!receita && <Button tamanho="sm" icone={<ReceiptText size={14} />} onClick={() => setPedido(true)}>Registrar pedido</Button>}
-          <Button tamanho="sm" variante="secundario" icone={<Plus size={14} />} onClick={() => setAporte(true)}>Registrar aditivo de valor</Button>
+          <Button tamanho="sm" variante="secundario" icone={<Plus size={14} />} onClick={() => setAporte(true)}>Registrar {rotuloAumentoSaldo(c).toLowerCase()}</Button>
         </div>
       )}
       {!compacto && (
@@ -129,7 +129,7 @@ export function BlocoSaldo({ c, compacto }: { c: Contrato; compacto?: boolean })
         </>
       )}
       {pedido && <PedidoModal c={c} disponivel={s} onFechar={() => setPedido(false)} />}
-      {aporte && <AditivoModal c={c} onFechar={() => setAporte(false)} />}
+      {aporte && <AditivoModal c={c} reforco={rotuloAumentoSaldo(c) === "Reforço de saldo"} onFechar={() => setAporte(false)} />}
     </div>
   );
 }

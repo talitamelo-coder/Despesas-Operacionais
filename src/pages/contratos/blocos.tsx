@@ -67,7 +67,8 @@ export function BlocoCondicoesComerciais({ c }: { c: Contrato }) {
   return (
     <GradeValores>
       <Valor rotulo="Moeda">{cc.moeda}</Valor>
-      <Valor rotulo={`Valor anual (${cc.moeda})`}>{formatarMoeda(cc.valorAnual, cc.moeda)}</Valor>
+      <Valor rotulo="Modalidade de valor">{cc.valorAnualEstimado ? "Por demanda: valor anual estimado" : "Valor fixo"}</Valor>
+      <Valor rotulo={`Valor anual${cc.valorAnualEstimado ? " estimado" : ""} (${cc.moeda})`}>{formatarMoeda(cc.valorAnual, cc.moeda)}</Valor>
       <Valor rotulo="Valor anual em BRL" origem={cc.moeda !== "BRL" ? "calculado" : undefined}>{formatarMoeda(valorAnualBRL(cc))}</Valor>
       <Valor rotulo={`Valor mensal (${cc.moeda})`} origem="calculado">{formatarMoeda(valorMensal(cc), cc.moeda)}</Valor>
       <Valor rotulo="Valor mensal em BRL" origem="calculado">{formatarMoeda(valorMensalBRL(cc))}</Valor>

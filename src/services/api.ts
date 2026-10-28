@@ -78,6 +78,8 @@ export interface FiltrosCentral {
   projeto?: string;
   /** "incompleto": só contratos com dados a completar (ex.: importados de planilha). */
   cadastro?: "incompleto";
+  /** "sim": só contratos por demanda (valor estimado); "nao": só valor fixo. */
+  porDemanda?: "sim" | "nao";
 }
 
 export type ColunaOrdenavel = "codigo" | "fornecedor" | "empresa" | "objeto" | "gestor" | "analista" | "valorMensal" | "valorAnual" | "dataFim" | "status" | "prioridade";
@@ -117,6 +119,8 @@ export interface LinhaCentral {
   projeto?: string;
   /** Itens a completar no cadastro (ver domain/rules/cadastro.ts). */
   pendenciasCadastro: string[];
+  /** Contrato por demanda: valor anual é estimativa. */
+  valorEstimado: boolean;
 }
 
 export interface ResultadoCentral {

@@ -22,7 +22,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 | PUT | `/fornecedores/{id\|novo}` | `salvarFornecedor` | Enquanto não houver integração com o sistema atual |
 | GET | `/tipos-contrato` · PUT `/tipos-contrato/{id\|novo}` | | |
 | GET / PUT | `/configuracao` | `obterConfiguracao` · `salvarConfiguracao` | Listas, regras de alerta |
-| GET | `/central?aba=&busca=&empresaId=&...&ordenarPor=&direcao=&pagina=&tamanhoPagina=` | `consultarCentral` | **Paginação e filtros no servidor**; retorna `{ linhas, total, contagemPorAba }` |
+| GET | `/central?aba=&busca=&empresaId=&...&ordenarPor=&direcao=&pagina=&tamanhoPagina=` | `consultarCentral` | **Paginação e filtros no servidor**; retorna `{ linhas, total, contagemPorAba }`. Filtro `porDemanda=sim\|nao` separa contratos por demanda (valor anual estimado) |
 | GET | `/contratos` · `/contratos/{id}` | `listarContratos` · `obterContrato` | |
 | PATCH | `/contratos/{id}` | `atualizarContrato` | Gera auditoria campo a campo |
 | POST | `/contratos/{id}/avaliacao-renovacao` | `registrarAvaliacaoRenovacao` | Interrompe lembretes; pode criar processo |

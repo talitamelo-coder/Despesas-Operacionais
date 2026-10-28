@@ -17,13 +17,13 @@ import { formatarMoeda } from "@/domain/formatacao";
 import { useConsulta } from "@/hooks/useConsulta";
 import { api, type ColunaOrdenavel, type FiltrosCentral, type LinhaCentral, type Ordenacao } from "@/services";
 
-const CHAVES_FILTRO = ["fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro"] as const;
+const CHAVES_FILTRO = ["fornecedorId", "gestorId", "analistaId", "status", "tipoContratoId", "tipoProcesso", "vencimento", "renovacaoAutomatica", "moeda", "projeto", "cadastro", "porDemanda"] as const;
 const STATUS_CONTRATO = ["Vigente", "Suspenso", "Encerrado", "Rescindido"];
 
 function csvDaPagina(linhas: LinhaCentral[]): string {
-  const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor mensal (BRL)", "Valor anual (BRL)", "Data fim", "Status", "Próxima ação"];
+  const cab = ["Código", "Fornecedor", "Empresa", "Objeto", "Gestor", "Analista", "Valor mensal (BRL)", "Valor anual (BRL)", "Valor estimado (por demanda)", "Data fim", "Status", "Próxima ação"];
   const esc = (s: unknown) => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestorCompleto, l.analistaCompleto, l.valorMensalBRL?.toFixed(2).replace(".", ","), l.valorAnualBRL?.toFixed(2).replace(".", ","), formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
+  const corpo = linhas.map((l) => [l.codigo, l.fornecedor, l.empresa, l.objeto, l.gestorCompleto, l.analistaCompleto, l.valorMensalBRL?.toFixed(2).replace(".", ","), l.valorAnualBRL?.toFixed(2).replace(".", ","), l.valorEstimado ? "Sim" : "Não", formatarData(l.dataFim), l.status, l.proximaAcao].map(esc).join(";"));
   return "\uFEFF" + [cab.map(esc).join(";"), ...corpo].join("\n");
 }
 
@@ -65,6 +65,7 @@ export function CentralContratos() {
     { grupo: "Contrato", chave: "tipoContratoId", rotulo: "Tipo de contrato", opcoes: op.tipos },
     { grupo: "Contrato", chave: "projeto", rotulo: "Projeto", opcoes: op.projetos },
     { grupo: "Contrato", chave: "moeda", rotulo: "Moeda", opcoes: op.moedas, vazio: "Todas" },
+    { grupo: "Contrato", chave: "porDemanda", rotulo: "Modalidade de valor", vazio: "Todas", opcoes: [{ valor: "sim", rotulo: "Por demanda (valor estimado)" }, { valor: "nao", rotulo: "Valor fixo" }] },
     { grupo: "Responsáveis", chave: "gestorId", rotulo: "Gestor", opcoes: op.gestores },
     { grupo: "Responsáveis", chave: "analistaId", rotulo: "Analista", opcoes: op.analistas },
     { grupo: "Status e processo", chave: "status", rotulo: "Status", opcoes: statusOpcoes.map((x) => ({ valor: x, rotulo: x })) },
@@ -126,6 +127,7 @@ export function CentralContratos() {
         <span className="tabular">
           {formatarMoeda(l.valorMensalBRL)}
           {l.moeda !== "BRL" && <span className="ml-1 text-[10px] font-semibold text-info-600">{l.moeda}</span>}
+          {l.valorEstimado && <span className="ml-1.5 rounded bg-alerta-50 px-1 text-[10px] font-semibold text-alerta-600" title="Contrato por demanda: valor anual estimado">est.</span>}
         </span>
       ),
     },
@@ -138,6 +140,7 @@ export function CentralContratos() {
         <span className="tabular">
           {formatarMoeda(l.valorAnualBRL)}
           {l.moeda !== "BRL" && <span className="ml-1 text-[10px] font-semibold text-info-600">{l.moeda}</span>}
+          {l.valorEstimado && <span className="ml-1.5 rounded bg-alerta-50 px-1 text-[10px] font-semibold text-alerta-600" title="Contrato por demanda: valor anual estimado">est.</span>}
         </span>
       ),
     },

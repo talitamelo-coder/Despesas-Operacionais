@@ -103,7 +103,10 @@ export function EditarContratoModal({ contrato, aberto, onFechar }: { contrato: 
 
         {!receita && <Secao titulo="Condições comerciais">
           <Select rotulo="Moeda" vazio={false} disabled={travado} opcoes={op.moedas} value={c.condicoes.moeda} onChange={(e) => cond({ moeda: e.target.value as Moeda })} />
-          <InputNumero rotulo={`Valor anual (${c.condicoes.moeda})`} obrigatorio disabled={travado} valor={c.condicoes.valorAnual || undefined} onValor={(v) => cond({ valorAnual: v ?? 0 })} />
+          <InputNumero rotulo={`Valor anual${c.condicoes.valorAnualEstimado ? " estimado" : ""} (${c.condicoes.moeda})`} obrigatorio disabled={travado} valor={c.condicoes.valorAnual || undefined} onValor={(v) => cond({ valorAnual: v ?? 0 })} />
+          <div className="flex items-end pb-1">
+            <Toggle rotulo="Contrato por demanda" ajuda="Valor anual é previsão de consumo; se estourar, registre reforço de saldo" checked={Boolean(c.condicoes.valorAnualEstimado)} onChange={(v) => cond({ valorAnualEstimado: v || undefined })} />
+          </div>
           <Select rotulo="Periodicidade de pagamento" vazio={false} opcoes={op.periodicidades} value={c.condicoes.periodicidadePagamento} onChange={(e) => cond({ periodicidadePagamento: e.target.value as Periodicidade })} />
           <InputNumero rotulo="Quantidade" valor={c.condicoes.quantidade} onValor={(v) => cond({ quantidade: v })} />
           <Select rotulo="Unidade" opcoes={c.condicoes.unidade && !op.unidades.some((x) => x.valor === c.condicoes.unidade) ? [...op.unidades, { valor: c.condicoes.unidade, rotulo: c.condicoes.unidade }] : op.unidades} value={c.condicoes.unidade ?? ""} onChange={(e) => cond({ unidade: e.target.value || undefined })} />

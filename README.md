@@ -64,7 +64,7 @@ Aba **Importar**: CSV de contratos de clientes (modelo para download, prévia li
 
 ### Saldo do contrato
 
-O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Alertas aos 80% e 100%. Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.
+O saldo fica **no contrato** (não no fornecedor): contratado (valor anual × duração da vigência + saldo adicionado) − pedidos aprovados e pagos. **Pedido acima do saldo é bloqueado**: é preciso "Adicionar saldo" (ex.: aditivo de valor). Alertas aos 80% e 100%. **Contrato por demanda:** marque "Contrato por demanda" e informe a previsão de consumo no valor anual (etiqueta "est." na Central e na capa); se estourar, registre um **reforço de saldo** (mesmo registro do aditivo de valor, sem exigir aditivo contratual). Até a integração com o módulo de pedidos, os pedidos são registrados na capa do contrato.
 
 ### Contratos: vigência e cancelamento
 

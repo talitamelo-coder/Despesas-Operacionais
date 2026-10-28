@@ -26,6 +26,7 @@ export const CAMPOS_IMPORTACAO = [
   { campo: "dataFim", rotulo: "Data fim", obrigatorio: true, sinonimos: ["fim", "data fim", "termino", "vencimento", "fim vigencia"] },
   { campo: "avisoPrevioDias", rotulo: "Aviso prévio (dias)", obrigatorio: false, sinonimos: ["aviso previo", "aviso"] },
   { campo: "renovacaoAutomatica", rotulo: "Renovação automática", obrigatorio: false, sinonimos: ["renovacao automatica", "renov auto", "auto renovacao"] },
+  { campo: "porDemanda", rotulo: "Por demanda (valor estimado)", obrigatorio: false, sinonimos: ["por demanda", "contrato por demanda", "valor anual estimado"] },
   { campo: "tipo", rotulo: "Tipo de contrato", obrigatorio: false, sinonimos: ["tipo", "categoria"] },
   { campo: "centroCusto", rotulo: "Centro de custo", obrigatorio: false, sinonimos: ["centro de custo", "cc"] },
   { campo: "projeto", rotulo: "Projeto", obrigatorio: false, sinonimos: ["projeto"] },
@@ -69,6 +70,8 @@ export interface RegistroImportado {
   indeterminado?: boolean;
   avisoPrevioDias: number;
   renovacaoAutomatica: boolean;
+  /** Contrato por demanda: o valor anual informado é previsão de consumo. */
+  porDemanda?: boolean;
   tipo?: string;
   centroCusto?: string;
   projeto?: string;
@@ -285,6 +288,7 @@ export function processarImportacao(
       indeterminado: indeterminado || undefined,
       avisoPrevioDias: aviso ?? 0,
       renovacaoAutomatica: !indeterminado && parseBool(v("renovacaoAutomatica")),
+      porDemanda: parseBool(v("porDemanda")) || undefined,
       tipo: v("tipo") || undefined,
       centroCusto: v("centroCusto") || undefined,
       projeto: v("projeto") || undefined,

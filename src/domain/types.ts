@@ -166,6 +166,8 @@ export interface CondicoesComerciais {
   moeda: Moeda;
   /** Valor anual na moeda do contrato. */
   valorAnual: number;
+  /** Contrato por demanda: o valor anual é uma previsão de consumo (base do saldo), não um compromisso fixo. */
+  valorAnualEstimado?: boolean;
   quantidade?: number;
   unidade?: string;
   /** Preço unitário anual na moeda do contrato (para decomposição preço x volume). */

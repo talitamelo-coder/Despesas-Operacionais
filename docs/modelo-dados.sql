@@ -191,6 +191,7 @@ CREATE TABLE contratos (
   -- condições comerciais
   moeda                 CHAR(3)      NOT NULL,
   valor_anual           DECIMAL(18,2) NOT NULL COMMENT 'Na moeda do contrato',
+  valor_anual_estimado  BOOLEAN       NOT NULL DEFAULT FALSE COMMENT 'Contrato por demanda: valor anual é previsão de consumo (base do saldo)',
   quantidade            DECIMAL(18,4) NULL,
   unidade               VARCHAR(40)  NULL COMMENT 'Da lista auxiliar Unidades',
   preco_unitario        DECIMAL(18,6) NULL,

@@ -463,3 +463,17 @@ describe("contrato importado “A completar”", () => {
     await expect(api.atualizarContrato(c.contrato_id, { condicoes: { ...pronto.condicoes, valorAnual: 1 } }, "u-sup1")).rejects.toThrow(/aditivo/);
   });
 });
+
+describe("contrato por demanda", () => {
+  it("carga marca o valor anual como estimado; a Central filtra e o saldo usa a previsão", async () => {
+    const r = await api.importarContratos([{ linha: 2, fornecedor: "Fornecedor Demanda Ltda", cnpj: "11222333000181", empresa: "Exemplo Holding S.A.", objeto: "Serviços sob demanda", gestor: "Carlos Mendes", valorAnual: 600000, moeda: "BRL", dataInicio: "2026-01-01", dataFim: "2026-12-31", avisoPrevioDias: 30, renovacaoAutomatica: false, porDemanda: true }], "u-sup1");
+    const c = (await api.listarContratos()).find((x) => x.codigo === r.codigos[0])!;
+    expect(c.condicoes.valorAnualEstimado).toBe(true);
+    const sim = await api.consultarCentral({ aba: "Todos", porDemanda: "sim" }, { coluna: "codigo", direcao: "asc" }, 0, 500);
+    expect(sim.linhas.map((l) => l.id)).toContain(c.contrato_id);
+    expect(sim.linhas.every((l) => l.valorEstimado)).toBe(true);
+    const nao = await api.consultarCentral({ aba: "Todos", porDemanda: "nao" }, { coluna: "codigo", direcao: "asc" }, 0, 500);
+    expect(nao.linhas.some((l) => l.id === c.contrato_id)).toBe(false);
+    expect((await api.obterSaldoContrato(c.contrato_id, "u-sup1")).saldo.contratado).toBeCloseTo(600000, -3);
+  });
+});

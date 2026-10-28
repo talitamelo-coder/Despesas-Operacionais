@@ -16,7 +16,8 @@ import { api } from "@/services";
 const TIPOS = TIPOS_ADITIVO;
 
 /** Registro de aditivo: a única forma de mudar valor ou prazo de um contrato já registrado. */
-export function AditivoModal({ c, onFechar }: { c: Contrato; onFechar: () => void }) {
+/** `reforco`: contrato por demanda — o mesmo registro, apresentado como reforço de saldo (sem aditivo contratual). */
+export function AditivoModal({ c, onFechar, reforco }: { c: Contrato; onFechar: () => void; reforco?: boolean }) {
   const { usuario, executar } = useApp();
   const receita = c.natureza === "Receita";
   const [a, setA] = useState<NovoAditivo>({ contrato_id: c.contrato_id, numero: "", data: hoje(), tipo: "Valor", descricao: "" });
@@ -29,14 +30,14 @@ export function AditivoModal({ c, onFechar }: { c: Contrato; onFechar: () => voi
   const salvar = async () => {
     setTentou(true);
     if (previa.erros.length) return;
-    if (await executar(() => api.registrarAditivo(a, usuario.id), `Aditivo ${a.numero} registrado.`)) onFechar();
+    if (await executar(() => api.registrarAditivo(a, usuario.id), reforco ? `Reforço ${a.numero} registrado.` : `Aditivo ${a.numero} registrado.`)) onFechar();
   };
   return (
-    <Modal aberto titulo={`Registrar aditivo · ${c.codigo}`} largura="lg" onFechar={onFechar} rodape={<><Button variante="secundario" onClick={onFechar}>Cancelar</Button><Button onClick={salvar}>Registrar aditivo</Button></>}>
+    <Modal aberto titulo={`${reforco ? "Reforço de saldo" : "Registrar aditivo"} · ${c.codigo}`} largura="lg" onFechar={onFechar} rodape={<><Button variante="secundario" onClick={onFechar}>Cancelar</Button><Button onClick={salvar}>{reforco ? "Registrar reforço" : "Registrar aditivo"}</Button></>}>
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Input rotulo="Número do aditivo" obrigatorio placeholder="Ex.: 3º Aditivo" value={a.numero} onChange={(e) => set({ numero: e.target.value })} />
-          <Input rotulo="Data de assinatura" type="date" obrigatorio value={a.data} onChange={(e) => set({ data: e.target.value })} />
+          <Input rotulo={reforco ? "Identificação" : "Número do aditivo"} obrigatorio placeholder={reforco ? "Ex.: Reforço 1/2026" : "Ex.: 3º Aditivo"} value={a.numero} onChange={(e) => set({ numero: e.target.value })} />
+          <Input rotulo={reforco ? "Data" : "Data de assinatura"} type="date" obrigatorio value={a.data} onChange={(e) => set({ data: e.target.value })} />
           <Select rotulo="Tipo" vazio={false} value={a.tipo} onChange={(e) => set({ tipo: e.target.value as TipoAditivo })} opcoes={TIPOS.map((t) => ({ valor: t, rotulo: t }))} />
           <Textarea className="md:col-span-3" rotulo="Descrição" obrigatorio value={a.descricao} onChange={(e) => set({ descricao: e.target.value })} placeholder="O que o aditivo muda e por quê" />
         </div>

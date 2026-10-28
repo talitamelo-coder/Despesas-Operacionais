@@ -429,6 +429,9 @@ function SecaoNegociacao({ edit, set, editavel, negociado }: Props & { negociado
             <Select rotulo="Unidade" disabled={!editavel} opcoes={c.unidade && !op.unidades.some((x) => x.valor === c.unidade) ? [...op.unidades, { valor: c.unidade, rotulo: c.unidade }] : op.unidades} value={c.unidade ?? ""} onChange={(e) => setC({ unidade: e.target.value || undefined })} />
             <Select rotulo="Periodicidade de pagamento" obrigatorio disabled={!editavel} opcoes={op.periodicidades} origem={o["condicoes.periodicidadePagamento"]} value={c.periodicidadePagamento ?? ""} onChange={(e) => setC({ periodicidadePagamento: e.target.value as Periodicidade })} />
             <Input rotulo="Condição de pagamento" obrigatorio className="md:col-span-3" placeholder="Ex.: 30 dias após emissão da nota fiscal, via boleto" ajuda="Prazo e forma de pagamento acordados com o fornecedor." disabled={!editavel} origem={o["condicoes.condicaoPagamento"]} value={c.condicaoPagamento ?? ""} onChange={(e) => setC({ condicaoPagamento: e.target.value })} />
+            <div className="flex items-end pb-1">
+              <Toggle rotulo="Contrato por demanda" ajuda="O valor negociado é previsão de consumo (base do saldo)" disabled={!editavel} checked={Boolean(c.valorAnualEstimado)} onChange={(v) => setC({ valorAnualEstimado: v || undefined })} />
+            </div>
           </div>
         </div>
         {c.moeda && c.moeda !== "BRL" && (

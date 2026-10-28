@@ -146,6 +146,16 @@ export function erroSaldoPedido(s: SaldoContrato, valor: number, c: Pick<Contrat
   return undefined;
 }
 
+/** Contrato por demanda: valor anual é estimativa; o reforço de saldo não exige aditivo contratual. */
+export function valorEstimado(c: { condicoes: { valorAnualEstimado?: boolean } }): boolean {
+  return Boolean(c.condicoes.valorAnualEstimado);
+}
+
+/** Nome do registro que aumenta o saldo: "Reforço de saldo" (por demanda) ou "Aditivo de valor". */
+export function rotuloAumentoSaldo(c: { natureza?: string; condicoes: { valorAnualEstimado?: boolean } }): "Reforço de saldo" | "Aditivo de valor" {
+  return c.natureza !== "Receita" && valorEstimado(c) ? "Reforço de saldo" : "Aditivo de valor";
+}
+
 export const ALERTAS_SALDO = [80, 100] as const;
 
 /** Faixa de alerta atingida (80% ou 100% consumido), para Ações Necessárias. */

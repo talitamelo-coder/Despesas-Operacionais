@@ -6,6 +6,7 @@ import { processoAtivo, valorNegociado } from "@/domain/rules/fluxo";
 import { decisaoRegistrada, prazosDoContrato } from "@/domain/rules/prazos";
 import { normalizarBusca } from "@/domain/formatacao";
 import { pendenciasCadastro } from "@/domain/rules/cadastro";
+import { valorEstimado } from "@/domain/rules/saldo";
 import type { AcaoNecessaria, Contrato, Empresa, Fornecedor, Prioridade, ProcessoContratacao, RegrasAlerta, TipoContrato, Usuario } from "@/domain/types";
 import type { FiltrosCentral, LinhaCentral, Ordenacao, ResultadoCentral } from "./api";
 
@@ -90,6 +91,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       jira_key: c.jira_key,
       projeto: c.projeto,
       pendenciasCadastro: pendenciasCadastro(c, f, tipo.get(c.tipoContratoId)),
+      valorEstimado: valorEstimado(c),
       abas: abasDoContrato(c, procs, acoes.length > 0),
       textoBusca: normalizarBusca([c.codigo, f?.razaoSocial, f?.nomeFantasia, f?.cnpj, c.objeto, c.jira_key, c.projeto, ...procs.map((p) => p.codigo)].filter(Boolean).join(" ")),
       empresaId: c.empresaId,
@@ -135,6 +137,7 @@ export function montarLinhas(b: Base): LinhaIndexada[] {
       jira_key: p.jira_key,
       projeto: p.projeto,
       pendenciasCadastro: [],
+      valorEstimado: Boolean(p.condicoes?.valorAnualEstimado),
       abas: abasDoProcesso(acoes.length > 0),
       textoBusca: normalizarBusca([p.codigo, f?.razaoSocial, rec?.fornecedorPotencial, f?.cnpj, p.objeto, p.jira_key, p.projeto].filter(Boolean).join(" ")),
       empresaId: p.empresaId,
@@ -160,6 +163,7 @@ function passaFiltros(l: LinhaIndexada, f: FiltrosCentral, termos: string[]): bo
   if (f.moeda && l.moeda !== f.moeda) return false;
   if (f.projeto && l.projeto !== f.projeto) return false;
   if (f.cadastro === "incompleto" && l.pendenciasCadastro.length === 0) return false;
+  if (f.porDemanda && l.valorEstimado !== (f.porDemanda === "sim")) return false;
   if (f.renovacaoAutomatica && l.renovacaoAutomatica !== (f.renovacaoAutomatica === "sim")) return false;
   if (f.vencimento) {
     if (l.diasAteVencimento === undefined) return false;

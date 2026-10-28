@@ -312,6 +312,7 @@ function gerarContrato(p: ProcessoContratacao, porId: string): Contrato {
     condicoes: {
       moeda: cond.moeda ?? rec.moeda,
       valorAnual: valorNegociado(p)!,
+      valorAnualEstimado: cond.valorAnualEstimado,
       quantidade: cond.quantidade,
       unidade: cond.unidade,
       precoUnitario: cond.precoUnitario,
@@ -606,7 +607,7 @@ export const mockApi: ContratosApi = {
         centroCusto: r.centroCusto,
         projeto: r.projeto,
         status: !r.indeterminado && r.dataFim && r.dataFim < hoje() ? "Encerrado" : "Vigente",
-        condicoes: { moeda: r.moeda, valorAnual: r.valorAnual, quantidade: r.quantidade, unidade: r.unidade, periodicidadePagamento: r.periodicidade ?? "Mensal", condicaoPagamento: r.condicaoPagamento ?? "" },
+        condicoes: { moeda: r.moeda, valorAnual: r.valorAnual, valorAnualEstimado: r.porDemanda || undefined, quantidade: r.quantidade, unidade: r.unidade, periodicidadePagamento: r.periodicidade ?? "Mensal", condicaoPagamento: r.condicaoPagamento ?? "" },
         vigencia: { dataInicio: r.dataInicio, dataFim: r.dataFim, tipoVigencia: r.indeterminado ? "Prazo indeterminado" : "Prazo determinado", avisoPrevioDias: r.avisoPrevioDias, renovacaoAutomatica: r.renovacaoAutomatica, prazoGestorDias: estado.configuracao.regrasAlerta.prazoGestorPadraoDias },
         reajuste: r.indiceReajuste ? { possui: true, indice: r.indiceReajuste } : { possui: false },
         rescisao: { permite: true, possuiMulta: Boolean(r.multa), descricaoMulta: r.multa, regra: r.condicoesRescisao },
