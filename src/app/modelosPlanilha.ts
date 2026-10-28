@@ -4,6 +4,7 @@ import { ABA_FORNECEDORES, COLUNAS_FORNECEDORES } from "@/domain/rules/importaca
 import { MODELOS_CSV, type TipoImportacao } from "@/domain/rules/importacaoCsv";
 import { temPerfil } from "@/domain/rules/permissoes";
 import type { Configuracao, Empresa, TipoContrato, Usuario } from "@/domain/types";
+import { ordenarAlfabetica } from "@/domain/formatacao";
 import { gerarXlsx, lerXlsx, type ColunaModelo } from "./xlsx";
 
 /**
@@ -19,8 +20,8 @@ interface Cadastros {
 }
 
 const SIM_NAO = ["Sim", "Não"];
-const nomes = (us: Usuario[]) => us.filter((u) => u.ativo).map((u) => u.nome).sort((a, b) => a.localeCompare(b));
-const unidades = (cfg: Configuracao) => (cfg.listasAuxiliares["Unidades"]?.length ? cfg.listasAuxiliares["Unidades"] : UNIDADES_PADRAO);
+const nomes = (us: Usuario[]) => ordenarAlfabetica(us.filter((u) => u.ativo).map((u) => u.nome));
+const unidades = (cfg: Configuracao) => ordenarAlfabetica(cfg.listasAuxiliares["Unidades"]?.length ? cfg.listasAuxiliares["Unidades"] : UNIDADES_PADRAO);
 
 const COLUNA_FORNECEDOR: Partial<Record<CampoImportacao, Partial<ColunaModelo>>> = {
   codigo: { largura: 16, formato: "texto" },
@@ -66,13 +67,13 @@ export function modeloContratosFornecedores(cad: Cadastros): Uint8Array {
     }],
     listas: {
       "Tipos de conta": ["Corrente", "Poupança", "Pagamento"],
-      Empresas: cad.empresas.filter((e) => e.ativo).map((e) => e.nome),
+      Empresas: ordenarAlfabetica(cad.empresas.filter((e) => e.ativo).map((e) => e.nome)),
       Gestores: nomes(cad.usuarios.filter((u) => temPerfil(u, "Gestor"))),
       Analistas: nomes(cad.usuarios.filter((u) => temPerfil(u, "Suprimentos") || temPerfil(u, "Administrador"))),
       Moedas: cad.config.moedas,
       "Sim/Não": SIM_NAO,
-      "Tipos de contrato": cad.tipos.filter((t) => t.ativo).map((t) => t.nome),
-      Projetos: cad.config.listasAuxiliares["Projetos"] ?? [],
+      "Tipos de contrato": ordenarAlfabetica(cad.tipos.filter((t) => t.ativo).map((t) => t.nome)),
+      Projetos: ordenarAlfabetica(cad.config.listasAuxiliares["Projetos"] ?? []),
       Unidades: unidades(cad.config),
       Periodicidades: cad.config.periodicidades,
       "Índices de reajuste": [...cad.config.indicesReajuste, "Não"],

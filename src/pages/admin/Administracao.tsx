@@ -22,7 +22,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { etapasDoProcesso, opcoesFluxo } from "@/domain/rules/fluxo";
 import { CAMPOS_IMPORTACAO, chaveDuplicidade, identificadorFornecedor, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
-import { formatarCnpj, normalizarBusca } from "@/domain/formatacao";
+import { formatarCnpj, normalizarBusca, ordenarAlfabetica } from "@/domain/formatacao";
 import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados, type ResultadoImportacaoFornecedores } from "@/services";
 
@@ -401,14 +401,15 @@ function Tipos() {
   );
 }
 
-function ListaEditavel({ titulo, itens, onChange }: { titulo: string; itens: string[]; onChange: (l: string[]) => void }) {
+/** `ordenada`: exibe em ordem alfabética (desligado para listas com ordem de uso, como moedas e periodicidades). */
+function ListaEditavel({ titulo, itens, onChange, ordenada = true }: { titulo: string; itens: string[]; onChange: (l: string[]) => void; ordenada?: boolean }) {
   const [novo, setNovo] = useState("");
   return (
     <Card>
       <CardHeader titulo={titulo} />
       <CardBody>
         <div className="mb-3 flex flex-wrap gap-1.5">
-          {itens.map((i) => (
+          {(ordenada ? ordenarAlfabetica(itens) : itens).map((i) => (
             <span key={i} className="inline-flex items-center gap-1 rounded-full border border-borda bg-fundo py-0.5 pr-1 pl-2.5 text-xs">
               {i}
               <button onClick={() => onChange(itens.filter((x) => x !== i))} className="rounded-full p-0.5 hover:bg-critico-50 hover:text-critico-600" aria-label={`Remover ${i}`}>
@@ -448,8 +449,8 @@ function Listas() {
     <div className="space-y-4">
       <div className="flex justify-end"><Button icone={<Save size={16} />} disabled={!sujo} onClick={salvar}>Salvar alterações</Button></div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <ListaEditavel titulo="Moedas (código ISO)" {...lista("moedas")} />
-        <ListaEditavel titulo="Periodicidades" {...lista("periodicidades")} />
+        <ListaEditavel titulo="Moedas (código ISO)" ordenada={false} {...lista("moedas")} />
+        <ListaEditavel titulo="Periodicidades" ordenada={false} {...lista("periodicidades")} />
         <ListaEditavel titulo="Fontes de cotação" {...lista("fontesCotacao")} />
         <ListaEditavel titulo="Índices de reajuste" {...lista("indicesReajuste")} />
         <ListaEditavel titulo="Tipos (origens) de saving" {...lista("origensSaving")} />

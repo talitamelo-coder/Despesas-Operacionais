@@ -1,3 +1,4 @@
+import { ordenarAlfabetica } from "@/domain/formatacao";
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { useApp } from "@/app/contexto";
@@ -35,7 +36,7 @@ export function UsuarioForm({
   const { cad } = useApp();
   const [verSenha, setVerSenha] = useState(false);
   const set = (p: Partial<Usuario>) => onChange({ ...u, ...p });
-  const areas = cad.config.listasAuxiliares["Áreas"]?.length ? cad.config.listasAuxiliares["Áreas"] : AREAS_PADRAO;
+  const areas = ordenarAlfabetica(cad.config.listasAuxiliares["Áreas"]?.length ? cad.config.listasAuxiliares["Áreas"] : AREAS_PADRAO);
   const filiais = u.empresasIds ?? [];
   const alternarFilial = (id: string) => set({ empresasIds: filiais.includes(id) ? filiais.filter((x) => x !== id) : [...filiais, id] });
   const novo = !u.id;

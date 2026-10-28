@@ -47,3 +47,8 @@ export function formatarCnpj(cnpj?: string): string {
 export function normalizarBusca(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
+
+/** Ordem alfabética em português (ignora acento e maiúsculas; "Item 2" antes de "Item 10"). Não altera a lista original. */
+export function ordenarAlfabetica<T>(itens: readonly T[], texto: (x: T) => string = (x) => String(x)): T[] {
+  return [...itens].sort((a, b) => texto(a).localeCompare(texto(b), "pt-BR", { sensitivity: "base", numeric: true }));
+}

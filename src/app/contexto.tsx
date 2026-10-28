@@ -1,3 +1,4 @@
+import { ordenarAlfabetica } from "@/domain/formatacao";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { UNIDADES_PADRAO } from "@/domain/rules/cadastro";
 import { temPerfil, usuarioPode, type Permissao } from "@/domain/rules/permissoes";
@@ -64,7 +65,17 @@ export function ProvedorApp({ children }: { children: ReactNode }) {
   useEffect(() => {
     const carregar = () =>
       Promise.all([api.listarUsuarios(), api.listarEmpresas(), api.listarFornecedores(), api.listarClientes(), api.listarTiposContrato(), api.obterConfiguracao(), api.obterModoDados()]).then(
-        ([usuarios, empresas, fornecedores, clientes, tipos, config, modo]) => setCad({ usuarios, empresas, fornecedores, clientes, tipos, config, modo }),
+        // Cadastros em ordem alfabética: todas as listas, tabelas e seleções já chegam ordenadas.
+        ([usuarios, empresas, fornecedores, clientes, tipos, config, modo]) =>
+          setCad({
+            usuarios: ordenarAlfabetica(usuarios, (u) => u.nome),
+            empresas: ordenarAlfabetica(empresas, (e) => e.nome),
+            fornecedores: ordenarAlfabetica(fornecedores, (f) => f.razaoSocial),
+            clientes: ordenarAlfabetica(clientes, (c) => c.razaoSocial),
+            tipos: ordenarAlfabetica(tipos, (t) => t.nome),
+            config,
+            modo,
+          }),
       );
     carregar();
     return aoMudar(carregar);
@@ -150,25 +161,27 @@ export function useApp(): Contexto {
   return c;
 }
 
-/** Opções de select a partir dos cadastros. */
+const porRotulo = <T extends { rotulo: string }>(l: T[]) => ordenarAlfabetica(l, (x) => x.rotulo);
+
+/** Opções de select a partir dos cadastros (catálogos em ordem alfabética; moedas e periodicidades na ordem de uso). */
 export function useOpcoes() {
   const { cad } = useApp();
   return useMemo(
     () => ({
       empresas: cad.empresas.filter((e) => e.ativo).map((e) => ({ valor: e.id, rotulo: e.nome })),
       fornecedores: cad.fornecedores.map((f) => ({ valor: f.fornecedor_id, rotulo: f.statusCadastral === "Potencial" ? `${f.razaoSocial} (potencial)` : f.razaoSocial })),
-      gestores: cad.usuarios.filter((u) => temPerfil(u, "Gestor") && !u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
-      diretores: cad.usuarios.filter((u) => u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
-      analistas: cad.usuarios.filter((u) => (temPerfil(u, "Suprimentos") || temPerfil(u, "Administrador")) && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) })),
+      gestores: porRotulo(cad.usuarios.filter((u) => temPerfil(u, "Gestor") && !u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) }))),
+      diretores: porRotulo(cad.usuarios.filter((u) => u.diretor && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) }))),
+      analistas: porRotulo(cad.usuarios.filter((u) => (temPerfil(u, "Suprimentos") || temPerfil(u, "Administrador")) && u.ativo).map((u) => ({ valor: u.id, rotulo: nomeDeExibicao(u) }))),
       tipos: cad.tipos.filter((t) => t.ativo).map((t) => ({ valor: t.id, rotulo: t.nome })),
       moedas: cad.config.moedas.map((m) => ({ valor: m, rotulo: m })),
       periodicidades: cad.config.periodicidades.map((m) => ({ valor: m, rotulo: m })),
       fontesCotacao: cad.config.fontesCotacao.map((m) => ({ valor: m, rotulo: m })),
       indices: cad.config.indicesReajuste.map((m) => ({ valor: m, rotulo: m })),
-      origensSaving: cad.config.origensSaving.map((m) => ({ valor: m, rotulo: m })),
-      origensOportunidade: cad.config.origensOportunidade.map((m) => ({ valor: m, rotulo: m })),
-      projetos: (cad.config.listasAuxiliares["Projetos"] ?? []).map((m) => ({ valor: m, rotulo: m })),
-      unidades: (cad.config.listasAuxiliares["Unidades"]?.length ? cad.config.listasAuxiliares["Unidades"] : UNIDADES_PADRAO).map((m) => ({ valor: m, rotulo: m })),
+      origensSaving: ordenarAlfabetica(cad.config.origensSaving).map((m) => ({ valor: m, rotulo: m })),
+      origensOportunidade: ordenarAlfabetica(cad.config.origensOportunidade).map((m) => ({ valor: m, rotulo: m })),
+      projetos: ordenarAlfabetica(cad.config.listasAuxiliares["Projetos"] ?? []).map((m) => ({ valor: m, rotulo: m })),
+      unidades: ordenarAlfabetica(cad.config.listasAuxiliares["Unidades"]?.length ? cad.config.listasAuxiliares["Unidades"] : UNIDADES_PADRAO).map((m) => ({ valor: m, rotulo: m })),
     }),
     [cad],
   );
