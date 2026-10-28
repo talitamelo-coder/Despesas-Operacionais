@@ -16,6 +16,7 @@ Base: `/api/v1`. JSON em UTF-8. Datas `YYYY-MM-DD`, data-hora ISO 8601. Valores 
 |---|---|---|---|
 | GET | `/usuarios` | `listarUsuarios` | |
 | PUT | `/usuarios/{id\|novo}` | `salvarUsuario` | Admin. Corpo pode trazer `senha` (só no cadastro/redefinição); a resposta nunca devolve senha nem hash |
+| POST | `/usuarios/lote` | `adicionarUsuariosEmLote` | Admin. `{ nomes, perfil }`: cria só com o nome (e-mail, área e senha a completar; sem senha não há acesso). Ignora nome já cadastrado. Retorna `{ criados, ignorados }` |
 | GET | `/empresas` · PUT `/empresas/{id\|novo}` | `listarEmpresas` · `salvarEmpresa` | |
 | GET | `/fornecedores` | `listarFornecedores` | Espelho do sistema atual |
 | POST | `/fornecedores/potenciais` | `criarFornecedorPotencial` | Pré-cadastro durante cotação |

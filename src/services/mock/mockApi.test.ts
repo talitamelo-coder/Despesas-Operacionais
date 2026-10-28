@@ -477,3 +477,16 @@ describe("contrato por demanda", () => {
     expect((await api.obterSaldoContrato(c.contrato_id, "u-sup1")).saldo.contratado).toBeCloseTo(600000, -3);
   });
 });
+
+describe("usuários em lote", () => {
+  it("cria só quem não existe; o cadastro é completado depois", async () => {
+    const r = await api.adicionarUsuariosEmLote(["Carlos Mendes", "Ana Carolina Lima Ternes", "Fernando Diego Glatz", "fernando diego glatz"], "Gestor", "u-admin");
+    expect(r.criados.map((u) => u.nome)).toEqual(["Ana Carolina Lima Ternes", "Fernando Diego Glatz"]);
+    expect(r.ignorados).toEqual(["Carlos Mendes", "Fernando Diego Glatz"]);
+    const ana = r.criados[0];
+    expect(ana).toMatchObject({ perfil: "Gestor", email: "", temSenha: false, nomeExibicao: "Ana Ternes" });
+    const completo = await api.salvarUsuario({ ...ana, email: "ana.ternes@exemplo.com", area: "Comercial" }, "u-admin", "Senha-123");
+    expect(completo.temSenha).toBe(true);
+    await expect(api.adicionarUsuariosEmLote(["X Y"], "Gestor", "u-sup1")).rejects.toThrow();
+  });
+});

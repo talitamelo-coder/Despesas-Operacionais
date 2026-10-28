@@ -18,7 +18,7 @@ import { acharFornecedorCadastrado, completarFornecedor } from "@/domain/rules/i
 import { aplicarMovimentacao, chaveEmail, dominiosDoGrupo, emailValido, erroAtribuicao, errosLicenca, errosMovimentacao, parametroNaData, posicaoNaData, valorAnualOriginal } from "@/domain/rules/licencas";
 import { erroParametro } from "@/domain/rules/parametros";
 import { erroUsoLinha, errosLinha, somenteDigitosLinha } from "@/domain/rules/telefonia";
-import { gerarCredencial, nomeDeExibicao, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
+import { gerarCredencial, nomeCurto, nomeDeExibicao, planejarUsuariosEmLote, usuarioPublico, validarUsuario } from "@/domain/rules/usuario";
 import { calcularIndicadores } from "@/domain/rules/indicadores";
 import { temPerfil, usuarioPode, type Permissao } from "@/domain/rules/permissoes";
 import { validarSaving } from "@/domain/rules/saving";
@@ -386,6 +386,24 @@ export const mockApi: ContratosApi = {
     }
     persistir();
     return usuarioPublico(clone(u));
+  },
+  async adicionarUsuariosEmLote(nomes, perfil, porId) {
+    exigir(porId, "administrar");
+    const criados: Usuario[] = [];
+    const ignorados: string[] = [];
+    // A tela já mostrou os "possíveis duplicados" e mandou só os escolhidos; aqui só se barra o nome idêntico.
+    for (const p of planejarUsuariosEmLote(nomes, estado.usuarios)) {
+      if (p.situacao === "Já cadastrado" || p.situacao === "Repetido na lista") {
+        ignorados.push(p.nome);
+        continue;
+      }
+      const u: Usuario = { id: novoId("u"), nome: p.nome, nomeExibicao: nomeCurto(p.nome), email: "", perfil, ativo: true };
+      estado.usuarios.push(u);
+      registrar("configuracao", u.id, porId, "Usuário criado em lote (e-mail, área e senha a completar)", "nome", undefined, u.nome);
+      criados.push(usuarioPublico(clone(u)));
+    }
+    persistir();
+    return { criados, ignorados };
   },
   async listarEmpresas() {
     return clone(estado.empresas);

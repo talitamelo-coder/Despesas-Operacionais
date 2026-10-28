@@ -33,6 +33,7 @@ const q = (o: object) => {
 export const restApi: ContratosApi = {
   listarUsuarios: () => http("GET", "/usuarios"),
   salvarUsuario: (u, porId, senha) => http("PUT", `/usuarios/${u.id || "novo"}`, { ...u, senha }, porId),
+  adicionarUsuariosEmLote: (nomes, perfil, porId) => http("POST", "/usuarios/lote", { nomes, perfil }, porId),
   listarEmpresas: () => http("GET", "/empresas"),
   salvarEmpresa: (e, porId) => http("PUT", `/empresas/${e.id || "novo"}`, e, porId),
   listarFornecedores: () => http("GET", "/fornecedores"),

@@ -48,6 +48,7 @@ import type {
   StatusJuridico,
   TipoContrato,
   TipoProcesso,
+  Perfil,
   Usuario,
   ValidacaoSuprimentos,
 } from "@/domain/types";
@@ -162,6 +163,8 @@ export interface ContratosApi {
   listarUsuarios(): Promise<Usuario[]>;
   /** senha: obrigatória no cadastro; na edição, vazia mantém a atual. Só o hash é guardado. */
   salvarUsuario(u: Usuario, porId: string, senha?: string): Promise<Usuario>;
+  /** Cria usuários só com o nome (e-mail, área e senha a completar). Ignora quem já existe com o mesmo nome. */
+  adicionarUsuariosEmLote(nomes: string[], perfil: Perfil, porId: string): Promise<{ criados: Usuario[]; ignorados: string[] }>;
   listarEmpresas(): Promise<Empresa[]>;
   salvarEmpresa(e: Empresa, porId: string): Promise<Empresa>;
   listarFornecedores(): Promise<Fornecedor[]>;

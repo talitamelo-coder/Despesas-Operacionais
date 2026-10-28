@@ -30,6 +30,63 @@ export function nomeDeExibicao(u: Pick<Usuario, "nome" | "nomeExibicao">): strin
   return u.nomeExibicao?.trim() || nomeCurto(u.nome);
 }
 
+/** Nome completo padronizado: espaços únicos e partículas em minúsculas ("Ana De Souza" → "Ana de Souza"). */
+export function padronizarNome(nome: string): string {
+  const partes = nome.trim().split(/\s+/).filter(Boolean);
+  return partes
+    .map((p, i) => {
+      if (i > 0 && PARTICULAS.has(p.toLowerCase())) return p.toLowerCase();
+      return p === p.toUpperCase() || p === p.toLowerCase() ? p.charAt(0).toUpperCase() + p.slice(1).toLowerCase() : p;
+    })
+    .join(" ");
+}
+
+const chaveNome = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/\s+/g, " ");
+const tokens = (s: string) => chaveNome(s).split(" ").filter((t) => !PARTICULAS.has(t));
+
+export type SituacaoNomeLote = "Novo" | "Já cadastrado" | "Possível duplicado" | "Repetido na lista";
+
+export interface PlanoUsuarioLote {
+  nome: string;
+  situacao: SituacaoNomeLote;
+  /** Usuário existente parecido (mesmo primeiro nome e sobrenomes contidos um no outro). */
+  parecido?: string;
+}
+
+/**
+ * Cadastro em lote a partir de uma lista de nomes (um por linha). Quem já existe (mesmo nome, sem
+ * diferenciar acento/maiúscula) é ignorado; nome parecido com um existente ("Rodrigo Gabriel" ×
+ * "Rodrigo Waetge Gabriel") é apontado para a pessoa decidir.
+ */
+export function planejarUsuariosEmLote(nomes: string[], existentes: Pick<Usuario, "nome" | "nomeExibicao">[]): PlanoUsuarioLote[] {
+  const vistos = new Set<string>();
+  const plano: PlanoUsuarioLote[] = [];
+  for (const bruto of nomes) {
+    const nome = padronizarNome(bruto);
+    if (!nome) continue;
+    const chave = chaveNome(nome);
+    if (vistos.has(chave)) {
+      plano.push({ nome, situacao: "Repetido na lista" });
+      continue;
+    }
+    vistos.add(chave);
+    const igual = existentes.find((u) => chaveNome(u.nome) === chave || (u.nomeExibicao && chaveNome(u.nomeExibicao) === chave));
+    if (igual) {
+      plano.push({ nome, situacao: "Já cadastrado", parecido: igual.nome });
+      continue;
+    }
+    const t = tokens(nome);
+    const parecido = existentes.find((u) => {
+      const e = tokens(u.nome);
+      if (!e.length || e[0] !== t[0]) return false;
+      const [menor, maior] = e.length <= t.length ? [e, t] : [t, e];
+      return menor.length >= 2 && menor.every((x) => maior.includes(x));
+    });
+    plano.push(parecido ? { nome, situacao: "Possível duplicado", parecido: parecido.nome } : { nome, situacao: "Novo" });
+  }
+  return plano;
+}
+
 /** Erros por campo. `novo`: senha obrigatória no cadastro; na edição, vazia = manter a atual. */
 export function validarUsuario(u: Usuario, senha: string, opcoes: { novo: boolean; emailsExistentes: string[] }): Record<string, string> {
   const e: Record<string, string> = {};

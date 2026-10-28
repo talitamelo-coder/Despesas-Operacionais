@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { conferirSenha, gerarCredencial, usuarioPublico, validarUsuario, nomeCurto, nomeDeExibicao } from "./usuario";
+import { conferirSenha, gerarCredencial, nomeCurto, nomeDeExibicao, padronizarNome, planejarUsuariosEmLote, usuarioPublico, validarUsuario } from "./usuario";
 import type { Usuario } from "../types";
 import { comPerfis, perfisDo, temPerfil, usuarioPode } from "./permissoes";
 
@@ -50,3 +50,29 @@ describe("cadastro de usuário", () => {
     expect(pub.temSenha).toBe(true);
   });
 });
+
+describe("cadastro de usuários em lote", () => {
+  it("padroniza o nome, ignora quem já existe e aponta nomes parecidos", () => {
+    expect(padronizarNome("  alice De Azeredo   Tomaz ")).toBe("Alice de Azeredo Tomaz");
+    const existentes = [
+      { nome: "Bruno Batista Santa Rosa Soares de Oliveira" },
+      { nome: "Rodrigo Gabriel" },
+      { nome: "Juliana Veronez" },
+      { nome: "Marina Lopes", nomeExibicao: "Marina Lopes" },
+    ];
+    const plano = planejarUsuariosEmLote(
+      ["Bruno Batista Santa Rosa Soares De Oliveira", "Rodrigo Waetge Gabriel", "Juliana Veronez Dias", "Tiago Araujo De Gouvea", "tiago araújo de gouvea", "", "Rodrigo Dos Santos Moreira"],
+      existentes,
+    );
+    expect(plano.map((p) => [p.nome, p.situacao])).toEqual([
+      ["Bruno Batista Santa Rosa Soares de Oliveira", "Já cadastrado"],
+      ["Rodrigo Waetge Gabriel", "Possível duplicado"],
+      ["Juliana Veronez Dias", "Possível duplicado"],
+      ["Tiago Araujo de Gouvea", "Novo"],
+      ["Tiago Araújo de Gouvea", "Repetido na lista"],
+      ["Rodrigo dos Santos Moreira", "Novo"],
+    ]);
+    expect(plano[1].parecido).toBe("Rodrigo Gabriel");
+  });
+});
+

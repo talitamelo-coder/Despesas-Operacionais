@@ -7,13 +7,13 @@ import { ABA_FORNECEDORES, processarFornecedores, type RelatorioFornecedores } f
 import { nomeDeExibicao } from "@/domain/rules/usuario";
 import { AuditoriaLista } from "@/components/dominio/AuditoriaLista";
 import { FornecedorForm } from "@/components/dominio/FornecedorForm";
-import { UsuarioForm } from "@/components/dominio/UsuarioForm";
-import { validarUsuario } from "@/domain/rules/usuario";
+import { PERFIS, UsuarioForm } from "@/components/dominio/UsuarioForm";
+import { planejarUsuariosEmLote, validarUsuario, type SituacaoNomeLote } from "@/domain/rules/usuario";
 import { fornecedorMascarado, validarFornecedor } from "@/domain/rules/fornecedor";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import { Input, InputNumero, Select, Toggle } from "@/components/ui/Campos";
+import { Input, InputNumero, Select, Textarea, Toggle } from "@/components/ui/Campos";
 import { Aviso, Etapas } from "@/components/ui/Diversos";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -23,7 +23,7 @@ import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { etapasDoProcesso, opcoesFluxo } from "@/domain/rules/fluxo";
 import { CAMPOS_IMPORTACAO, chaveDuplicidade, identificadorFornecedor, parseCSV, processarImportacao, sugerirMapeamento, type Mapeamento, type RelatorioImportacao } from "@/domain/rules/importacao";
 import { formatarCnpj, normalizarBusca, ordenarAlfabetica } from "@/domain/formatacao";
-import type { Configuracao, Empresa, Fornecedor, TipoContrato, Usuario } from "@/domain/types";
+import type { Configuracao, Empresa, Fornecedor, Perfil, TipoContrato, Usuario } from "@/domain/types";
 import { api, fonteDados, type ResultadoImportacaoFornecedores } from "@/services";
 
 const ABAS = [
@@ -283,6 +283,7 @@ function Usuarios() {
   const [edit, setEdit] = useState<Usuario>();
   const [senha, setSenha] = useState("");
   const [tentou, setTentou] = useState(false);
+  const [lote, setLote] = useState(false);
   const abrir = (u: Usuario) => (setEdit(structuredClone(u)), setSenha(""), setTentou(false));
   const erros = edit
     ? validarUsuario(edit, senha, {
@@ -303,7 +304,12 @@ function Usuarios() {
       <CardHeader
         titulo="Usuários"
         subtitulo="Saving e baseline só podem ser alterados por Suprimentos ou Administrador"
-        acoes={<Button tamanho="sm" icone={<Plus size={14} />} onClick={() => abrir({ id: "", nome: "", email: "", perfil: "Solicitante", empresasIds: [], ativo: true })}>Novo usuário</Button>}
+        acoes={
+          <>
+            <Button tamanho="sm" variante="secundario" icone={<Plus size={14} />} onClick={() => setLote(true)}>Adicionar vários</Button>
+            <Button tamanho="sm" icone={<Plus size={14} />} onClick={() => abrir({ id: "", nome: "", email: "", perfil: "Solicitante", empresasIds: [], ativo: true })}>Novo usuário</Button>
+          </>
+        }
       />
       <Tabela<Usuario>
         linhas={cad.usuarios}
@@ -334,7 +340,80 @@ function Usuarios() {
       >
         {edit && <UsuarioForm u={edit} onChange={setEdit} senha={senha} onSenha={setSenha} erros={tentou ? erros : {}} />}
       </Modal>
+      {lote && <UsuariosEmLote onFechar={() => setLote(false)} />}
     </Card>
+  );
+}
+
+const TOM_LOTE: Record<SituacaoNomeLote, "sucesso" | "neutro" | "alerta"> = { Novo: "sucesso", "Já cadastrado": "neutro", "Repetido na lista": "neutro", "Possível duplicado": "alerta" };
+
+/** Cola uma lista de nomes (um por linha): cria quem não existe; e-mail, área e senha ficam a completar. */
+function UsuariosEmLote({ onFechar }: { onFechar: () => void }) {
+  const { cad, usuario, executar, notificar } = useApp();
+  const [texto, setTexto] = useState("");
+  const [perfil, setPerfil] = useState<Perfil>("Gestor");
+  const [incluir, setIncluir] = useState<Set<string>>(new Set());
+  const plano = planejarUsuariosEmLote(texto.split(/\r?\n/), cad.usuarios);
+  const escolhidos = plano.filter((p) => p.situacao === "Novo" || (p.situacao === "Possível duplicado" && incluir.has(p.nome)));
+  const alternar = (n: string) => setIncluir((s) => (s.has(n) ? new Set([...s].filter((x) => x !== n)) : new Set([...s, n])));
+  const cadastrar = async () => {
+    const r = await executar(() => api.adicionarUsuariosEmLote(escolhidos.map((p) => p.nome), perfil, usuario.id));
+    if (r) {
+      onFechar();
+      notificar(`${r.criados.length} usuário(s) cadastrado(s). Complete e-mail, área e senha de cada um (coluna “a completar”).`);
+    }
+  };
+  return (
+    <Modal
+      aberto
+      largura="xl"
+      titulo="Adicionar vários usuários"
+      onFechar={onFechar}
+      rodape={
+        <>
+          <Button variante="secundario" onClick={onFechar}>Cancelar</Button>
+          <Button disabled={!escolhidos.length} onClick={cadastrar}>Cadastrar {escolhidos.length || ""}</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[2fr_1fr]">
+          <Textarea rotulo="Nomes completos (um por linha)" rows={8} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={"Ana Carolina Lima Ternes\nFernando Diego Glatz\n…"} />
+          <div className="space-y-2">
+            <Select rotulo="Perfil" vazio={false} value={perfil} onChange={(e) => setPerfil(e.target.value as Perfil)} opcoes={PERFIS.map((p) => ({ valor: p, rotulo: ROTULO_PERFIL[p] }))} />
+            <p className="text-xs text-texto-suave">Cada pessoa entra só com o nome. E-mail, área e senha ficam “a completar”: sem senha, ainda não há acesso ao sistema.</p>
+          </div>
+        </div>
+        {plano.length > 0 && (
+          <Tabela
+            linhas={plano}
+            chave={(p) => p.nome + p.situacao}
+            colunas={[
+              { id: "n", titulo: "Nome", render: (p) => p.nome },
+              { id: "s", titulo: "Situação", render: (p) => <Badge tom={TOM_LOTE[p.situacao]}>{p.situacao}</Badge> },
+              {
+                id: "d",
+                titulo: "Detalhe",
+                maxLargura: "max-w-[420px]",
+                render: (p) =>
+                  p.situacao === "Possível duplicado" ? (
+                    <label className="flex items-center gap-2 text-xs">
+                      <input type="checkbox" checked={incluir.has(p.nome)} onChange={() => alternar(p.nome)} />
+                      Parece “{p.parecido}”. Cadastrar mesmo assim?
+                    </label>
+                  ) : p.situacao === "Já cadastrado" ? (
+                    <span className="text-xs text-texto-suave">Já existe: não será criado de novo</span>
+                  ) : p.situacao === "Repetido na lista" ? (
+                    <span className="text-xs text-texto-suave">Aparece mais de uma vez na lista</span>
+                  ) : (
+                    <span className="text-xs text-texto-suave">Será cadastrado</span>
+                  ),
+              },
+            ]}
+          />
+        )}
+      </div>
+    </Modal>
   );
 }
 
