@@ -9,7 +9,6 @@ import { Input, Select, type OpcaoSelect } from "@/components/ui/Campos";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Paginacao, Tabela, type Coluna } from "@/components/ui/Tabela";
-import { Tabs } from "@/components/ui/Tabs";
 import { PrioridadeBadge, StatusBadge } from "@/components/ui/status";
 import { ABAS_CENTRAL, type AbaCentral } from "@/domain/rules/central";
 import { etapasDoProcesso, opcoesFluxo, TIPOS_PROCESSO } from "@/domain/rules/fluxo";
@@ -68,9 +67,9 @@ export function CentralContratos() {
     { grupo: "Contrato", chave: "moeda", rotulo: "Moeda", opcoes: op.moedas, vazio: "Todas" },
     { grupo: "Responsáveis", chave: "gestorId", rotulo: "Gestor", opcoes: op.gestores },
     { grupo: "Responsáveis", chave: "analistaId", rotulo: "Analista", opcoes: op.analistas },
-    { grupo: "Situação", chave: "status", rotulo: "Status", opcoes: statusOpcoes.map((x) => ({ valor: x, rotulo: x })) },
-    { grupo: "Situação", chave: "tipoProcesso", rotulo: "Tipo de processo", opcoes: TIPOS_PROCESSO.map((t) => ({ valor: t, rotulo: t })) },
-    { grupo: "Situação", chave: "cadastro", rotulo: "Cadastro", opcoes: [{ valor: "incompleto", rotulo: "A completar" }] },
+    { grupo: "Status e processo", chave: "status", rotulo: "Status", opcoes: statusOpcoes.map((x) => ({ valor: x, rotulo: x })) },
+    { grupo: "Status e processo", chave: "tipoProcesso", rotulo: "Tipo de processo", opcoes: TIPOS_PROCESSO.map((t) => ({ valor: t, rotulo: t })) },
+    { grupo: "Status e processo", chave: "cadastro", rotulo: "Cadastro", opcoes: [{ valor: "incompleto", rotulo: "A completar" }] },
     {
       grupo: "Prazos",
       chave: "vencimento",
@@ -87,13 +86,13 @@ export function CentralContratos() {
     { grupo: "Prazos", chave: "renovacaoAutomatica", rotulo: "Renovação automática", vazio: "Todas", opcoes: [{ valor: "sim", rotulo: "Sim" }, { valor: "nao", rotulo: "Não" }] },
   ];
   const ativos = [
+    ...(aba !== "Todos" ? [{ chave: "aba", texto: aba }] : []),
     ...(busca ? [{ chave: "busca", texto: `Pesquisa: “${busca}”` }] : []),
     ...camposFiltro.filter((c) => params.get(c.chave)).map((c) => ({ chave: c.chave, texto: `${c.rotulo}: ${c.opcoes.find((o) => o.valor === params.get(c.chave))?.rotulo ?? params.get(c.chave)}` })),
   ];
   const aplicarFiltros = (valores: Record<string, string>) => {
     const n = new URLSearchParams();
-    if (params.get("aba")) n.set("aba", params.get("aba")!);
-    for (const [k, v] of Object.entries(valores)) if (v.trim()) n.set(k, v.trim());
+    for (const [k, v] of Object.entries(valores)) if (v.trim() && !(k === "aba" && v === "Todos")) n.set(k, v.trim());
     setParams(n, { replace: true });
   };
 
@@ -208,13 +207,6 @@ export function CentralContratos() {
       />
 
       <Card>
-        <Tabs
-          className="px-2"
-          abas={ABAS_CENTRAL.map((a) => ({ id: a, rotulo: a, contador: dados?.contagemPorAba[a] }))}
-          ativa={aba}
-          onChange={(a) => setParam("aba", a === "Todos" ? undefined : a)}
-        />
-
         {/* Filtros ficam numa tela própria; aqui só o botão e o que está aplicado. */}
         <div className="flex flex-wrap items-center gap-2 border-b border-borda px-4 py-2">
           <Button tamanho="sm" variante={ativos.length ? "primario" : "secundario"} icone={<Filter size={14} />} onClick={() => setFiltroAberto(true)}>
@@ -238,7 +230,8 @@ export function CentralContratos() {
         {filtroAberto && (
           <FiltroCentral
             campos={camposFiltro}
-            iniciais={Object.fromEntries([["busca", busca], ...camposFiltro.map((c) => [c.chave, params.get(c.chave) ?? ""])])}
+            iniciais={Object.fromEntries([["aba", aba], ["busca", busca], ...camposFiltro.map((c) => [c.chave, params.get(c.chave) ?? ""])])}
+            situacoes={ABAS_CENTRAL.map((a) => ({ valor: a, contador: dados?.contagemPorAba[a] }))}
             onAplicar={(v) => (aplicarFiltros(v), setFiltroAberto(false))}
             onFechar={() => setFiltroAberto(false)}
           />
@@ -274,7 +267,7 @@ export function CentralContratos() {
 }
 
 interface CampoFiltro {
-  grupo: "Contrato" | "Responsáveis" | "Situação" | "Prazos";
+  grupo: "Contrato" | "Responsáveis" | "Status e processo" | "Prazos";
   chave: (typeof CHAVES_FILTRO)[number];
   rotulo: string;
   opcoes: OpcaoSelect[];
@@ -282,7 +275,20 @@ interface CampoFiltro {
 }
 
 /** Tela de filtro: campos agrupados em quadros; só vale ao clicar em Aplicar. */
-function FiltroCentral({ campos, iniciais, onAplicar, onFechar }: { campos: CampoFiltro[]; iniciais: Record<string, string>; onAplicar: (v: Record<string, string>) => void; onFechar: () => void }) {
+function FiltroCentral({
+  campos,
+  iniciais,
+  situacoes,
+  onAplicar,
+  onFechar,
+}: {
+  campos: CampoFiltro[];
+  iniciais: Record<string, string>;
+  /** Visões da Central (antes eram abas), com a contagem atual. */
+  situacoes: { valor: AbaCentral; contador?: number }[];
+  onAplicar: (v: Record<string, string>) => void;
+  onFechar: () => void;
+}) {
   const [v, setV] = useState(iniciais);
   const grupos = [...new Set(campos.map((c) => c.grupo))];
   return (
@@ -293,7 +299,7 @@ function FiltroCentral({ campos, iniciais, onAplicar, onFechar }: { campos: Camp
       onFechar={onFechar}
       rodape={
         <>
-          <Button variante="fantasma" className="mr-auto" onClick={() => setV(Object.fromEntries(Object.keys(v).map((k) => [k, ""])))}>Limpar</Button>
+          <Button variante="fantasma" className="mr-auto" onClick={() => setV({ ...Object.fromEntries(Object.keys(v).map((k) => [k, ""])), aba: "Todos" })}>Limpar</Button>
           <Button variante="secundario" onClick={onFechar}>Cancelar</Button>
           <Button onClick={() => onAplicar(v)}>Aplicar</Button>
         </>
@@ -306,6 +312,18 @@ function FiltroCentral({ campos, iniciais, onAplicar, onFechar }: { campos: Camp
           onAplicar(v);
         }}
       >
+        <fieldset className="rounded-md border border-borda px-3 pt-1 pb-3">
+          <legend className="px-1 text-xs font-semibold text-texto-suave">Situação</legend>
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {situacoes.map((sit) => (
+              <label key={sit.valor} className="flex cursor-pointer items-center gap-1.5 text-sm">
+                <input type="radio" name="situacao" checked={(v.aba || "Todos") === sit.valor} onChange={() => setV({ ...v, aba: sit.valor })} />
+                {sit.valor}
+                {sit.contador !== undefined && <span className="text-xs text-texto-fraco tabular">({sit.contador})</span>}
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <Input rotulo="Pesquisa" autoFocus placeholder="Código, fornecedor, CNPJ, objeto, JIRA ou projeto" value={v.busca ?? ""} onChange={(e) => setV({ ...v, busca: e.target.value })} />
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {grupos.map((g) => (
