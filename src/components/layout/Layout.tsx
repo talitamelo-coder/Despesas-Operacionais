@@ -1,7 +1,7 @@
 import { temPerfil } from "@/domain/rules/permissoes";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useApp } from "@/app/contexto";
 import { ROTULO_PERFIL } from "@/domain/rules/permissoes";
 import { useConsulta } from "@/hooks/useConsulta";
@@ -23,7 +23,6 @@ const MENU: { para: string; rotulo: string; fim?: boolean; contador?: boolean; p
 
 export function Layout() {
   const { usuario, cad, trocarUsuario, pode, nomeUsuario } = useApp();
-  const [busca, setBusca] = useState("");
   const [sinoAberto, setSinoAberto] = useState(false);
   const navegar = useNavigate();
   const { dados: acoes } = useConsulta(() => api.listarAcoes(), []);
@@ -42,21 +41,6 @@ export function Layout() {
               Akross <span className="font-normal text-white/60">· Gestão de Contratos</span>
             </p>
           </div>
-          <form
-            className="relative min-w-0 max-w-md flex-1"
-            onSubmit={(e) => {
-              e.preventDefault();
-              navegar(`/contratos?busca=${encodeURIComponent(busca)}`);
-            }}
-          >
-            <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-white/50" />
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por código, fornecedor, CNPJ, objeto, JIRA ou projeto"
-              className="h-8 w-full rounded border border-transparent bg-white/10 pr-3 pl-9 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:bg-white/15 focus:outline-none"
-            />
-          </form>
           <div className="ml-auto flex shrink-0 items-center gap-2 md:gap-3">
             {fonteDados === "mock" &&
               (cad.modo === "demonstracao" ? (
